@@ -1,0 +1,10 @@
+{
+    "no-duplicate-heading": {
+        "siblings_only": true
+    },
+    "MD013": false,
+    "MD031": false,
+    "MD032": false,
+    "MD036": false,
+    "MD058": false
+}
