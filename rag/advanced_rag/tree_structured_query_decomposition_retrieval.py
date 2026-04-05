@@ -41,7 +41,7 @@ class TreeStructuredQueryDecompositionRetrieval:
     async def _retrieve_information(self, search_query):
         """Retrieve information from different sources"""
         # 1. Knowledge base retrieval
-        kbinfos = []
+        kbinfos = {"chunks": [], "doc_aggs": []}
         try:
             kbinfos = await self._kb_retrieve(question=search_query) if self._kb_retrieve else {"chunks": [], "doc_aggs": []}
         except Exception as e:
