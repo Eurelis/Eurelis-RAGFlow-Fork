@@ -39,9 +39,10 @@ class TreeStructuredQueryDecompositionRetrieval:
     async def _retrieve_information(self, search_query):
         """Retrieve information from different sources"""
         # 1. Knowledge base retrieval
-        kbinfos = {"chunks": [], "doc_aggs": []}
+        kbinfos = {"total": 0, "chunks": [], "doc_aggs": []}
         try:
-            kbinfos = await self._kb_retrieve(question=search_query) if self._kb_retrieve else {"chunks": [], "doc_aggs": []}
+            kbinfos = await self._kb_retrieve(question=search_query) if self._kb_retrieve else {"total": 0, "chunks": [], "doc_aggs": []}
+            kbinfos.setdefault("total", 0)
         except Exception as e:
             logging.error(f"Knowledge base retrieval error: {e}")
 
@@ -84,6 +85,8 @@ class TreeStructuredQueryDecompositionRetrieval:
                 for d in kbinfos["doc_aggs"]:
                     if d["doc_id"] not in dids:
                         chunk_info["doc_aggs"].append(d)
+
+                chunk_info["total"] = chunk_info.get("total", 0) + kbinfos.get("total", 0)
 
     async def research(self, chunk_info, question, query, depth=3, callback=None):
         if callback:
