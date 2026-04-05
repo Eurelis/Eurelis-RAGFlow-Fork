@@ -21,8 +21,8 @@ dependencies = [
     "chardet>=5.2.0,<6.0.0",
     "cn2an==0.5.22",
     "cohere==5.6.2",
-    # "Crawl4AI>=0.8.0,<1.0.0", VLA-2024-06-03
-    "Crawl4AI>=0.7.0,<1.0.0", # VLA-2024-06-03
+    # "Crawl4AI>=0.8.0,<1.0.0", VLA-2026-03-14
+    "Crawl4AI>=0.7.0,<1.0.0", # VLA-2026-03-14
     "dashscope==1.25.11",
     "deepl==1.18.0",
     "debugpy>=1.8.13",
@@ -120,7 +120,7 @@ dependencies = [
     "xgboost==1.6.0",
     "xpinyin==0.7.6",
     "yfinance==0.2.65",
-    # "zhipuai>=2.0.1", VLA-2024-06-03
+    # "zhipuai>=2.0.1", VLA-2026-03-14
     "peewee>=3.17.1,<4.0.0",
     #    following modules aren't necessary
     #    "nltk==3.9.1",
@@ -187,8 +187,8 @@ constraint-dependencies = [
     "pyasn1>=0.6.3",
 ]
 
-# [[tool.uv.index]] VLA-2024-06-03
-# url = "https://pypi.tuna.tsinghua.edu.cn/simple" VLA-2024-06-03
+# [[tool.uv.index]] VLA-2026-03-14
+# url = "https://pypi.tuna.tsinghua.edu.cn/simple" VLA-2026-03-14
 
 [tool.setuptools]
 packages = [
