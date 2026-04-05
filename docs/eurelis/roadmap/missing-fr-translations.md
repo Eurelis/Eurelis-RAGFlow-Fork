@@ -1,0 +1,1344 @@
+# Missing French translations
+
+Analysed on 2026-05-10 · EN: 2289 keys · FR: 1090 keys · **Missing: 1202 keys**
+
+> **Note:** The `dataPipeline` key was added on 2026-05-09 and is no longer missing.
+> The companion key `dataPipelineTitle` (in `knowledgeDetails`) is still missing and included below.
+
+## Summary by section
+
+| Section | Missing keys |
+|---|---|
+| `flow` | 335 |
+| `setting` | 179 |
+| `admin` | 128 |
+| `skills` | 102 |
+| `knowledgeDetails` | 89 |
+| `knowledgeConfiguration` | 77 |
+| `memory` | 42 |
+| `chat` | 36 |
+| `skillSearch` | 34 |
+| `common` | 33 |
+| `search` | 25 |
+| `dataflowParser` | 19 |
+| `memories` | 18 |
+| `explore` | 15 |
+| `empty` | 14 |
+| `datasetOverview` | 10 |
+| `deleteModal` | 9 |
+| `chunk` | 8 |
+| `mcp` | 8 |
+| `language` | 6 |
+| `fileManager` | 4 |
+| `login` | 4 |
+| `header` | 3 |
+| `knowledgeList` | 2 |
+| `pagination` | 2 |
+
+---
+
+## `flow` (335 missing)
+
+- `Days`
+- `ExceptionDefaultValue`
+- `ExcludeDomains`
+- **`ListOperationsOptions`** (6 keys)
+  - `dropDuplicates`
+  - `filter`
+  - `head`
+  - `nth`
+  - `sort`
+  - `tail`
+- **`SortMethodOptions`** (2 keys)
+  - `asc`
+  - `desc`
+- `addAgent`
+- `addParser`
+- `addRegularExpressions`
+- `addRule`
+- `addTools`
+- `advanced`
+- `advancedSettings`
+- `agents`
+- `allModels`
+- `apiKeyPlaceholder`
+- `autoPlay`
+- `basic`
+- `beginInput`
+- `boolean`
+- `builtIn`
+- `cancel`
+- `ceateAgent`
+- `channel`
+- `channelTip`
+- `chooseAgentType`
+- `codeExecDescription`
+- `comma`
+- `comment`
+- `communication`
+- `confirmPublish`
+- `consumerApp`
+- `conversationVariable`
+- `conversational`
+- `createDate`
+- `createFromBlank`
+- `createFromTemplate`
+- `createPipeline`
+- `customerSupport`
+- `dataManipulation`
+- `dataOperations`
+- `dataOperationsDescription`
+- `days`
+- `defaultValue`
+- `delayAfterError`
+- `delimiters`
+- `descriptionMessage`
+- `descriptionPlaceholder`
+- `developer`
+- `dialog`
+- `downloadFileType`
+- `downloadFileTypeTip`
+- `enableChildrenDelimiters`
+- `enableMultiColumn`
+- `enableMultiColumnTip`
+- `exceptionMethod`
+- `exitLoop`
+- `exitLoopDescription`
+- `exportJson`
+- `extractDepth`
+- `extractor`
+- `extractorDescription`
+- `failed`
+- `fieldName`
+- `fields`
+- `file`
+- **`fileFormatOptions`** (12 keys)
+  - `audio`
+  - `doc`
+  - `docx`
+  - `email`
+  - `html`
+  - `image`
+  - `markdown`
+  - `pdf`
+  - `slides`
+  - `spreadsheet`
+  - `text&code`
+  - `video`
+- `fileFormats`
+- `filenameEmbeddingWeight`
+- `flattenMediaToText`
+- `flattenMediaToTextTip`
+- `flow`
+- `flowNum`
+- `flowStart`
+- `format`
+- `formatTypeError`
+- `foundation`
+- `frameworkPrompts`
+- `general`
+- `goto`
+- `group`
+- `groupTip`
+- `guidingQuestion`
+- `hierarchy`
+- `hierarchyTip`
+- `id`
+- `imageParseMethodOptions`
+- `importJsonFile`
+- `includeAnswer`
+- `includeDomains`
+- `includeHeadingContent`
+- `includeHeadingContentTip`
+- `includeImageDescriptions`
+- `includeImages`
+- `includeRawContent`
+- `ingestionPipeline`
+- `integer`
+- `iterationItemDescription`
+- `keywords`
+- `lastPublished`
+- `lastSavedAt`
+- `latestDate`
+- `line`
+- `lineBreak`
+- `linkedDataset`
+- `listOperations`
+- `listOperationsDescription`
+- **`logTimeline`** (21 keys)
+  - `agent`
+  - `awaitResponse`
+  - `begin`
+  - `categorize`
+  - `code`
+  - `email`
+  - `exeSQL`
+  - `gitHub`
+  - `google`
+  - `googleScholar`
+  - `httpRequest`
+  - `iteration`
+  - `message`
+  - `retrieval`
+  - `switch`
+  - `tavilyExtract`
+  - `tavilySearch`
+  - `textProcessing`
+  - `userFillUp`
+  - `wenCai`
+  - `wikipedia`
+- `logTitle`
+- `loopDescription`
+- `loopTerminationCondition`
+- `loopVariables`
+- `markdownImageResponseType`
+- `marketing`
+- `maxResults`
+- `maxRetries`
+- `maxRounds`
+- `maximumLoopCount`
+- `merge`
+- `mergePath`
+- `mergePathTip`
+- `metadata`
+- `mode`
+- `multimodalModels`
+- `news`
+- `noDataToExport`
+- `number`
+- `onFailure`
+- `one`
+- `oneChunkDescription`
+- `oneChunkTitle`
+- `operations`
+- **`operationsOptions`** (7 keys)
+  - `appendOrUpdate`
+  - `combine`
+  - `filterValues`
+  - `literalEval`
+  - `removeKeys`
+  - `renameKeys`
+  - `selectKeys`
+- `options`
+- `other`
+- `outputFormat`
+- `overlappedPercent`
+- `paragraph`
+- `parser`
+- `parserDescription`
+- `parserMethod`
+- `period`
+- **`preprocess`** (5 keys)
+  - `abstract`
+  - `author`
+  - `mainContent`
+  - `preprocess`
+  - `sectionTitle`
+- `production`
+- `productionTooltip`
+- **`prompts`** (10 keys)
+  - `keywords`
+  - `metadata`
+  - `questions`
+  - `summary`
+  - `toc`
+  - `keywords`
+  - `metadata`
+  - `questions`
+  - `summary`
+  - `toc`
+- `publishAgent`
+- `publishIngestionPipeline`
+- `publishedAt`
+- `queryRequired`
+- `queryTip`
+- `questions`
+- `recommended`
+- `ref`
+- `regularExpressions`
+- `release`
+- `removeHeaderFooter`
+- `removeToc`
+- `removeTocTip`
+- `retrievalFrom`
+- `rootAsHeading`
+- `rootAsHeadingTip`
+- `rule`
+- `running`
+- `saveToMemory`
+- `script`
+- `search`
+- `searchDepth`
+- `searchMethod`
+- `searchMethodTip`
+- `semicolon`
+- `singleLineText`
+- `sortMethod`
+- `space`
+- `split`
+- `sqlStatement`
+- `sqlStatementTip`
+- `state`
+- `stockCode`
+- `strictMode`
+- `strictModeTip`
+- `stringTransformDescription`
+- **`structuredOutput`** (2 keys)
+  - `configuration`
+  - `structuredOutput`
+- `success`
+- `summary`
+- `swicthPromptMessage`
+- **`switchOperatorOptions`** (4 keys)
+  - `in`
+  - `is`
+  - `isNot`
+  - `notIn`
+- `switchPromptMessage`
+- `sysPromptDefaultValue`
+- `systemPromptPlaceholder`
+- `tab`
+- `tableResultType`
+- `tag`
+- `tagPlaceholder`
+- `task`
+- `tavilyTopic`
+- `test`
+- `text`
+- `textOnlyModels`
+- `titleChunker`
+- `titleChunkerDescription`
+- `toc`
+- `tocDataSource`
+- `tokenChunker`
+- `tokenChunkerDescription`
+- `tokenizer`
+- `tokenizerDescription`
+- **`tokenizerFieldsOptions`** (4 keys)
+  - `keywords`
+  - `questions`
+  - `summary`
+  - `text`
+- `tokenizerRequired`
+- **`tokenizerSearchMethodOptions`** (2 keys)
+  - `embedding`
+  - `full_text`
+- `tools`
+- `typeCommandORsearch`
+- `userFillUpDescription`
+- `userId`
+- `userPrompt`
+- `userPromptDefaultValue`
+- `variableAggregator`
+- `variableAggregatorDescription`
+- `variableAssigner`
+- `variableAssignerDescription`
+- **`variableAssignerLogicalOperatorOptions`** (11 keys)
+  - `add`
+  - `append`
+  - `clear`
+  - `divide`
+  - `extend`
+  - `multiply`
+  - `overwrite`
+  - `removeFirst`
+  - `removeLast`
+  - `set`
+  - `subtract`
+- `variableDescription`
+- `variableNameMessage`
+- `viewResult`
+- **`webhook`** (38 keys)
+  - `agentStatus`
+  - `algorithm`
+  - `apiKey`
+  - `audience`
+  - `authMethods`
+  - `authType`
+  - `basic`
+  - `bearer`
+  - `bodyTemplate`
+  - `contentTypes`
+  - `executionMode`
+  - `executionModeTip`
+  - `header`
+  - `headerParameters`
+  - `headersTemplate`
+  - `immediately`
+  - `ipWhitelist`
+  - `issuer`
+  - `limit`
+  - `logs`
+  - `maxBodySize`
+  - `methods`
+  - `name`
+  - `overview`
+  - `password`
+  - `per`
+  - `queryParameters`
+  - `requestBodyParameters`
+  - `requiredClaims`
+  - `response`
+  - `schema`
+  - `secret`
+  - `security`
+  - `status`
+  - `streaming`
+  - `tokenHeader`
+  - `tokenValue`
+  - `username`
+
+## `setting` (179 missing)
+
+- `S3CompatibleAddressingStyleTip`
+- `S3CompatibleEndpointUrlTip`
+- `Verify`
+- `addDataSourceModalTitle`
+- `af-south-1`
+- `airtableDescription`
+- `ap-east-1`
+- `ap-east-2`
+- `ap-northeast-2`
+- `ap-northeast-3`
+- `ap-south-1`
+- `ap-south-2`
+- `ap-southeast-3`
+- `ap-southeast-4`
+- `ap-southeast-5`
+- `ap-southeast-7`
+- `asanaDescription`
+- `availableModels`
+- `availableSources`
+- `availableSourcesDescription`
+- `awsAccessKeyId`
+- `awsAssumeRoleTip`
+- `awsAuthModeAccessKeySecret`
+- `awsAuthModeAssumeRole`
+- `awsAuthModeIamRole`
+- `awsRoleArn`
+- `awsRoleArnMessage`
+- `awsSecretAccessKey`
+- `bedrockCredentialsHint`
+- `bitbucketDescription`
+- `bitbucketProjectsTip`
+- `bitbucketRepositorySlugsTip`
+- `bitbucketTopWorkspaceTip`
+- `bitbucketWorkspaceTip`
+- `boxDescription`
+- `ca-central-1`
+- `ca-west-1`
+- `configureModelTitle`
+- `confluenceDescription`
+- `confluenceIsCloudTip`
+- `confluenceSpaceKeyTip`
+- `confluenceWikiBaseUrlTip`
+- `connectorNameTip`
+- `cropImage`
+- `cropTip`
+- `dataSources`
+- `datasourceDescription`
+- `deleteModel`
+- `deleteSourceModalConfirmText`
+- `deleteSourceModalContent`
+- `deleteSourceModalTitle`
+- `discordDescription`
+- `dropboxAccessTokenTip`
+- `dropboxDescription`
+- `edit`
+- `enableToolCall`
+- `enableToolCallTip`
+- `errorMsg`
+- `eu-central-2`
+- `eu-north-1`
+- `eu-south-1`
+- `eu-south-2`
+- `eu-west-1`
+- `eu-west-2`
+- `eu-west-3`
+- `githubDescription`
+- `gitlabDescription`
+- `gmailDescription`
+- `gmailPrimaryAdminTip`
+- `gmailTokenTip`
+- `google_cloud_storageDescription`
+- `google_driveDescription`
+- `google_driveMyDriveEmailsTip`
+- `google_drivePrimaryAdminTip`
+- `google_driveSharedFoldersTip`
+- `google_driveTokenTip`
+- `hideToc`
+- `il-central-1`
+- `imapDescription`
+- `jiraAttachmentSizeTip`
+- `jiraAttachmentsTip`
+- `jiraBaseUrlTip`
+- `jiraBatchSizeTip`
+- `jiraBlacklistTip`
+- `jiraCommentsTip`
+- `jiraDescription`
+- `jiraEmailTip`
+- `jiraJqlTip`
+- `jiraLabelsTip`
+- `jiraPasswordTip`
+- `jiraProjectKeyTip`
+- `jiraScopedTokenTip`
+- `jiraTokenTip`
+- `keyInvalid`
+- `keyValid`
+- `log`
+- `me-central-1`
+- `me-south-1`
+- **`mineru`** (16 keys)
+  - `apiServerRequired`
+  - `apiserver`
+  - `backend`
+  - `pipeline`
+  - `vlmHttpClient`
+  - `vlmLmdeployEngine`
+  - `vlmMlxEngine`
+  - `vlmTransformers`
+  - `vlmVllmAsyncEngine`
+  - `vlmVllmEngine`
+  - `deleteOutput`
+  - `modelNameRequired`
+  - `outputDir`
+  - `selectBackend`
+  - `serverUrl`
+  - `serverUrlBackendLimit`
+- `minutes`
+- `modelEmptyTip`
+- **`modelTypes`** (7 keys)
+  - `chat`
+  - `embedding`
+  - `image2text`
+  - `rerank`
+  - `sequence2text`
+  - `speech2text`
+  - `tts`
+- `moodleDescription`
+- `moodleTokenTip`
+- `moodleUrlTip`
+- `mx-central-1`
+- `mysqlContentColumnsTip`
+- `mysqlDescription`
+- `mysqlIdColumnTip`
+- `mysqlMetadataColumnsTip`
+- `mysqlQueryTip`
+- `mysqlTimestampColumnTip`
+- `newDocs`
+- `notionDescription`
+- `oci_storageDescription`
+- `postgresqlContentColumnsTip`
+- `postgresqlDescription`
+- `postgresqlIdColumnTip`
+- `postgresqlMetadataColumnsTip`
+- `postgresqlQueryTip`
+- `postgresqlTimestampColumnTip`
+- `r2Description`
+- `rssDescription`
+- `s3Description`
+- `s3PrefixTip`
+- `sa-east-1`
+- `save`
+- `seafileAccountScopeTip`
+- `seafileBatchSizeTip`
+- `seafileDescription`
+- `seafileIncludeSharedTip`
+- `seafileRepoIdTip`
+- `seafileRepoTokenTip`
+- `seafileSyncPathTip`
+- `seafileSyncScopeTip`
+- `seafileTokenPanelAccountBullet`
+- `seafileTokenPanelHeading`
+- `seafileTokenPanelLibraryBullet`
+- `seafileTokenTip`
+- `seafileUrlTip`
+- `seafileValidationAccountTokenRequired`
+- `seafileValidationDirectoryPathRequired`
+- `seafileValidationLibraryIdRequired`
+- `seafileValidationTokenRequired`
+- `search`
+- `seconds`
+- `selectModelPlaceholder`
+- `showToc`
+- `sourceEmptyTip`
+- `syncDeletedFiles`
+- `systemModelDescription`
+- `timeStarted`
+- `us-east-2`
+- `us-gov-east-1`
+- `us-west-1`
+- `webdavDescription`
+- `webdavRemotePathTip`
+- `zendeskDescription`
+
+## `admin` (128 missing)
+
+- `actions`
+- `active`
+- `addNewRole`
+- `agentTitle`
+- `alive`
+- `all`
+- `back`
+- `cancel`
+- `canvasCategory`
+- `changePassword`
+- `chunkNum`
+- `close`
+- `confirm`
+- `confirmNewPassword`
+- `confirmPassword`
+- `confirmPasswordDoNotMatch`
+- `confirmPasswordRequired`
+- `create`
+- `createDate`
+- `createEmail`
+- `createNewUser`
+- `createTime`
+- `delete`
+- `deleteEmail`
+- `deleteRole`
+- `deleteRoleConfirmation`
+- `deleteUser`
+- `deleteUserConfirmation`
+- `deleteWhitelistEmailConfirmation`
+- `description`
+- `disable`
+- `docNum`
+- `editEmail`
+- `editRoleDescription`
+- `email`
+- `enable`
+- `exportAsExcel`
+- `extraInfo`
+- `fail`
+- `host`
+- `id`
+- `import`
+- `importFileRequired`
+- `importFileTips`
+- `importFromExcel`
+- `importInvalidExcelFile`
+- `importOverwriteExistingEmails`
+- `importSelectExcelFile`
+- `importWhitelist`
+- `inactive`
+- `invalidEmail`
+- `isAnonymous`
+- `isSuperuser`
+- `language`
+- `lastLoginTime`
+- `lastUpdateTime`
+- `loginTitle`
+- `monitoring`
+- `name`
+- `newPassword`
+- `newRole`
+- `newUser`
+- `nickname`
+- `no`
+- `noDescription`
+- `noFileSelected`
+- `none`
+- `normalUser`
+- `password`
+- `passwordMinLength`
+- `passwordRequired`
+- `permission`
+- **`permissionType`** (4 keys)
+  - `enable`
+  - `read`
+  - `share`
+  - `write`
+- `port`
+- `read`
+- `registrationWhitelist`
+- `reset`
+- **`resourceType`** (7 keys)
+  - `agent`
+  - `chat`
+  - `dataset`
+  - `file`
+  - `memory`
+  - `search`
+  - `team`
+- `resources`
+- `role`
+- `roleName`
+- `roleNameRequired`
+- `roles`
+- `sandboxSettings`
+- **`sandboxSettingsPage`** (17 keys)
+  - `description`
+  - `namedProviderConfiguration`
+  - `namedProviderConfigurationDescription`
+  - `providerSelection`
+  - `providerSelectionDescription`
+  - `saveConfiguration`
+  - `saving`
+  - `testConnection`
+  - `executionTime`
+  - `exitCode`
+  - `failed`
+  - `stderr`
+  - `stdout`
+  - `success`
+  - `testing`
+  - `title`
+  - `testing`
+- `selectFile`
+- `serviceDetail`
+- `serviceStatus`
+- `serviceType`
+- `share`
+- `status`
+- `superuser`
+- `taskExecutorDetail`
+- `timeout`
+- `title`
+- `tokenNum`
+- `updateDate`
+- `user`
+- `userManagement`
+- `userType`
+- `whitelistManagement`
+- `write`
+- `yes`
+
+## `skills` (102 missing)
+
+- `accessToken`
+- `addSkill`
+- `backToSkills`
+- `configureSearch`
+- `createSpace`
+- `createSpaceDescription`
+- `createSpaceTitle`
+- `deleteError`
+- `deleteSpaceDescription`
+- `deleteSpaceName`
+- `deleteSpaceTitle`
+- `deleteSuccess`
+- `dragFilesDescription`
+- `dragFilesHint`
+- `dragFilesTitle`
+- `enterSpace`
+- `fetchError`
+- `files`
+- `filesCount`
+- `filesSelected`
+- `foldersCount`
+- `gitPlatform`
+- `giteeRateLimit`
+- `giteeTokenHelp`
+- `githubRateLimit`
+- `githubTokenHelp`
+- `import`
+- `importFromGit`
+- `importing`
+- `latest`
+- **`metadata`** (14 keys)
+  - `always`
+  - `anyBins`
+  - `basic`
+  - `documentation`
+  - `emoji`
+  - `homepage`
+  - `install`
+  - `links`
+  - `primaryEnv`
+  - `repository`
+  - `requiredBins`
+  - `requiredEnv`
+  - `requires`
+  - `skillKey`
+- `noFiles`
+- `noSearchResults`
+- `noSkills`
+- `noSpaces`
+- `pageInfo`
+- `parsedMetadata`
+- `rateLimitInfo`
+- `repoUrl`
+- `repoUrlHelp`
+- `searchPlaceholder`
+- `selectFileToView`
+- `selectFilesOrFolder`
+- `selectFolder`
+- `selectSpace`
+- `selectVersion`
+- `skillExists`
+- `skillName`
+- `skillNameHelp`
+- `skillNamePlaceholder`
+- `skillVersion`
+- `skillVersionPlaceholder`
+- `source`
+- `spaceCreated`
+- `spaceDeleted`
+- `spaceName`
+- `spaceNamePlaceholder`
+- `spaceNameRequired`
+- `spacePlaceholder`
+- `title`
+- `totalSkills`
+- `upload`
+- `uploadDescription`
+- `uploadError`
+- `uploadSkill`
+- `uploadSuccess`
+- `uploading`
+- **`validation`** (18 keys)
+  - `error`
+  - `file_too_large`
+  - `invalid`
+  - `invalid_file_type`
+  - `invalid_frontmatter`
+  - `invalid_metadata`
+  - `invalid_name_format`
+  - `invalid_path`
+  - `invalid_version`
+  - `junkFilesFound`
+  - `missing_name`
+  - `missing_skill_md`
+  - `noValidFiles`
+  - `no_files`
+  - `read_failed`
+  - `total_size_exceeded`
+  - `valid`
+  - `versionExists`
+- `version`
+- `versionFormatHelp`
+- `versionHistory`
+- `versionRequired`
+
+## `knowledgeDetails` (89 missing)
+
+- `Parse`
+- `applyAutoMetadataSettings`
+- `childrenDelimiter`
+- `childrenDelimiterTip`
+- `chunkMethodTab`
+- `close`
+- `completed`
+- `created`
+- `dataPipelineTitle`
+- `datasetLog`
+- `datasetLogs`
+- `details`
+- `duration`
+- `emptyMetadata`
+- `enableChildrenDelimiter`
+- `failed`
+- `fileLogs`
+- `fileName`
+- `fileSize`
+- `fileType`
+- `general`
+- `generate`
+- `generateKnowledgeGraph`
+- `generateRaptor`
+- `generatedOn`
+- `keywordSimilarityWeight`
+- `keywordSimilarityWeightTip`
+- `learnMore`
+- `localUpload`
+- **`metadata`** (36 keys)
+  - `action`
+  - `addMetadata`
+  - `builtIn`
+  - `changesAffectNewParses`
+  - `deleteManageFieldAllWarn`
+  - `deleteManageFieldSingleWarn`
+  - `deleteManageValueAllWarn`
+  - `deleteManageValueSingleWarn`
+  - `deleteSettingFieldWarn`
+  - `deleteSettingValueWarn`
+  - `deleteWarn`
+  - `description`
+  - `descriptionTip`
+  - `editMetadata`
+  - `field`
+  - `fieldExists`
+  - `fieldName`
+  - `fieldNameExists`
+  - `fieldNameInvalid`
+  - `fieldSetting`
+  - `fieldSingleNameExists`
+  - `fields`
+  - `generation`
+  - `manageMetadata`
+  - `metadata`
+  - `metadataGenerationSettings`
+  - `restrictDefinedValues`
+  - `restrictDefinedValuesTip`
+  - `selectFiles`
+  - `toMetadataSetting`
+  - `toMetadataSettingTip`
+  - `type`
+  - `value`
+  - `valueExists`
+  - `valueSingleExists`
+  - `values`
+- `metadataField`
+- `noTestResultsForNotRuned`
+- `noTestResultsForRuned`
+- `notGenerated`
+- `operations`
+- `overview`
+- `parseFile`
+- `parseFileTip`
+- `processingType`
+- `raptor`
+- `redoAll`
+- `retrievalTesting`
+- `retrievalTestingDescription`
+- `source`
+- `startDate`
+- `status`
+- `subbarFiles`
+- `success`
+- `systemAttribute`
+- `task`
+- `taskId`
+- `testResults`
+- `testSetting`
+- `uploadedBy`
+
+## `knowledgeConfiguration` (77 missing)
+
+- `autoMetadata`
+- `autoMetadataTip`
+- `autoParse`
+- `baseInfo`
+- `book`
+- `buildItFromScratch`
+- `builtIn`
+- `dataFlow`
+- `dataFlowPlaceholder`
+- `dataSource`
+- `datasetDescription`
+- `default`
+- `deleteGenerateModalContent`
+- `editLinkDataPipeline`
+- `enableAutoGenerate`
+- `extractKnowledgeGraph`
+- `extractRaptor`
+- `fileFilter`
+- `fileFilterTip`
+- `filterPlaceholder`
+- `generationScope`
+- `generationScopeTip`
+- `globalIndex`
+- `globalIndexModel`
+- `globalIndexModelTip`
+- `knowledgeGraph`
+- `lastWeek`
+- `laws`
+- `linkDataPipeline`
+- `linkDataSource`
+- `linkPipelineSetTip`
+- `linkSourceSetTip`
+- `manual`
+- `manualSetup`
+- `mineruFormulaEnable`
+- `mineruFormulaEnableTip`
+- `mineruOptions`
+- `mineruParseMethod`
+- `mineruParseMethodTip`
+- `mineruTableEnable`
+- `mineruTableEnableTip`
+- `naive`
+- `one`
+- `overlappedPercent`
+- `overlappedPercentTip`
+- `paper`
+- `parseType`
+- **`parserLabel`** (14 keys)
+  - `audio`
+  - `book`
+  - `email`
+  - `laws`
+  - `manual`
+  - `naive`
+  - `one`
+  - `paper`
+  - `picture`
+  - `presentation`
+  - `qa`
+  - `resume`
+  - `table`
+  - `tag`
+- `picture`
+- `presentation`
+- `qa`
+- `randomSeedTip`
+- `rebuildTip`
+- `resume`
+- `scopeDataset`
+- `scopeSingleFile`
+- `setDefault`
+- `setDefaultTip`
+- `settings`
+- `table`
+- `tag`
+- `teamPlaceholder`
+- `tocExtraction`
+- `tocExtractionTip`
+
+## `memory` (42 missing)
+
+- **`config`** (17 keys)
+  - `advancedSettings`
+  - `avatar`
+  - `description`
+  - `descriptionPlaceholder`
+  - `forgetPolicy`
+  - `memorySize`
+  - `memorySizeTooltip`
+  - `onlyMe`
+  - `permission`
+  - `storageType`
+  - `storageTypePlaceholder`
+  - `systemPrompt`
+  - `systemPromptPlaceholder`
+  - `team`
+  - `temperature`
+  - `userPrompt`
+  - `userPromptPlaceholder`
+- **`messages`** (16 keys)
+  - `action`
+  - `agent`
+  - `content`
+  - `contentEmbed`
+  - `copied`
+  - `delMessageWarn`
+  - `enable`
+  - `forget`
+  - `forgetAt`
+  - `forgetMessage`
+  - `forgetMessageTip`
+  - `messageDescription`
+  - `sessionId`
+  - `source`
+  - `type`
+  - `validDate`
+- **`sideBar`** (2 keys)
+  - `configuration`
+  - `messages`
+- **`taskLogDialog`** (7 keys)
+  - `details`
+  - `failed`
+  - `running`
+  - `startTime`
+  - `status`
+  - `success`
+  - `title`
+
+## `chat` (36 missing)
+
+- `addCondition`
+- `applyModelConfigs`
+- `batchDeleteSessions`
+- `cancel`
+- `chatApps`
+- `chatSetting`
+- `conditions`
+- `conversations`
+- `createChat`
+- `crossLanguagePlaceholder`
+- `custom`
+- `dark`
+- `deleteSelectedConfirm`
+- `embedType`
+- `emptyResponsePlaceholder`
+- `enableStreaming`
+- `exit`
+- `floatingWidget`
+- `fullscreenChat`
+- `knowledgeBasesPlaceholder`
+- `light`
+- `messagePlaceholder`
+- **`meta`** (4 keys)
+  - `auto`
+  - `disabled`
+  - `manual`
+  - `semi_auto`
+- `metadata`
+- `metadataKeys`
+- `metadataTip`
+- `multipleModels`
+- `published`
+- `publishedTooltip`
+- `systemPlaceholder`
+- `theme`
+- `tocEnhance`
+- `tocEnhanceTip`
+
+## `skillSearch` (34 missing)
+
+- `balanced`
+- `configDesc`
+- `configTitle`
+- `embeddingModel`
+- `embeddingModelPlaceholder`
+- `fieldContent`
+- `fieldContentDesc`
+- `fieldDescription`
+- `fieldDescriptionDesc`
+- `fieldName`
+- `fieldNameDesc`
+- `fieldTags`
+- `fieldTagsDesc`
+- `hybrid`
+- `indexFields`
+- `indexFieldsDesc`
+- `keyword`
+- `keywordOnly`
+- `pleaseSelectEmbeddingModel`
+- `pureVector`
+- `reindex`
+- `reindexSuccess`
+- `reindexing`
+- `saveError`
+- `saveSuccess`
+- `semanticSearchPlaceholder`
+- `similarityThreshold`
+- `switchToLocal`
+- `switchToSemantic`
+- `topK`
+- `vector`
+- `vectorOnly`
+- `vectorSimilarityWeight`
+- `weight`
+
+## `common` (33 missing)
+
+- `back`
+- `bulkOperate`
+- `clear`
+- `confirm`
+- `deleteThem`
+- `descriptionPlaceholder`
+- `german`
+- `indonesia`
+- `indonesian`
+- `italian`
+- `japanese`
+- **`mcp`** (4 keys)
+  - `namePlaceholder`
+  - `nameRequired`
+  - `tokenPlaceholder`
+  - `urlPlaceholder`
+- `no`
+- `noData`
+- `noDataFound`
+- `noResults`
+- `previous`
+- `remove`
+- `russian`
+- `search`
+- `seeAll`
+- `selectAll`
+- `selectPlaceholder`
+- `selected`
+- `spanish`
+- `turkish`
+- `vietnamese`
+- `viewLess`
+- `viewMore`
+- `yes`
+
+## `search` (25 missing)
+
+- `AISummary`
+- `avatar`
+- `cancelText`
+- `chooseDataset`
+- `copySuccess`
+- `createSearch`
+- `datasets`
+- `description`
+- `descriptionValue`
+- `embedApp`
+- `embedCode`
+- `enableRelatedSearch`
+- `enableWebSearch`
+- `id`
+- `locale`
+- `name`
+- `okText`
+- `profile`
+- `relatedSearch`
+- `rerankModel`
+- `searchApps`
+- `searchGreeting`
+- `searchSettings`
+- `showQueryMindmap`
+- `welcomeBack`
+
+## `dataflowParser` (19 missing)
+
+- `changeStepModalCancelText`
+- `changeStepModalConfirmText`
+- `changeStepModalContent`
+- `changeStepModalTitle`
+- `confirmRerun`
+- `confirmRerunModalContent`
+- `outputFormat`
+- `parseSummary`
+- `parseSummaryTip`
+- `parserMethod`
+- `rerunFromCurrentStep`
+- `rerunFromCurrentStepTip`
+- `result`
+- `unlinkPipelineModalConfirmText`
+- `unlinkPipelineModalContent`
+- `unlinkPipelineModalTitle`
+- `unlinkSourceModalConfirmText`
+- `unlinkSourceModalContent`
+- `unlinkSourceModalTitle`
+
+## `memories` (18 missing)
+
+- `createMemory`
+- `delMemoryWarn`
+- `editName`
+- `embeddingModel`
+- `embeddingModelError`
+- `embeddingModelTooltip`
+- `episodic`
+- `llm`
+- `llmTooltip`
+- `memory`
+- `memoryNamePlaceholder`
+- `memoryType`
+- `memoryTypeTooltip`
+- `name`
+- `procedural`
+- `raw`
+- `selectModel`
+- `semantic`
+
+## `explore` (15 missing)
+
+- `batchDeleteSessions`
+- `canvasList`
+- `createFirstSession`
+- `deleteSelectedConfirm`
+- `deleteSession`
+- `newSession`
+- `newSessionLabel`
+- `noCanvasFound`
+- `noCanvasSelected`
+- `noSessionSelected`
+- `noSessionsFound`
+- `searchCanvas`
+- `searchSessions`
+- `sessions`
+- `title`
+
+## `empty` (14 missing)
+
+- `addNow`
+- `agentTitle`
+- `chatTitle`
+- `datasetTitle`
+- `memoryTitle`
+- `noMCP`
+- `notFoundAgent`
+- `notFoundChat`
+- `notFoundDataset`
+- `notFoundMemory`
+- `notFoundSearch`
+- `notFoundSkills`
+- `searchTitle`
+- `skillsTitle`
+
+## `datasetOverview` (10 missing)
+
+- `downloadFailedTip`
+- `downloadSuccessTip`
+- `downloadTip`
+- `downloading`
+- `noData`
+- `processing`
+- `processingFailedTip`
+- `processingSuccessTip`
+- `processingTip`
+- `totalFiles`
+
+## `deleteModal` (9 missing)
+
+- `delAgent`
+- `delChat`
+- `delDataset`
+- `delFile`
+- `delFiles`
+- `delFilesContent`
+- `delMember`
+- `delMemory`
+- `delSearch`
+
+## `chunk` (8 missing)
+
+- **`docType`** (3 keys)
+  - `image`
+  - `table`
+  - `text`
+- `image`
+- `imageUploaderTitle`
+- `size`
+- `type`
+- `uploadedTime`
+
+## `mcp` (8 missing)
+
+- `bulkManage`
+- `cachedTools`
+- `customizeTheListOfMcpServers`
+- `exitBulkManage`
+- `mcpServer`
+- `mcpServers`
+- `selected`
+- `toolsAvailable`
+
+## `language` (6 missing)
+
+- `french`
+- `german`
+- `japanese`
+- `korean`
+- `spanish`
+- `vietnamese`
+
+## `fileManager` (4 missing)
+
+- `files`
+- `folder`
+- `pleaseUploadAtLeastOneFile`
+- `uploadFolderTitle`
+
+## `login` (4 missing)
+
+- `loginTitle`
+- `seeAll`
+- `signUpTitle`
+- `start`
+
+## `header` (3 missing)
+
+- `dataset`
+- `memories`
+- `skills`
+
+## `knowledgeList` (2 missing)
+
+- `dataFlowRequired`
+- `parserRequired`
+
+## `pagination` (2 missing)
+
+- `page`
+- `total`
