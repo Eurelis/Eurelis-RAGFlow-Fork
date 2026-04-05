@@ -129,7 +129,7 @@ dependencies = [
     "setuptools>=78.1.1,<81.0.0",
     "xpinyin==0.7.6",
     "yfinance==0.2.65",
-    "zhipuai==2.0.1",
+    "zhipuai>=2.0.1",
     "peewee>=3.17.1,<4.0.0",
     #    following modules aren't necessary
     #    "nltk==3.9.1",
@@ -227,8 +227,8 @@ name = "pypi"
 url = "https://pypi.org/simple"
 explicit = true
 
-[[tool.uv.index]]
-url = "https://mirrors.aliyun.com/pypi/simple"
+# [[tool.uv.index]] VLA-2026-03-14
+# url = "https://pypi.tuna.tsinghua.edu.cn/simple" VLA-2026-03-14
 
 [tool.uv.sources]
 trio = [{ index = "pypi" }]
