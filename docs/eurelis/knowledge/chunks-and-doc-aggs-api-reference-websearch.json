@@ -1,0 +1,137 @@
+{
+  "code": 0,
+  "data": {
+    "avatar": "",
+    "chat_id": "711184261fac11f1831d233c695caa53",
+    "create_date": "2026-04-21T10:08:12",
+    "create_time": 1776758892963,
+    "id": "3e2b47b63d5911f1bd312fd2c816a7f2",
+    "messages": [
+      {
+        "content": "Bonjour ! Je suis votre assistant, que puis-je faire pour vous ?",
+        "role": "assistant"
+      },
+      {
+        "content": "Fais moi un tableau qui résume les score des 5 derniers matchs de l'équipe de France de football.",
+        "id": "8b7a72c8-0150-4bc3-a80e-843c25d658dc",
+        "role": "user"
+      },
+      {
+        "content": "<think><think>Searching by `Fais moi un tableau qui résume les score des 5 derniers matchs de l'équipe de France de football.équipe de France de football, score, 5 derniers matchs`...<br/>Retrieval 6 results in 419.5ms<br/>Checking the sufficiency for retrieved information.<br/>Yes, the retrieved information is sufficient for 'Fais moi un tableau qui résume les score des 5 derniers matchs de l'équipe de France de football.équipe de France de football, score, 5 derniers matchs'.<br/></think>Voici un tableau récapitulatif des scores des 5 derniers matchs de l’équipe de France de football :\n\n| Date        | Adversaire   | Score         | Compétition / Type de match      |\n|-------------|--------------|--------------|-----------------------------------|\n| 29/03/2026  | Colombie     | Colombie 1 - 3 France  | Match amical                   |\n| 26/03/2026  | Brésil       | Brésil 1 - 2 France     | Match amical                   |\n| 16/11/2025  | Azerbaïdjan  | Azerbaïdjan 1 - 3 France| Qualifs. Coupe du Monde        |\n| 13/11/2025  | Ukraine      | France 4 - 0 Ukraine    | Qualifs. Coupe du Monde        |\n| 13/10/2025  | Islande      | Islande 2 - 2 France    | Qualifs. Coupe du Monde        |\n\n\nSources : [ID:1][ID:2]",
+        "created_at": 1776758900.380091,
+        "id": "8b7a72c8-0150-4bc3-a80e-843c25d658dc",
+        "role": "assistant"
+      }
+    ],
+    "name": "7d94768204c50c76822419152d0934c2",
+    "reference": [
+      {
+        "chunks": [
+          {
+            "content": "FT\n\nUkraine\n\nUkraine\n\nFrance\n\nFrance\n\n0\n\n2\n\nW\n\nRecent form\n\nHover over the columns to see scores\nSpain 5 - 4 France\nGermany 0 - 2 France\nUkraine 0 - 2 France\nFrance 2 - 1 Iceland\nFrance 3 - 0 Azerbaijan\nIceland 2 - 2 France\nFrance 4 - 0 Ukraine\nAzerbaijan 1 - 3 France\nBrazil 1 - 2 France\nColombia 1 - 3 France\n\n\n\n\n\n\n\n\n\n\n\n\nExplore videos, news, facts, and more about this team.\n\n### Featured\n\nWorld, Int. Friendly Games\n29/03/2026\n15:00\n\nColombia\n\nColombia\n\n1\n - \n3\n\nFinished\n\nFrance\n\nFrance\n\n1\n\n+260\n\nX\n\n+250\n\n2\n\n+100\n\n21+. Gambling Problem?  \nCall 1-800-GAMBLER\n\nAdvertisement\n\ntournaments\n\nseasons\n\nGroup I\n\n#\n\nTeam\n\nP\n\nW\n\nD\n\nL\n\nDIFF\n\nGLS\n\nLast 5\n\nPts\n\n1\n\nFrance\n\n0\n\n0\n\n0\n\n0\n\n0\n\n0:0\n\n0\n2\n\nSenegal\n\n0\n\n0\n\n0\n\n0\n\n0\n\n0:0\n\n0\n3\n\nIraq\n\n0\n\n0\n\n0\n\n0\n\n0\n\n0:0\n\n0\n4\n\nNorway\n\n0\n\n0\n\n0\n\n0\n\n0\n\n0:0\n\n0\n\nPlayoffs [...] score has details for each team where you can see last 10 soccer matches, tables, fixtures, results, statistics and much more. In match details you can find dropping/rising odds. Also, all scores on Sofascore.com livescore are automatically updated and you don't need to refresh it manually. With adding football matches or teams you want to follow in favorites, following your matches or teams livescores, results and statistics will be even more simple. There is an option to select All or Live football matches. [...] When the match starts, you will be able to follow France vs Senegal live score, standings, minute by minute updated live results and match statistics.\n\nWe may have video highlights with goals and news for some France matches, but only if they play their match in one of the most popular football leagues.\n\n## France previous match\n\nFrance previous match was against Colombia in International Friendly Games, the match ended with result 1 - 3 (France won the match).\n\nFrance fixtures tab is showing the last 100 football matches with statistics and win/draw/lose icons.\n\nThere are also all France scheduled matches that they are going to play in the future.",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f50102c3d5911f1bd312fd2c816a7f2",
+            "document_name": "France live score, schedule & player stats | Sofascore",
+            "id": "3f50102c3d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.9921841,
+            "term_similarity": 0,
+            "url": "https://www.sofascore.com/football/team/france/4481",
+            "vector_similarity": 1.0
+          },
+          {
+            "content": "FT\n\nColombia\n\nColombia\n\nFrance\n\nFrance\n\n1\n\n3\n\nFT\n\nBrazil\n\nBrazil\n\nFrance\n\nFrance\n\n1\n\n2\n\nFT\n\nAzerbaijan\n\nAzerbaijan\n\nFrance\n\nFrance\n\n1\n\n3\n\nFT\n\nFrance\n\nFrance\n\nUkraine\n\nUkraine\n\n4\n\n0\n\nFT\n\nIceland\n\nIceland\n\nFrance\n\nFrance\n\n2\n\n2\n\nView all recent results\n\n# France latest scores and results\n\n## The latest France scores, live today\n\nThe latest France scores and results for this season. Up-to-date scores live from today and previous results from throughout the season.\n\n#### Football\n\n Premier League Scores\n Premier League Standings\n La Liga Scores\n Bundesliga Scores\n Championship Scores\n Serie A Scores\n\n#### Other Sports\n\n Cricket Scores\n Tennis Scores\n Basketball Scores\n Ice Hockey Scores\n\n#### Trending [...] livescore\n\nScoresNewsFavourites\n\nSelect language icon\n\nSettings icon\n\nlivescore\n\nFootballHockeyBasketballTennisCricket\n\nsearch\n\nManchester United\n\nManchester UnitedLiverpool\n\nEnglandArsenal\n\nEnglandManchester City\n\nManchester City\n\nEnglandReal Madrid\n\nReal Madrid\n\nSpain\n\nCompetitions\n\nPremier League\n\nPremier League\n\nEnglandLaLiga\n\nLaLiga\n\nSpainSerie A\n\nSerie A\n\nItalyBundesliga\n\nBundesliga\n\nGermanyLigue 1\n\nLigue 1\n\nFrance\n\nRegion\n\nEngland\n\nEngland\n\nChampions League\n\nChampions League\n\nSpain\n\nSpain\n\nItaly\n\nItaly\n\nGermany\n\nGermany\n\nFootball\n\nFrance\n\nFrance\n\nFrance\n\nFrance\n\nFrance\n\nOverview\n\nFixtures\n\nResults\n\nStandings\n\nSquad\n\nUpcoming fixture\n\nView more\n\nFranceFrance\n\nIvory CoastIvory Coast\n\nResults\n\nCatch up on the latest France matches\n\nFT\n\nColombia\n\nColombia\n\nFrance\n\nFrance\n\n1\n\n3\n\nFT [...] #### Trending\n\n Today's Football Scores\n Football on TV\n Non-League Fan Survey\n World Cup 2026\n Europa League Scores\n Football Predictions\n\n#### Betting\n\n Betting Sites UK\n Betting Sites BR\n Betting Sites US\n Betting Sites ZA\n Betting Sites CA\n World Cup Free Bets\n\n#### Casino\n\n Casino Sites UK\n Free Spins UK\n Bingo Sites UK\n Free Spins ZA\n Free Spins US\n Casino Sites CA\n\nlivescore logo\n\nGoogle playApp store\n\nFAQContactPrivacy NoticeAdvertise\n\n© 1998-2026LiveScore Limited\n\nCareersNews PublishersCookie PolicyTerms of UseModern Slavery StatementCorporate",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f52e41e3d5911f1bd312fd2c816a7f2",
+            "document_name": "France Scores & Latest Results Today | LiveScore",
+            "id": "3f52e41e3d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.94815457,
+            "term_similarity": 0,
+            "url": "https://www.livescore.com/en/football/team/france/9179/overview/",
+            "vector_similarity": 1.0
+          },
+          {
+            "content": "Belgique\n\n01 JUL 2024 TF\n\nEuro. 1/4 de finale\n\nPortugal\n\nPortugal\n\n0 (3-5) 0\n\nFrance\n\nFrance\n\n05 JUL 2024 TF\n\nEuro. Demi-finales\n\nEspagne\n\nEspagne\n\n2-1\n\nFrance\n\nFrance\n\n09 JUL 2024\n\nSeptembre - 2024\n\nTF\n\nLigue des Nations. Journée 1\n\nFrance\n\nFrance\n\n1-3\n\nItalie\n\nItalie\n\n06 SEP 2024 TF\n\nLigue des Nations. Journée 2\n\nFrance\n\nFrance\n\n2-0\n\nBelgique\n\nBelgique\n\n09 SEP 2024\n\nOctobre - 2024\n\nTF\n\nLigue des Nations. Journée 3\n\nIsraël\n\nIsraël\n\n1-4\n\nFrance\n\nFrance\n\n10 OCT 2024 TF\n\nLigue des Nations. Journée 4\n\nBelgique\n\nBelgique\n\n1-2\n\nFrance\n\nFrance\n\n14 OCT 2024\n\nNovembre - 2024\n\nTF\n\nLigue des Nations. Journée 5\n\nFrance\n\nFrance\n\n0-0\n\nIsraël\n\nIsraël\n\n14 NOV 2024 TF\n\nLigue des Nations. Journée 6\n\nItalie\n\nItalie\n\n1-3\n\nFrance\n\nFrance\n\n17 NOV 2024\n\nMars - 2025\n\nTF\n\nLigue des Nations. 1/4 de finale [...] Octobre - 2023\n\nTF\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\n4-1\n\nÉcosse\n\nÉcosse\n\n17 OCT 2023\n\nMars - 2024\n\nTF\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\n0-2\n\nAllemagne\n\nAllemagne\n\n23 MAR 2024 TF\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\n3-2\n\nChili\n\nChili\n\n26 MAR 2024\n\nJuin - 2024\n\nTF\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\n3-0\n\nLuxembourg\n\nLuxembourg\n\n05 JUN 2024 TF\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\n0-0\n\nCanada\n\nCanada\n\n09 JUN 2024 TF\n\nEuro. Journée 1\n\nAutriche\n\nAutriche\n\n0-1\n\nFrance\n\nFrance\n\n17 JUN 2024 TF\n\nEuro. Journée 2\n\nPays-Bas\n\nPays-Bas\n\n0-0\n\nFrance\n\nFrance\n\n21 JUN 2024 TF\n\nEuro. Journée 3\n\nFrance\n\nFrance\n\n1-1\n\nPologne\n\nPologne\n\n25 JUN 2024\n\nJuillet - 2024\n\nTF\n\nEuro. 1/8 de finale\n\nFrance\n\nFrance\n\n1-0\n\nBelgique\n\nBelgique\n\n01 JUL 2024 TF\n\nEuro. 1/4 de finale\n\nPortugal [...] Qualif. Coupe du Monde - Europe. Journée 4\n\nIslande\n\nIslande\n\n2-2\n\nFrance\n\nFrance\n\n13 OCT 2025\n\nNovembre - 2025\n\nTF\n\nQualif. Coupe du Monde - Europe. Journée 5\n\nFrance\n\nFrance\n\n4-0\n\nUkraine\n\nUkraine\n\n13 NOV 2025 TF\n\nQualif. Coupe du Monde - Europe. Journée 6\n\nAzerbaïdjan\n\nAzerbaïdjan\n\n1-3\n\nFrance\n\nFrance\n\n16 NOV 2025\n\nMars - 2026\n\nTF\n\nAmicaux internationaux\n\n1-2\n\nFrance\n\nFrance\n\n26 MAR 2026 TF\n\nAmicaux internationaux\n\n1-3\n\nFrance\n\nFrance\n\n29 MAR 2026\n\nJuin - 2026\n\nAmicaux internationaux\n\nFrance\n\nFrance\n\nCôte d'Ivoire\n\nCôte d'Ivoire\n\n04 JUN Coupe du Monde. Journée 1\n\nFrance\n\nFrance\n\n16 JUN Coupe du Monde. Journée 2\n\nFrance\n\nFrance\n\n22 JUN Coupe du Monde. Journée 3\n\n20:00\n\nFrance\n\nFrance\n\n26 JUN\n\nSeptembre - 2026\n\nLigue des Nations. Journée 1\n\nFrance\n\nFrance",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f551cb63d5911f1bd312fd2c816a7f2",
+            "document_name": "Résultats Équipe de France Coupe du Monde et match en direct",
+            "id": "3f551cb63d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.9437636,
+            "term_similarity": 0,
+            "url": "https://fr.besoccer.com/equipe/matchs/seleccion-francia",
+            "vector_similarity": 1.0
+          },
+          {
+            "content": "### Pays-Bas\n\n### France\n\n### Matchs amicaux - mardi 17 octobre 2023 - 21:00 - Lille-Métropole - Decathlon Arena – Stade Pierre-Mauroy\n\n### France\n\n### Écosse\n\n### Éliminatoires Euro - samedi 18 novembre 2023 - 20:45 - Nice - Allianz Riviera\n\n### France\n\n### Gibraltar\n\n### Éliminatoires Euro - mardi 21 novembre 2023 - 20:45 - Athína (Athens) - OPAP Arena\n\n### Grèce\n\n### France\n\n### Matchs amicaux - samedi 23 mars 2024 - 21:00 - Décines-Charpieu - Groupama Stadium\n\n### France\n\n### Allemagne\n\n### Matchs amicaux - mardi 26 mars 2024 - 21:00 - Marseille - Orange Vélodrome\n\n### France\n\n### Chili\n\n### Matchs amicaux - mercredi 5 juin 2024 - 21:00 - Longeville-lès-Metz - Stade Saint-Symphorien\n\n### France\n\n### Luxembourg [...] ### Espagne\n\n### France\n\n### Ligue des nations - vendredi 6 septembre 2024 - 20:45 - Paris - Parc des Princes\n\n### France\n\n### Italie\n\n### Ligue des nations - lundi 9 septembre 2024 - 20:45 - Décines-Charpieu - Groupama Stadium\n\n### France\n\n### Belgique\n\n### Ligue des nations - jeudi 10 octobre 2024 - 20:45 - Budapest - Bozsik Aréna\n\n### Israël\n\n### France\n\n### Ligue des nations - lundi 14 octobre 2024 - 20:45 - Bruxelles (Brussel) - Stade Roi Baudouin\n\n### Belgique\n\n### France\n\n### Ligue des nations - jeudi 14 novembre 2024 - 20:45 - Saint-Denis - Stade de France\n\n### France\n\n### Israël\n\n### Ligue des nations - dimanche 17 novembre 2024 - 20:45 - Milano - Stadio Giuseppe Meazza\n\n### Italie\n\n### France\n\n### Ligue des nations - jeudi 20 mars 2025 - 20:45 - Split - Stadion Poljud [...] english-flag\nFédération Française de Football - logo officiel\n\n2 - Equipe de France A - logo\n\n# Équipe de France\n\n## Résultats et calendrier\n\n### Éliminatoires Euro - vendredi 16 juin 2023 - 20:45 - São João da Venda - Estádio Do Algarve\n\n### Gibraltar\n\n### France\n\n### Éliminatoires Euro - lundi 19 juin 2023 - 20:45 - Saint-Denis - Stade de France\n\n### France\n\n### Grèce\n\n### Éliminatoires Euro - jeudi 7 septembre 2023 - 20:45 - Paris - Parc des Princes\n\n### France\n\n### Irlande\n\n### Matchs amicaux - mardi 12 septembre 2023 - 21:00 - Dortmund - SIGNAL IDUNA PARK\n\n### Allemagne\n\n### France\n\n### Éliminatoires Euro - vendredi 13 octobre 2023 - 20:45 - Amsterdam - Johan Cruijff Arena\n\n### Pays-Bas\n\n### France",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f5871403d5911f1bd312fd2c816a7f2",
+            "document_name": "Équipe de France | Résultats et calendrier | Fédération Française de Football (FFF) | Site Officiel",
+            "id": "3f5871403d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.64243245,
+            "term_similarity": 0,
+            "url": "https://www.fff.fr/selection/2-equipe-de-france/resultats-et-calendrier.html",
+            "vector_similarity": 1.0
+          },
+          {
+            "content": "1n2 cotes bulletin\nMeD Image\nMatch en Direct ios Download\nMatch en Direct Android Download\nadimg\nFootball Aujourd'hui Livescore\n\n#### Football\n\nBasketball Aujourd'hui Livescore\n\n#### Basket\n\nTennis Aujourd'hui Livescore\n\n#### Tennis\n\nRugby Aujourd'hui Livescore\n\n#### Rugby\n\nfacebook icon\ntwitter icon\ninstgram icon\narrow left img\nMeD Image Right\nadimg\n\n|  |  |\n --- |\n| France | À propos de France |\n\nFrance\n\nFrance\n\n# À propos de France\n\ncountry 7yasa43laq1nb2e6f8bfuvxed\n\n### Monde : Coupe du Monde\n\nright arrow\n\n|  |  |  |\n --- \n| 16.06 | France v   Sénégal |  |\n| 22.06 | France v   Irak |  |\n| 26.06 | Norvège v   France |  |\n\n##### Á savoir sur: France [...] ##### Á savoir sur: France\n\nContinuez à suivre le site MatchEnDirect.Fr pour ne rien manquer ! Toutes les informations sur France, les statistiques détaillées, les résultats en direct, les compositions de l'équipe, l'actualité des transferts, les matchs à venir et plus d'informations...\n\nLes résultats en direct rapides et les pronostics pour plus de 1.000 tournois, en particulier la France Ligue 1 et Ligue 2, Premier League, La Liga, Serie A, Bundesliga, Ligue des Champions, Ligue Europa, les rencontres internationales !\n\nDe plus, vous pouvez facilement télécharger et commencer à utiliser l'application mobile « MatchEnDirect » pour obtenir toutes ces informations et plus encore...\n\nMatch en Direct\n\n## France\n\n### Derniers Articles\n\n### Discussions les plus populaires [...] ### Derniers Articles\n\n### Discussions les plus populaires\n\n### Les meilleurs du foot\n\n### Compétitions de foot\n\n### Joueurs\n\n### Clubs\n\n### A PROPOS DE NOUS\n\nMatch En Direct\n\nVoir un match de football en direct ? Gratuitement regarder tous les scores de foot\nen\ndirect\nlive des matchs de foot dans le monde entier.\n\n### LIENS UTILES\n\n### RESTEZ CONNECTÉ\n\nfacebook ico\nx twitter ico\ninstagram ico\n\n### NOS APPLICATIONS\n\nicon apple\nicon android",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f5b18c83d5911f1bd312fd2c816a7f2",
+            "document_name": "Résultats France : calendrier et scores des matchs de France",
+            "id": "3f5b18c83d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.56025267,
+            "term_similarity": 0,
+            "url": "https://www.matchendirect.fr/equipe/france_4pz87gsel7183b7kcadw1dwzv.html",
+            "vector_similarity": 1.0
+          },
+          {
+            "content": "### 2026 FIFA World Cup Standings\n\n| Team | GP | W | D | L | GD | P |\n ---  ---  --- \n| France | 0 | 0 | 0 | 0 | 0 | 0 |\n| Senegal | 0 | 0 | 0 | 0 | 0 | 0 |\n| Iraq | 0 | 0 | 0 | 0 | 0 | 0 |\n| Norway | 0 | 0 | 0 | 0 | 0 | 0 |\n\n### 2026 Team Leaders\n\n#### FIFA World Cup\n\n### Brice SambaG\n\n### Mike MaignanG\n\n### Lucas ChevalierG\n\n### Find Tickets\n\nESPN",
+            "dataset_id": [],
+            "doc_type": null,
+            "document_id": "3f5da5703d5911f1bd312fd2c816a7f2",
+            "document_name": "France Scores, Stats and Highlights - ESPN",
+            "id": "3f5da5703d5911f1bd312fd2c816a7f2",
+            "image_id": "",
+            "positions": [],
+            "similarity": 0.11516223,
+            "term_similarity": 0,
+            "url": "https://www.espn.com/soccer/team/_/id/478/france",
+            "vector_similarity": 1.0
+          }
+        ],
+        "doc_aggs": [
+          {
+            "count": 1,
+            "doc_id": "3f52e41e3d5911f1bd312fd2c816a7f2",
+            "doc_name": "France Scores & Latest Results Today | LiveScore",
+            "url": "https://www.livescore.com/en/football/team/france/9179/overview/"
+          },
+          {
+            "count": 1,
+            "doc_id": "3f551cb63d5911f1bd312fd2c816a7f2",
+            "doc_name": "Résultats Équipe de France Coupe du Monde et match en direct",
+            "url": "https://fr.besoccer.com/equipe/matchs/seleccion-francia"
+          }
+        ],
+        "total": 0
+      }
+    ],
+    "update_date": "2026-04-21T10:08:20",
+    "update_time": 1776758900381,
+    "user_id": "66516d6a0fff11f1831fefbd69143e56"
+  },
+  "message": "success"
+}
