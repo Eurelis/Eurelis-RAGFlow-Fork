@@ -366,6 +366,7 @@ def _load_canvas_module(monkeypatch):
         get_by_id=lambda *_args, **_kwargs: (True, None),
         save_or_replace_latest=lambda *_args, **_kwargs: True,
         build_version_title=lambda *_args, **_kwargs: "stub_version_title",
+        get_latest_version_title=lambda *_args, **_kwargs: "stub_version_title",
     )
     monkeypatch.setitem(sys.modules, "api.db.services.user_canvas_version", canvas_version_mod)
 
@@ -441,7 +442,10 @@ def _load_canvas_module(monkeypatch):
 
     agent_pkg = ModuleType("agent")
     agent_pkg.__path__ = []
+    agent_dsl_migration_mod = ModuleType("agent.dsl_migration")
+    agent_dsl_migration_mod.normalize_chunker_dsl = lambda dsl: dsl
     monkeypatch.setitem(sys.modules, "agent", agent_pkg)
+    monkeypatch.setitem(sys.modules, "agent.dsl_migration", agent_dsl_migration_mod)
 
     agent_component_mod = ModuleType("agent.component")
 
@@ -449,6 +453,7 @@ def _load_canvas_module(monkeypatch):
         pass
 
     agent_component_mod.LLM = _StubLLM
+    agent_pkg.component = agent_component_mod
     monkeypatch.setitem(sys.modules, "agent.component", agent_component_mod)
 
     agent_canvas_mod = ModuleType("agent.canvas")
@@ -478,6 +483,8 @@ def _load_canvas_module(monkeypatch):
             return "{}"
 
     agent_canvas_mod.Canvas = _StubCanvas
+    agent_pkg.canvas = agent_canvas_mod
+    agent_pkg.dsl_migration = agent_dsl_migration_mod
     monkeypatch.setitem(sys.modules, "agent.canvas", agent_canvas_mod)
 
     quart_mod = ModuleType("quart")

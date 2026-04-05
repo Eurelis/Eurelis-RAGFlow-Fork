@@ -339,7 +339,7 @@ export default {
       changeSpecificCategory: '更改特定类别',
       uploadTitle: '点击或拖拽文件至此区域即可上传',
       uploadDescription:
-        '支持单次或批量上传。本地部署的单次上传文件总大小上限为 1GB，单次批量上传文件数不超过 32，单个账户不限文件数量。对于 demo.ragflow.io：每次上传的总文件大小限制为 10MB，每个文件不得超过 10MB，每个账户最多可上传 128 个文件。严禁上传违禁文件。',
+        '支持单次或批量上传。本地部署的单次上传文件总大小上限为 1GB，单次批量上传文件数不超过 32，单个账户不限文件数量。对于 cloud.ragflow.io：每次上传的总文件大小限制为 10MB，每个文件不得超过 10MB，每个账户最多可上传 128 个文件。严禁上传违禁文件。',
       chunk: '解析块',
       bulk: '批量',
       cancel: '取消',
@@ -795,6 +795,16 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       created: '创建于',
       action: '操作',
       embedModalTitle: '嵌入网站',
+      published: '已发布',
+      publishedTooltip:
+        '在嵌入中使用已发布的版本。启用后，生成的 URL 将包含 release=true。',
+      embedType: '嵌入类型',
+      fullscreenChat: '全屏聊天（传统 iframe）',
+      floatingWidget: '悬浮组件（Intercom 风格）',
+      theme: '主题',
+      light: '浅色',
+      dark: '深色',
+      enableStreaming: '启用流式响应',
       comingSoon: '即将推出',
       fullScreenTitle: '全屏嵌入',
       fullScreenDescription: '将以下iframe嵌入您的网站处于所需位置',
@@ -885,6 +895,8 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       newDocs: '新文档',
       timeStarted: '开始时间',
       log: '日志',
+      rssDescription:
+        '连接公开的 RSS 或 Atom feed，并将 feed 条目同步到知识库。',
       confluenceDescription: '连接你的 Confluence 工作区以搜索文档内容。',
       s3Description: ' 连接你的 AWS S3 存储桶以导入和同步文件。',
       google_cloud_storageDescription:
@@ -1217,7 +1229,7 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       parseOnCreation: '创建时解析',
       uploadTitle: '点击或拖拽文件至此区域即可上传',
       uploadDescription:
-        '支持单次或批量上传。 本地部署的单次上传文件总大小上限为 1GB，单次批量上传文件数不超过 32，单个账户不限文件数量。对于 demo.ragflow.io：每次上传的总文件大小限制为 10MB，每个文件不得超过 10MB，每个账户最多可上传 128 个文件。严禁上传违禁文件。',
+        '支持单次或批量上传。 本地部署的单次上传文件总大小上限为 1GB，单次批量上传文件数不超过 32，单个账户不限文件数量。对于 cloud.ragflow.io：每次上传的总文件大小限制为 10MB，每个文件不得超过 10MB，每个账户最多可上传 128 个文件。严禁上传违禁文件。',
       file: '文件',
       directory: '文件夹',
       local: '本地上传',
@@ -1250,6 +1262,12 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       consumerApp: '消费者应用',
       other: '其他',
       agents: '智能体',
+      id: 'ID',
+      logTitle: '标题',
+      state: '状态',
+      number: '轮数',
+      latestDate: '最新日期',
+      createDate: '创建日期',
       publishedAt: '发布于',
       beginInput: '开始输入',
       seconds: '秒',
@@ -1342,6 +1360,7 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       version: {
         details: '版本详情',
         download: '下载',
+        version: '版本',
       },
       cite: '引用',
       citeTip: '引用',
@@ -1908,17 +1927,30 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       tokenizerRequired: '请先添加Tokenizer节点',
       tokenizerDescription:
         '根据所选的搜索方法，将文本转换为所需的数据结构（例如，用于嵌入搜索的向量嵌入）。',
-      splitter: '按字符分割',
-      splitterDescription:
+      tokenChunker: '按 Token 分块',
+      tokenChunkerDescription:
         '根据分词器长度将文本拆分成块，并带有可选的分隔符和重叠。',
-      hierarchicalMergerDescription:
+      titleChunkerDescription:
         '使用正则表达式规则按标题层次结构将文档拆分成多个部分，以实现更精细的控制。',
-      hierarchicalMerger: '按标题分割',
+      titleChunker: '按标题分块',
       extractor: '提取器',
       extractorDescription:
         '使用 LLM 从文档块（例如摘要、分类等）中提取结构化见解。',
       outputFormat: '输出格式',
       fileFormats: '文件类型',
+      fileFormatOptions: {
+        pdf: 'PDF',
+        spreadsheet: '表格',
+        image: '图片',
+        email: '邮件',
+        'text&markdown': '文本与标记',
+        code: '代码',
+        html: 'HTML',
+        word: 'Word',
+        slides: 'PPTX',
+        audio: '音频',
+        video: '视频',
+      },
       fields: '字段',
       addParser: '增加解析器',
       hierarchy: '层次结构',
@@ -2150,6 +2182,7 @@ Tokenizer 会根据所选方式将内容存储为对应的数据结构。`,
       vietnamese: '越南语',
       bulgarian: '保加利亚语',
       arabic: '阿拉伯语',
+      turkish: '土耳其语',
     },
     pagination: {
       total: '总共 {{total}} 条',

@@ -39,6 +39,7 @@ from api.utils.api_utils import (
     get_request_json,
 )
 from agent.canvas import Canvas
+from agent.dsl_migration import normalize_chunker_dsl
 from peewee import MySQLDatabase, PostgresqlDatabase
 from api.db.db_models import APIToken, Task
 
@@ -148,10 +149,12 @@ def get(canvas_id):
 
     # Add last_publish_time to response data
     if isinstance(c, dict):
+        c["dsl"] = normalize_chunker_dsl(c.get("dsl", {}))
         c["last_publish_time"] = last_publish_time
     else:
         # If c is a model object, convert to dict first
         c = c.to_dict()
+        c["dsl"] = normalize_chunker_dsl(c.get("dsl", {}))
         c["last_publish_time"] = last_publish_time
 
     # For pipeline type, get associated datasets
@@ -688,6 +691,8 @@ async def set_session(canvas_id):
     session_id=get_uuid()
     canvas = Canvas(cvs.dsl, tenant_id, canvas_id, canvas_id=cvs.id)
     canvas.reset()
+    # Get the version title for this canvas (using latest, not necessarily released)
+    version_title = UserCanvasVersionService.get_latest_version_title(cvs.id, release_mode=False)
     conv = {
         "id": session_id,
         "name": req.get("name", ""),
@@ -697,7 +702,8 @@ async def set_session(canvas_id):
         "message": [],
         "source": "agent",
         "dsl": cvs.dsl,
-        "reference": []
+        "reference": [],
+        "version_title": version_title
     }
     API4ConversationService.save(**conv)
     return get_json_result(data=conv)
