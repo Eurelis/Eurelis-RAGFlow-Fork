@@ -88,9 +88,13 @@ class TreeStructuredQueryDecompositionRetrieval:
     async def research(self, chunk_info, question, query, depth=3, callback=None):
         if callback:
             await callback("<START_DEEP_RESEARCH>")
-        await self._research(chunk_info, question, query, depth, callback)
-        if callback:
-            await callback("<END_DEEP_RESEARCH>")
+        try:
+            await self._research(chunk_info, question, query, depth, callback)
+        except Exception as e:
+            logging.exception(e)
+        finally:
+            if callback:
+                await callback("<END_DEEP_RESEARCH>")
 
     async def _research(self, chunk_info, question, query, depth=3, callback=None):
         if depth == 0:
@@ -109,14 +113,14 @@ class TreeStructuredQueryDecompositionRetrieval:
         if callback:
             await callback("Checking the sufficiency for retrieved information.")
         suff = await sufficiency_check(self.chat_mdl, question, ret)
-        if suff["is_sufficient"]:
+        if suff.get("is_sufficient"):
             if callback:
                 await callback(f"Yes, the retrieved information is sufficient for '{question}'.")
             return ret
 
         #if callback:
         #    await callback("The retrieved information is not sufficient. Planing next steps...")
-        succ_question_info = await multi_queries_gen(self.chat_mdl, question, query, suff["missing_information"], ret)
+        succ_question_info = await multi_queries_gen(self.chat_mdl, question, query, suff.get("missing_information", []), ret)
         if callback:
             await callback("Next step is to search for the following questions:</br> - " + "</br> - ".join(step["question"] for step in succ_question_info["questions"]))
         steps = []
