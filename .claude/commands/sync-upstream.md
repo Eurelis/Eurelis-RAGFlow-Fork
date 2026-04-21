@@ -1,6 +1,6 @@
 ---
 description: Synchronise le miroir main depuis upstream et rebase eurelis/main — avec rollback automatique en cas d'échec
-allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git push:*), Bash(git rebase:*), Bash(git tag:*), Bash(git reset:*), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git remote:*), Bash(git diff:*), Bash(git add:*)
+allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git merge:*), Bash(git push:*), Bash(git rebase:*), Bash(git tag:*), Bash(git reset:*), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git remote:*), Bash(git diff:*), Bash(git add:*), Bash(date:*), Write
 ---
 
 # /sync-upstream — Synchronisation fork Eurelis ↔ upstream RAGFlow
@@ -37,18 +37,19 @@ Si une vérification échoue, **ne pas continuer**. Afficher le problème claire
 
 ## ÉTAPE 1 — Sauvegardes pour rollback
 
-Créer des tags de sauvegarde horodatés **avant toute modification** :
+Obtenir la date du jour puis créer les tags de sauvegarde **avant toute modification** :
 
 ```bash
+DATE=$(date +%Y-%m-%d)
 git tag -f backup/main-before-sync main
-git tag -f backup/eurelis-main-before-sync eurelis/main
+git tag -f backup/eurelis-main-before-sync-$DATE eurelis/main
 ```
 
 Afficher et noter les SHAs :
 - `SHA_MAIN_AVANT` = résultat de `git rev-parse main`
 - `SHA_EURELIS_AVANT` = résultat de `git rev-parse eurelis/main`
 
-Ces tags permettront un rollback complet. Les communiquer à l'utilisateur.
+Ces tags permettront un rollback complet. Les communiquer à l'utilisateur, en précisant le nom exact du tag daté (ex. `backup/eurelis-main-before-sync-2026-04-21`).
 
 ---
 
@@ -119,6 +120,34 @@ git push origin eurelis/main --force-with-lease
 
 ---
 
+## ÉTAPE 7 — Enregistrement du rapport
+
+Obtenir la date du jour :
+```bash
+date +%Y-%m-%d
+```
+
+Créer le fichier `docs/eurelis/sync-upstream/YYYY-MM-DD.md` (remplacer la date réelle) avec le contenu suivant, en remplaçant toutes les variables par leurs valeurs réelles :
+
+```markdown
+# Sync upstream — YYYY-MM-DD
+
+## Rapport final
+
+| Branche | SHA avant | SHA après | Commits intégrés |
+|---|---|---|---|
+| `main` | `SHA_MAIN_AVANT` | `SHA_MAIN_APRÈS` | N commits upstream |
+| `eurelis/main` | `SHA_EURELIS_AVANT` | `SHA_EURELIS_APRÈS` | N commits Eurelis rebasés |
+
+## Conflits résolus
+
+<!-- Lister ici les conflits rencontrés et leur résolution, ou supprimer cette section si aucun conflit -->
+```
+
+Si aucun conflit n'a eu lieu, supprimer la section `## Conflits résolus` du fichier généré.
+
+---
+
 ## RAPPORT FINAL
 
 À la fin d'une synchronisation réussie, afficher un tableau récapitulatif :
@@ -139,7 +168,7 @@ git reset --hard backup/main-before-sync
 git push origin main --force-with-lease
 
 git checkout eurelis/main
-git reset --hard backup/eurelis-main-before-sync
+git reset --hard backup/eurelis-main-before-sync-YYYY-MM-DD  # remplacer par la date affichée à l'étape 1
 git push origin eurelis/main --force-with-lease
 ```
 
