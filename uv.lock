@@ -6680,6 +6680,7 @@ dependencies = [
     { name = "xgboost" },
     { name = "xpinyin" },
     { name = "yfinance" },
+    { name = "zhipuai" },
 ]
 
 [package.dev-dependencies]
@@ -6823,6 +6824,7 @@ requires-dist = [
     { name = "xgboost", specifier = "==1.6.0" },
     { name = "xpinyin", specifier = "==0.7.6" },
     { name = "yfinance", specifier = "==0.2.65" },
+    { name = "zhipuai", specifier = ">=2.0.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -9015,6 +9017,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a3/c1/2ef5acda45a71297f4be22e205359e0f93b0171f2b6ebdd681362e725686/yfinance-0.2.65.tar.gz", hash = "sha256:3d465e58c49be9d61f9862829de3e00bef6b623809f32f4efb5197b62fc60485", size = 128666 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/1e/631c80e0f97aef46eb73549b9b0f60d94057294e040740f4cad0cb1f48e4/yfinance-0.2.65-py2.py3-none-any.whl", hash = "sha256:7be13abb0d80a17230bf798e9c6a324fa2bef0846684a6d4f7fa2abd21938963", size = 119438 },
+]
+
+[[package]]
+name = "zhipuai"
+version = "2.1.5.20250825"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cachetools" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "pyjwt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/9b/972de785a9859bbb5ee6425e011f154001886207860acdedebd174b7f2c2/zhipuai-2.1.5.20250825.tar.gz", hash = "sha256:50fc3982565ee631bd640b1166a1d223de227958026a74a1dd0e26dbd58d729c", size = 69899 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/95/22fc274f670e4531da20cc607991c34e7f8f4de5baa589e454e77e2492fa/zhipuai-2.1.5.20250825-py3-none-any.whl", hash = "sha256:aaad19881e514a4682598f07503b82d60b8b9a91cd83f9bcda988b94853c830d", size = 119097 },
 ]
 
 [[package]]
