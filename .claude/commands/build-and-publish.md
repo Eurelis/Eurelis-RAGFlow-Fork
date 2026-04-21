@@ -1,17 +1,22 @@
 ---
 description: Build et publie l'image Docker Eurelis sur Docker Hub depuis eurelis/main
-allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git status:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(docker buildx:*), Bash(docker login:*), Bash(docker build:*), Bash(docker info:*), Bash(uv run:*), AskUserQuestion
+allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git status:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git checkout:*), Bash(docker buildx:*), Bash(docker login:*), Bash(docker build:*), Bash(docker info:*), Bash(uv run:*), AskUserQuestion
 ---
 
 # /build-and-publish — Build et publication de l'image Docker Eurelis
 
 Tu es chargé de builder et publier l'image Docker du fork Eurelis de RAGFlow selon la stratégie de `docs/eurelis/guidelines/release-management.md`.
 
-**Règle d'or** : on ne build que depuis `eurelis/main`, avec un tag `vX.Y.Z-eurelis.N` posé sur le commit courant. Jamais de build sans tag.
+**Règle d'or** : on ne build que depuis `eurelis/main`, avec un tag `vX.Y.Z-eurelis.N`. Jamais de build sans tag.
+
+**Usage** :
+- `/build-and-publish` — utilise le tag `vX.Y.Z-eurelis.N` présent sur HEAD
+- `/build-and-publish v0.25.0-eurelis.1` — utilise le tag passé en paramètre (`$ARGUMENTS`)
 
 ## Contexte courant (injecté au lancement)
 
 - Branche active : !`git branch --show-current`
+- Paramètre reçu : $ARGUMENTS
 - Dernier tag Eurelis : !`git describe --tags --match="v*-eurelis.*" --abbrev=0 2>/dev/null || echo "AUCUN"`
 - Tag sur HEAD : !`git tag --points-at HEAD --list "v*-eurelis.*" 2>/dev/null || echo "AUCUN"`
 - Builder buildx : !`docker buildx ls 2>/dev/null | grep eurelis-builder || echo "ABSENT"`
@@ -20,28 +25,48 @@ Tu es chargé de builder et publier l'image Docker du fork Eurelis de RAGFlow se
 
 ## ÉTAPE 0 — Vérifications préliminaires (OBLIGATOIRE)
 
-Avant toute action, vérifie :
+### Résolution du tag à utiliser
 
-1. **Branche correcte** : la branche active doit être `eurelis/main`. Si ce n'est pas le cas, **arrêter** et afficher :
-   > ERREUR : vous devez être sur `eurelis/main` pour builder. Faites `git checkout eurelis/main`.
+**Si `$ARGUMENTS` est fourni** (ex: `/build-and-publish v0.25.0-eurelis.1`) :
 
-2. **Tag Eurelis sur HEAD** : `git tag --points-at HEAD --list "v*-eurelis.*"` doit retourner un tag. Si absent, **arrêter** et afficher :
-   > ERREUR : aucun tag `vX.Y.Z-eurelis.N` sur le commit courant. Créez-le d'abord :
+1. Vérifier que le tag existe : `git tag --list "$ARGUMENTS"`. Si absent, **arrêter** :
+   > ERREUR : le tag `$ARGUMENTS` n'existe pas. Vérifiez avec `git tag --list "v*-eurelis.*"`.
+
+2. Récupérer le commit pointé par le tag : `git rev-parse $ARGUMENTS`
+
+3. Si ce commit **n'est pas** le HEAD actuel :
+   - Afficher un avertissement : le tag `$ARGUMENTS` pointe sur `<sha>`, mais HEAD est sur `<sha-head>`.
+   - Proposer : **voulez-vous checkout le commit du tag avant de builder ?**
+     - Si oui : `git checkout $ARGUMENTS` (mode detached HEAD). Informer l'utilisateur.
+     - Si non : **arrêter** — on ne builde pas depuis un état incohérent.
+
+**Si `$ARGUMENTS` est absent** :
+
+1. Vérifier qu'un tag Eurelis est posé sur HEAD : `git tag --points-at HEAD --list "v*-eurelis.*"`. Si absent, **arrêter** :
+   > ERREUR : aucun tag `vX.Y.Z-eurelis.N` sur le commit courant. Créez-le ou passez-le en paramètre :
    > ```bash
-   > git tag vX.Y.Z-eurelis.N eurelis/main
+   > git tag vX.Y.Z-eurelis.N HEAD
    > git push origin vX.Y.Z-eurelis.N
+   > # ou : /build-and-publish vX.Y.Z-eurelis.N
    > ```
 
-3. **Docker opérationnel** : `docker info` doit répondre sans erreur. Si Docker n'est pas démarré, **arrêter**.
+### Vérifications communes
 
-4. **Builder eurelis-builder présent** : `docker buildx ls` doit contenir `eurelis-builder`. Si absent, **arrêter** et afficher :
+Après avoir résolu le tag, vérifier :
+
+1. **Branche correcte** : la branche active (ou le commit checké) doit appartenir à `eurelis/main`. Si ce n'est pas le cas, **arrêter** :
+   > ERREUR : vous devez builder depuis `eurelis/main`. Faites `git checkout eurelis/main`.
+
+2. **Docker opérationnel** : `docker info` doit répondre sans erreur. Si Docker n'est pas démarré, **arrêter**.
+
+3. **Builder eurelis-builder présent** : `docker buildx ls` doit contenir `eurelis-builder`. Si absent, **arrêter** :
    > ERREUR : le builder multi-platform est absent. Créez-le avec :
    > ```bash
    > docker buildx create --name eurelis-builder --driver docker-container --bootstrap
    > docker buildx use eurelis-builder
    > ```
 
-5. **Connexion Docker Hub** : `docker login` doit être actif (vérifiable via `docker info | grep Username`). Si absent, **arrêter** et afficher :
+4. **Connexion Docker Hub** : vérifiable via `cat ~/.docker/config.json | grep index.docker.io`. Si absent, **arrêter** :
    > ERREUR : vous n'êtes pas connecté à Docker Hub. Lancez `docker login`.
 
 Si une vérification échoue, **ne pas continuer**.
@@ -50,16 +75,11 @@ Si une vérification échoue, **ne pas continuer**.
 
 ## ÉTAPE 1 — Confirmation du tag à builder
 
-Récupérer le tag sur HEAD :
-
-```bash
-git tag --points-at HEAD --list "v*-eurelis.*"
-```
-
 Afficher clairement ce qui va être buildé :
 
 ```
 Tag    : vX.Y.Z-eurelis.N
+Commit : <sha>
 Images : eurelis/ragflow:vX.Y.Z-eurelis.N
          eurelis/ragflow:latest
 Plateforme : linux/amd64
@@ -123,8 +143,10 @@ Et rappeler la procédure de mise à jour d'une instance existante :
 
 | Situation | Action |
 |---|---|
-| Branche ≠ eurelis/main | Arrêt — demander checkout |
-| Aucun tag eurelis sur HEAD | Arrêt — afficher la commande de tag |
+| Tag paramètre inexistant | Arrêt — afficher les tags disponibles |
+| Tag paramètre ≠ HEAD, refus de checkout | Arrêt propre |
+| Aucun tag eurelis sur HEAD (sans paramètre) | Arrêt — afficher la commande de tag ou l'usage avec paramètre |
+| Commit non issu de eurelis/main | Arrêt — demander checkout |
 | Docker non démarré | Arrêt — demander démarrage |
 | Builder eurelis-builder absent | Arrêt — afficher la commande de création |
 | Non connecté à Docker Hub | Arrêt — afficher `docker login` |

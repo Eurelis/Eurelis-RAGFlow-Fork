@@ -46,14 +46,16 @@ git push origin eurelis/main --force-with-lease
 ## Slash command `/build-and-publish`
 
 **Fichier** : `.claude/commands/build-and-publish.md`  
-**Usage** : taper `/build-and-publish` depuis Claude Code dans ce projet, sur la branche `eurelis/main` avec un tag `vX.Y.Z-eurelis.N` posé sur HEAD
+**Usage** :
+- `/build-and-publish` — utilise le tag `vX.Y.Z-eurelis.N` posé sur HEAD
+- `/build-and-publish v0.25.0-eurelis.1` — utilise le tag passé en paramètre
 
 Ce command agentic build et publie l'image Docker du fork Eurelis sur Docker Hub.
 
 ### Prérequis
 
-- Être sur la branche `eurelis/main`
-- Un tag `vX.Y.Z-eurelis.N` posé sur le commit courant (voir `docs/eurelis/guidelines/release-management.md`)
+- Être sur la branche `eurelis/main` (ou avoir un commit de `eurelis/main` checké)
+- Un tag `vX.Y.Z-eurelis.N` existant — sur HEAD ou passé en paramètre (voir `docs/eurelis/guidelines/release-management.md`)
 - Docker Desktop démarré avec 16 GB de RAM alloués minimum
 - Être connecté à Docker Hub (`docker login`)
 - Builder multi-platform `eurelis-builder` créé (une seule fois) :
@@ -63,8 +65,12 @@ Ce command agentic build et publie l'image Docker du fork Eurelis sur Docker Hub
 
 ### Processus en 2 étapes
 
-1. **Vérifications** — branche, tag, Docker, builder, connexion Hub
+1. **Vérifications** — résolution du tag (paramètre ou HEAD), branche, Docker, builder, connexion Hub
 2. **Build et push** — `docker buildx build --platform linux/amd64 --push` vers `eurelis/ragflow:TAG` et `eurelis/ragflow:latest`
+
+### Passage du tag en paramètre
+
+Si le tag ne pointe pas sur HEAD, la commande propose un `git checkout` du commit correspondant avant de lancer le build. Cela permet de builder une release antérieure sans avoir à manipuler les branches manuellement.
 
 ### Versioning
 
