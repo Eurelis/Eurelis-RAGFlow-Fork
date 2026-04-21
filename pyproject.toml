@@ -120,7 +120,7 @@ dependencies = [
     "xgboost==1.6.0",
     "xpinyin==0.7.6",
     "yfinance==0.2.65",
-    # "zhipuai>=2.0.1", VLA-2026-03-14
+    "zhipuai>=2.0.1",
     "peewee>=3.17.1,<4.0.0",
     #    following modules aren't necessary
     #    "nltk==3.9.1",
