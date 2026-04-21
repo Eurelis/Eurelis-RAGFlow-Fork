@@ -23,6 +23,22 @@ Basé sur RAGFlow `v0.24.0`.
 
 ---
 
+## [v0.25.0-eurelis.1] - 2026-04-21
+
+Basé sur RAGFlow `v0.25.0`.
+
+### Added
+
+- Guide complet sur la gestion des forks Eurelis (`24e617920`)
+- Documentation pour la commande `/sync-upstream` avec processus détaillé, tags de sauvegarde et rapport final (`2696386d6`, `e27e2fc91`, `6b88d5054`, `a839c1071`)
+- Documentation pour la commande `/build-and-publish` (`1246bea5a`)
+- Documentation sur la relation `chunks` / `doc_aggs` dans l'API Chat, avec mécanisme de citation (`2d075d8cc`, `6adf5798f`)
+- Documentation pour l'intégration de Tavily dans le pipeline RAG (`775b8266d`)
+- Documents d'analyse pour les releases Eurelis (`ad95616bc`)
+- Initialisation du CHANGELOG Eurelis (`4d61853d6`)
+
+---
+
 <!-- Template pour les prochaines releases :
 
 ## [vX.Y.Z-eurelis.N] - YYYY-MM-DD
