@@ -43,7 +43,38 @@ git push origin eurelis/main --force-with-lease
 
 ---
 
+## Slash command `/build-and-publish`
+
+**Fichier** : `.claude/commands/build-and-publish.md`  
+**Usage** : taper `/build-and-publish` depuis Claude Code dans ce projet, sur la branche `eurelis/main` avec un tag `vX.Y.Z-eurelis.N` posé sur HEAD
+
+Ce command agentic build et publie l'image Docker du fork Eurelis sur Docker Hub.
+
+### Prérequis
+
+- Être sur la branche `eurelis/main`
+- Un tag `vX.Y.Z-eurelis.N` posé sur le commit courant (voir `docs/eurelis/guidelines/release-management.md`)
+- Docker Desktop démarré avec 16 GB de RAM alloués minimum
+- Être connecté à Docker Hub (`docker login`)
+- Builder multi-platform `eurelis-builder` créé (une seule fois) :
+  ```bash
+  docker buildx create --name eurelis-builder --driver docker-container --bootstrap
+  ```
+
+### Processus en 2 étapes
+
+1. **Vérifications** — branche, tag, Docker, builder, connexion Hub
+2. **Build et push** — `docker buildx build --platform linux/amd64 --push` vers `eurelis/ragflow:TAG` et `eurelis/ragflow:latest`
+
+### Versioning
+
+Format : `vX.Y.Z-eurelis.N` — `X.Y.Z` est la version RAGFlow upstream, `N` est le numéro de release Eurelis sur cette base.
+
+---
+
 ## Références
 
 - Guidelines fork : `docs/eurelis/guidelines/fork-management.md`
-- Définition du command : `.claude/commands/sync-upstream.md`
+- Guidelines release : `docs/eurelis/guidelines/release-management.md`
+- Commande sync : `.claude/commands/sync-upstream.md`
+- Commande build : `.claude/commands/build-and-publish.md`
