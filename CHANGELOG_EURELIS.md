@@ -4,6 +4,24 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.1-eurelis.1] - 2026-05-02
+
+Basé sur RAGFlow `v0.25.1`.
+
+### Added
+
+- Dépendance `zhipuai>=2.0.1` pour le support des modèles ZhipuAI (`cb70f7362`)
+
+### Changed
+
+- Amélioration de `tree_structured_query_decomposition_retrieval` : meilleure gestion du total et des cas limites (`3e2486ac6`)
+
+### Fixed
+
+- `rag/nlp/search.py` — `retrieval_by_children` : guard `None` sur le chunk parent pour éviter un `TypeError` sur les enfants orphelins — repli sur les chunks enfants en cas de parent absent de l'index (`188f825a9`)
+
+---
+
 ## [v0.25.0-eurelis.3-exp.1] - 2026-05-02
 
 > **Pré-release expérimentale** de `v0.25.0-eurelis.3`. Image Docker publiée pour tests ; ne pas utiliser en production.
