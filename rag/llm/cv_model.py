@@ -1290,7 +1290,7 @@ class RAGconCV(GptV4):
 class BedrockCV(Base):
     _FACTORY_NAME = "Bedrock"
 
-    def __init__(self, key, model_name, lang="Chinese", base_url="", **kwargs):
+    def __init__(self, key, model_name, lang="Chinese", **kwargs):
         self.model_name = f"bedrock/{model_name}"
         self.lang = lang
         self._parse_credentials(key)
