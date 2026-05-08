@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.1-eurelis.3-exp.1] - 2026-05-08
+
+Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
+
+> **Pré-release expérimentale** de `v0.25.1-eurelis.3`. Image Docker publiée pour tests ; ne pas utiliser en production.
+
+### Fixed
+
+- `api/db/joint_services/tenant_model_service.py` — fallback IMAGE2TEXT → CHAT manquant : un modèle déclaré `model_type: "chat"` avec le tag `IMAGE2TEXT` peut désormais être résolu lors de l'ingestion PDF parser. Le fallback n'est accordé qu'après vérification du tag `IMAGE2TEXT` dans la table `llm` pour garantir la capacité vision.
+
+---
+
 ## [v0.25.1-eurelis.2] - 2026-05-08
 
 Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
