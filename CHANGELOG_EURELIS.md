@@ -4,6 +4,16 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.1-eurelis.2] - 2026-05-08
+
+Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
+
+### Changed
+
+- Synchronisation upstream RAGFlow post-`v0.25.1` (tag `nightly`, 96 commits intégrés)
+
+---
+
 ## [v0.25.1-eurelis.1] - 2026-05-02
 
 Basé sur RAGFlow `v0.25.1`.
