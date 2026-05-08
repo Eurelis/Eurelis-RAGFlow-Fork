@@ -95,8 +95,8 @@ class TreeStructuredQueryDecompositionRetrieval:
             await callback("<START_DEEP_RESEARCH>")
         try:
             await self._research(chunk_info, question, query, depth, callback)
-        except Exception as e:
-            logging.exception(e)
+        except Exception:
+            logging.exception("Unhandled exception in deep research for query: %s", query)
         finally:
             if callback:
                 await callback("<END_DEEP_RESEARCH>")
