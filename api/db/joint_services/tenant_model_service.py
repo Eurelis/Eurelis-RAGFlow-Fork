@@ -71,6 +71,19 @@ def get_model_config_by_type_and_name(tenant_id: str, model_type: str, model_nam
             if not model_config:
                 raise LookupError(f"Tenant Model with name {model_name} and type {model_type_val} not found")
             config_dict = model_config.to_dict()
+        elif model_type_val == LLMType.IMAGE2TEXT.value:
+            model_config = TenantLLMService.get_api_key(tenant_id, pure_model_name, LLMType.IMAGE2TEXT.value)
+            if not model_config:
+                # Fall back to a chat model only if it has declared IMAGE2TEXT capability (tag check via llm table)
+                chat_config = TenantLLMService.get_api_key(tenant_id, pure_model_name, LLMType.CHAT.value)
+                if chat_config:
+                    llm_entry = LLMService.query(llm_name=chat_config.to_dict()["llm_name"])
+                    if llm_entry and "IMAGE2TEXT" in (llm_entry[0].tags or ""):
+                        model_config = chat_config
+            if not model_config:
+                raise LookupError(f"Tenant Model with name {model_name} and type {model_type_val} not found")
+            config_dict = model_config.to_dict()
+            config_dict["model_type"] = LLMType.IMAGE2TEXT.value
         else:
             model_config = TenantLLMService.get_api_key(tenant_id, pure_model_name, model_type_val)
             if not model_config:
@@ -90,6 +103,9 @@ def get_model_config_by_type_and_name(tenant_id: str, model_type: str, model_nam
     if config_model_type != model_type_val and not (
             model_type_val == LLMType.CHAT.value
             and config_model_type == LLMType.IMAGE2TEXT.value
+    ) and not (
+            model_type_val == LLMType.IMAGE2TEXT.value
+            and config_model_type == LLMType.CHAT.value
     ):
         raise LookupError(
             f"Tenant Model with name {model_name} has type {config_model_type}, expected {model_type_val}"
