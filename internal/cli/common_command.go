@@ -32,16 +32,13 @@ func (c *RAGFlowClient) LoginUserInteractive(username, password string) error {
 	// For admin mode, use /admin/ping with useAPIBase=true
 	// For user mode, use /system/ping with useAPIBase=false
 	var pingPath string
-	var useAPIBase bool
 	if c.ServerType == "admin" {
 		pingPath = "/admin/ping"
-		useAPIBase = true
 	} else {
 		pingPath = "/system/ping"
-		useAPIBase = false
 	}
 
-	resp, err := c.HTTPClient.Request("GET", pingPath, useAPIBase, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", pingPath, "web", nil, nil)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		fmt.Println("Can't access server for login (connection failed)")
@@ -53,10 +50,10 @@ func (c *RAGFlowClient) LoginUserInteractive(username, password string) error {
 		return fmt.Errorf("server is down")
 	}
 
-	// Check response - admin returns JSON with message "PONG", user returns plain "pong"
+	// Check response - admin returns JSON with message "pong", user returns plain "pong"
 	resJSON, err := resp.JSON()
 	if err == nil {
-		// Admin mode returns {"code":0,"message":"PONG"}
+		// Admin mode returns {"code":0,"message":"pong"}
 		if msg, ok := resJSON["message"].(string); !ok || msg != "pong" {
 			fmt.Println("Server is down")
 			return fmt.Errorf("server is down")
@@ -73,7 +70,7 @@ func (c *RAGFlowClient) LoginUserInteractive(username, password string) error {
 	if password == "" {
 		fmt.Printf("password for %s: ", username)
 		var err error
-		password, err = readPassword()
+		password, err = ReadPassword()
 		if err != nil {
 			return fmt.Errorf("failed to read password: %w", err)
 		}
@@ -99,16 +96,13 @@ func (c *RAGFlowClient) LoginUser(cmd *Command) error {
 	// For admin mode, use /admin/ping with useAPIBase=true
 	// For user mode, use /system/ping with useAPIBase=false
 	var pingPath string
-	var useAPIBase bool
 	if c.ServerType == "admin" {
 		pingPath = "/admin/ping"
-		useAPIBase = true
 	} else {
 		pingPath = "/system/ping"
-		useAPIBase = false
 	}
 
-	resp, err := c.HTTPClient.Request("GET", pingPath, useAPIBase, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", pingPath, "web", nil, nil)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		fmt.Println("Can't access server for login (connection failed)")
@@ -120,10 +114,10 @@ func (c *RAGFlowClient) LoginUser(cmd *Command) error {
 		return fmt.Errorf("server is down")
 	}
 
-	// Check response - admin returns JSON with message "PONG", user returns plain "pong"
+	// Check response - admin returns JSON with message "pong", user returns plain "pong"
 	resJSON, err := resp.JSON()
 	if err == nil {
-		// Admin mode returns {"code":0,"message":"PONG"}
+		// Admin mode returns {"code":0,"message":"pong"}
 		if msg, ok := resJSON["message"].(string); !ok || msg != "pong" {
 			fmt.Println("Server is down")
 			return fmt.Errorf("server is down")
@@ -145,7 +139,7 @@ func (c *RAGFlowClient) LoginUser(cmd *Command) error {
 	if !ok {
 		// Get password from user input (hidden)
 		fmt.Printf("password for %s: ", email)
-		password, err = readPassword()
+		password, err = ReadPassword()
 		if err != nil {
 			return fmt.Errorf("failed to read password: %w", err)
 		}
@@ -182,10 +176,10 @@ func (c *RAGFlowClient) loginUser(email, password string) (string, error) {
 	if c.ServerType == "admin" {
 		path = "/admin/login"
 	} else {
-		path = "/user/login"
+		path = "/auth/login"
 	}
 
-	resp, err := c.HTTPClient.Request("POST", path, c.ServerType == "admin", "", nil, payload)
+	resp, err := c.HTTPClient.Request("POST", path, "", nil, payload)
 	if err != nil {
 		return "", err
 	}
@@ -216,10 +210,10 @@ func (c *RAGFlowClient) Logout() (ResponseIf, error) {
 	if c.ServerType == "admin" {
 		path = "/admin/logout"
 	} else {
-		path = "/user/logout"
+		path = "/auth/logout"
 	}
 
-	resp, err := c.HTTPClient.Request("GET", path, c.ServerType == "admin", "web", nil, nil)
+	resp, err := c.HTTPClient.Request("POST", path, "web", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +239,7 @@ func (c *RAGFlowClient) ListAvailableProviders(cmd *Command) (ResponseIf, error)
 		endPoint = fmt.Sprintf("/providers?available=true")
 	}
 
-	resp, err := c.HTTPClient.Request("GET", endPoint, true, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", endPoint, "web", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list providers: %w", err)
 	}
@@ -279,7 +273,7 @@ func (c *RAGFlowClient) ShowProvider(cmd *Command) (ResponseIf, error) {
 		endPoint = fmt.Sprintf("/providers/%s", providerName)
 	}
 
-	resp, err := c.HTTPClient.Request("GET", endPoint, true, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", endPoint, "web", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to show provider: %w", err)
 	}
@@ -314,7 +308,46 @@ func (c *RAGFlowClient) ListModels(cmd *Command) (ResponseIf, error) {
 		endPoint = fmt.Sprintf("/providers/%s/models", providerName)
 	}
 
-	resp, err := c.HTTPClient.Request("GET", endPoint, true, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", endPoint, "web", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list models: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to list models: HTTP %d, body: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	var result CommonResponse
+	if err = json.Unmarshal(resp.Body, &result); err != nil {
+		return nil, fmt.Errorf("failed to list models: invalid JSON (%w)", err)
+	}
+
+	if result.Code != 0 {
+		return nil, fmt.Errorf("%s", result.Message)
+	}
+	result.Duration = resp.Duration
+	return &result, nil
+}
+
+func (c *RAGFlowClient) ListSupportedModels(cmd *Command) (ResponseIf, error) {
+
+	providerName, ok := cmd.Params["provider_name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("provider_name not provided")
+	}
+	instanceName, ok := cmd.Params["instance_name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("instance_name not provided")
+	}
+
+	var endPoint string
+	if c.ServerType == "admin" {
+		endPoint = fmt.Sprintf("/admin/providers/%s/instances/%s/models?supported=true", providerName, instanceName)
+	} else {
+		endPoint = fmt.Sprintf("/providers/%s/instances/%s/models?supported=true", providerName, instanceName)
+	}
+
+	resp, err := c.HTTPClient.Request("GET", endPoint, "web", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list models: %w", err)
 	}
@@ -352,7 +385,7 @@ func (c *RAGFlowClient) ShowModel(cmd *Command) (ResponseIf, error) {
 		endPoint = fmt.Sprintf("/providers/%s/models/%s", providerName, modelName)
 	}
 
-	resp, err := c.HTTPClient.Request("GET", endPoint, true, "web", nil, nil)
+	resp, err := c.HTTPClient.Request("GET", endPoint, "web", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to show model: %w", err)
 	}
@@ -373,10 +406,113 @@ func (c *RAGFlowClient) ShowModel(cmd *Command) (ResponseIf, error) {
 	return &result, nil
 }
 
+func (c *RAGFlowClient) SetDefaultModel(cmd *Command) (ResponseIf, error) {
+
+	modelType, ok := cmd.Params["model_type"].(string)
+	if !ok {
+		return nil, fmt.Errorf("model_type not provided")
+	}
+
+	compositeModelName, ok := cmd.Params["composite_model_name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("model_name not provided")
+	}
+
+	var providerName, instanceName, modelName string
+	names := strings.Split(compositeModelName, "/")
+	if len(names) != 3 {
+		return nil, fmt.Errorf("model name must be in format 'provider/instance/model'")
+	}
+	providerName = names[0]
+	instanceName = names[1]
+	modelName = names[2]
+
+	payload := map[string]interface{}{
+		"model_type":     modelType,
+		"model_provider": providerName,
+		"model_instance": instanceName,
+		"model_name":     modelName,
+	}
+
+	resp, err := c.HTTPClient.Request("PATCH", "/models", "web", nil, payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default model: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to set default model: HTTP %d, body: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	var result SimpleResponse
+	if err = json.Unmarshal(resp.Body, &result); err != nil {
+		return nil, fmt.Errorf("failed to set default model: invalid JSON (%w)", err)
+	}
+
+	if result.Code != 0 {
+		return nil, fmt.Errorf("%s", result.Message)
+	}
+	result.Duration = resp.Duration
+	return &result, nil
+}
+
+func (c *RAGFlowClient) ResetDefaultModel(cmd *Command) (ResponseIf, error) {
+
+	modelType, ok := cmd.Params["model_type"].(string)
+	if !ok {
+		return nil, fmt.Errorf("model_type not provided")
+	}
+
+	payload := map[string]interface{}{
+		"model_type": modelType,
+	}
+
+	resp, err := c.HTTPClient.Request("PATCH", "/models", "web", nil, payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reset default model: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to reset default model: HTTP %d, body: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	var result SimpleResponse
+	if err = json.Unmarshal(resp.Body, &result); err != nil {
+		return nil, fmt.Errorf("failed to reset default model: invalid JSON (%w)", err)
+	}
+
+	if result.Code != 0 {
+		return nil, fmt.Errorf("%s", result.Message)
+	}
+	result.Duration = resp.Duration
+	return &result, nil
+}
+
+func (c *RAGFlowClient) ListDefaultModels(cmd *Command) (ResponseIf, error) {
+	resp, err := c.HTTPClient.Request("GET", "/models", "web", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list default models: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to list default models: HTTP %d, body: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	var result CommonResponse
+	if err = json.Unmarshal(resp.Body, &result); err != nil {
+		return nil, fmt.Errorf("failed to list default models: invalid JSON (%w)", err)
+	}
+
+	if result.Code != 0 {
+		return nil, fmt.Errorf("%s", result.Message)
+	}
+	result.Duration = resp.Duration
+	return &result, nil
+}
+
 // readPassword reads password from terminal without echoing
-func readPassword() (string, error) {
+func ReadPassword() (string, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return readPasswordFallback()
+		return ReadPasswordFallback()
 	}
 
 	fmt.Print("Password: ")
@@ -391,7 +527,7 @@ func readPassword() (string, error) {
 }
 
 // readPasswordFallback reads password as plain text (fallback mode)
-func readPasswordFallback() (string, error) {
+func ReadPasswordFallback() (string, error) {
 	fmt.Print("Password (will be visible): ")
 	reader := bufio.NewReader(os.Stdin)
 	password, err := reader.ReadString('\n')
@@ -399,4 +535,28 @@ func readPasswordFallback() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(password), nil
+}
+
+// FlattenMap recursively flattens a nested map into dot-notation keys
+func FlattenMap(data map[string]interface{}, prefix string, result *[]map[string]interface{}) {
+	for key, value := range data {
+		// Build the current key path
+		currentKey := key
+		if prefix != "" {
+			currentKey = prefix + "." + key
+		}
+
+		// Check if the value is another nested map
+		if nestedMap, ok := value.(map[string]interface{}); ok {
+			// Recursively process the nested map
+			FlattenMap(nestedMap, currentKey, result)
+		} else {
+			// Leaf node: append to result slice
+			resultItem := map[string]interface{}{
+				"key":   currentKey,
+				"value": value,
+			}
+			*result = append(*result, resultItem)
+		}
+	}
 }
