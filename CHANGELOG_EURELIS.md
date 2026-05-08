@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.1-eurelis.3-exp.4] - 2026-05-08
+
+Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
+
+> **Pré-release expérimentale** de `v0.25.1-eurelis.3`. Image Docker publiée pour tests ; ne pas utiliser en production.
+
+### Fixed
+
+- `api/apps/llm_app.py` — régression upstream `050113482` : la clé API Bedrock assemblée depuis les champs séparés (`bedrock_ak`, `bedrock_sk`...) était écrasée par la logique "existing key" car `req["api_key"]` était `None`. Fix : écriture dans `req["api_key"]` avant la vérification, cohérent avec le pattern Tencent Cloud.
+
+---
+
 ## [v0.25.1-eurelis.3-exp.3] - 2026-05-08
 
 Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
