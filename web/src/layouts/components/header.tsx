@@ -1,4 +1,3 @@
-import { IconFontFill } from '@/components/icon-font';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,7 +23,6 @@ import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BellButton } from './bell-button';
 import { DesktopNavbar, MobileNavbar } from './global-navbar';
-import { MobileMenuFooter } from './mobile-menu-footer';
 import ThemeButton from './theme-button';
 import { useHeaderNavLayout } from './use-header-nav-layout';
 
@@ -69,11 +67,8 @@ export function Header({
         {...props}
       >
         <div className="inline-flex shrink-0 items-center gap-2">
-          {isCompact && (
-            <MobileNavbar
-              renderFooter={(close) => <MobileMenuFooter onClose={close} />}
-            />
-          )}
+          {/* Eurelis branding: Discord, GitHub & Help footer links hidden in mobile menu */}
+          {isCompact && <MobileNavbar />}
           <div ref={logoRef} className="inline-flex shrink-0 items-center">
             <Link
               to={Routes.Root}
@@ -100,28 +95,7 @@ export function Header({
           )}
           data-testid="auth-status"
         >
-          {!isCompact && (
-            <>
-              <a
-                className="inline-flex p-2 text-text-secondary hover:text-text-primary focus-visible:text-text-primary"
-                target="_blank"
-                href="https://discord.com/invite/NjYzJD3GM3"
-                rel="noreferrer noopener"
-              >
-                <IconFontFill name="a-DiscordIconSVGVectorIcon" />
-              </a>
-
-              <a
-                className="inline-flex p-2 text-text-secondary hover:text-text-primary focus-visible:text-text-primary"
-                target="_blank"
-                href="https://github.com/infiniflow/ragflow"
-                rel="noreferrer noopener"
-              >
-                <IconFontFill name="GitHub" />
-              </a>
-            </>
-          )}
-
+          {/* Eurelis branding: Discord & GitHub links hidden */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -203,12 +177,7 @@ export function Header({
           ref={expandedRightMeasureRef}
           className="inline-flex shrink-0 items-center justify-end gap-4 text-text-badge"
         >
-          <a className="inline-flex p-2">
-            <IconFontFill name="a-DiscordIconSVGVectorIcon" />
-          </a>
-          <a className="inline-flex p-2">
-            <IconFontFill name="GitHub" />
-          </a>
+          {/* Eurelis branding: Discord & GitHub links hidden */}
           <Button variant="ghost" className="size-auto gap-1 px-4">
             {currentLanguage?.displayName}
             <LucideChevronDown className="size-[1em]" />
