@@ -31,6 +31,7 @@ from api.db.joint_services.tenant_model_service import (
 )
 from api.db.services.chunk_feedback_service import ChunkFeedbackService
 from api.db.services.conversation_service import ConversationService, structure_answer
+from api.db.services.file_service import FileService
 from api.db.services.dialog_service import DialogService, async_chat, gen_mindmap
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.llm_service import LLMBundle
@@ -794,6 +795,14 @@ async def delete_sessions(chat_id):
             if not ConversationService.query(id=sid, dialog_id=chat_id):
                 errors.append(f"The chat doesn't own the session {sid}")
                 continue
+            ok, conv = ConversationService.get_by_id(sid)
+            if ok:
+                for msg in (conv.message or []):
+                    for f in (msg.get("files") or []):
+                        try:
+                            FileService.delete_blob(f["created_by"], f["id"])
+                        except Exception:
+                            logging.warning("Failed to delete blob created_by=%s id=%s", f.get("created_by"), f.get("id"))
             ConversationService.delete_by_id(sid)
             success_count += 1
         all_errors = errors + duplicate_messages

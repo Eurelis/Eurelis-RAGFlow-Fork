@@ -611,6 +611,11 @@ class FileService(CommonService):
         bname = f"{user_id}-downloads"
         return settings.STORAGE_IMPL.put(bname, location, blob)
 
+    @staticmethod
+    def delete_blob(user_id, location):
+        bname = f"{user_id}-downloads"
+        settings.STORAGE_IMPL.rm(bname, location)
+
     @classmethod
     @DB.connection_context()
     def delete_docs(cls, doc_ids, tenant_id):
