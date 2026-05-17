@@ -4,6 +4,20 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.4-eurelis.1] - 2026-05-17
+
+Basé sur RAGFlow `v0.25.4`.
+
+### Changed
+
+- Synchronisation avec l'upstream RAGFlow `v0.25.4` (commit `86bcf9767`).
+
+### Fixed
+
+- `api/apps/restful_apis/chat_api.py` — suppression en cascade des fichiers uploadés en chat lors de la suppression d'une session. Les blobs orphelins dans le bucket MinIO `{user_id}-downloads` sont désormais nettoyés à la suppression de session.
+
+---
+
 ## [v0.25.1-eurelis.3] - 2026-05-10
 
 Basé sur RAGFlow `v0.25.1` (synchronisé avec upstream `nightly` — `59c35100c`).
