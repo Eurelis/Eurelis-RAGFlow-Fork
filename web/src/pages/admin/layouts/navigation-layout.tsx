@@ -10,6 +10,7 @@ import {
   LucideSquareUserRound,
   LucideUserCog,
   LucideUserStar,
+  LucideUsers,
   LucideZap,
 } from 'lucide-react';
 
@@ -45,6 +46,11 @@ const AdminNavigationLayout = () => {
         path: Routes.AdminUserManagement,
         name: t('admin.userManagement'),
         icon: <LucideUserCog className="size-[1em]" />,
+      },
+      {
+        path: Routes.AdminTeams,
+        name: t('admin.teamManagement'),
+        icon: <LucideUsers className="size-[1em]" />,
       },
       {
         path: Routes.AdminSandboxSettings,

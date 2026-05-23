@@ -28,6 +28,7 @@ from langfuse import Langfuse
 from peewee import fn
 from api.db.services.file_service import FileService
 from common.constants import LLMType, ParserType, StatusEnum
+from api.db import TenantPermission
 from api.db.db_models import DB, Dialog
 from api.db.services.common_service import CommonService
 from api.db.services.doc_metadata_service import DocMetadataService
@@ -223,6 +224,7 @@ class DialogService(CommonService):
             cls.model.do_refer,
             cls.model.rerank_id,
             cls.model.kb_ids,
+            cls.model.permission,
             cls.model.icon,
             cls.model.status,
             User.nickname,
@@ -234,7 +236,10 @@ class DialogService(CommonService):
             cls.model.select(*fields)
             .join(User, on=(cls.model.tenant_id == User.id))
             .where(
-                (cls.model.tenant_id.in_(joined_tenant_ids) | (cls.model.tenant_id == user_id)) & (cls.model.status == StatusEnum.VALID.value),
+                (
+                    (cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission == TenantPermission.TEAM.value))
+                    | (cls.model.tenant_id == user_id)
+                ) & (cls.model.status == StatusEnum.VALID.value),
             )
         )
         if id:
