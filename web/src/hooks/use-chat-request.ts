@@ -312,7 +312,8 @@ export const useFetchSessionList = () => {
         { url: api.listSessions(id!) },
         true,
       );
-      return data?.data;
+      const result = data?.data;
+      return Array.isArray(result) ? result : [];
     },
   });
 

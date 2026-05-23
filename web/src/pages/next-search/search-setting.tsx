@@ -20,6 +20,7 @@ import AvatarNameDescription from '@/components/avatar-name-description';
 import { KnowledgeBaseFormField } from '@/components/knowledge-base-item';
 import { LlmSettingFieldItems } from '@/components/llm-setting-items/next';
 import { MetadataFilter } from '@/components/metadata-filter';
+import { PermissionFormField } from '@/pages/dataset/dataset-setting/permission-form-field';
 import { ModelTreeSelect } from '@/components/model-tree-select';
 import { SimilaritySliderFormField } from '@/components/similarity-slider';
 import { Button } from '@/components/ui/button';
@@ -85,6 +86,7 @@ function SearchSetting({
       name: data?.name || '',
       avatar: data?.avatar || '',
       description: data?.description || descriptionDefaultValue,
+      permission: data?.permission ?? 'me',
       search_config: {
         kb_ids: search_config?.kb_ids || [],
         vector_similarity_weight:
@@ -318,6 +320,8 @@ function SearchSetting({
             className="space-y-6"
           >
             <AvatarNameDescription avatarField="avatar" />
+
+            <PermissionFormField />
 
             <KnowledgeBaseFormField
               name="search_config.kb_ids"

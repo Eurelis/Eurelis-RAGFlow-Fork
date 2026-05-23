@@ -56,6 +56,7 @@ export function ChatSettings({ hasSingleChatBox }: ChatSettingsProps) {
       name: '',
       icon: '',
       description: '',
+      permission: 'me',
       dataset_ids: [],
       prompt_config: {
         quote: true,
