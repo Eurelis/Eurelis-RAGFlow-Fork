@@ -21,6 +21,7 @@ import { KnowledgeBaseFormField } from '@/components/knowledge-base-item';
 import { LlmSettingFieldItems } from '@/components/llm-setting-items/next';
 import { MetadataFilter } from '@/components/metadata-filter';
 import { RerankCandidatesCountFormField } from '@/components/rerank-candidates-count-item';
+import { PermissionFormField } from '@/pages/dataset/setting/python/permission-form-field';
 import { SimilaritySliderFormField } from '@/components/similarity-slider';
 import { Button } from '@/components/ui/button';
 import {
@@ -100,6 +101,7 @@ function SearchSetting({
       name: data?.name || '',
       avatar: data?.avatar || '',
       description: data?.description || descriptionDefaultValue,
+      permission: data?.permission ?? 'me',
       search_config: {
         kb_ids: search_config?.kb_ids || [],
         vector_similarity_weight:
@@ -324,6 +326,8 @@ function SearchSetting({
             className="space-y-6"
           >
             <AvatarNameDescription avatarField="avatar" />
+
+            <PermissionFormField />
 
             <KnowledgeBaseFormField
               name="search_config.kb_ids"

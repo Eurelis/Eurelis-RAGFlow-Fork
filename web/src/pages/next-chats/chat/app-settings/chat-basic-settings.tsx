@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslate } from '@/hooks/common-hooks';
+import { PermissionFormField } from '@/pages/dataset/setting/python/permission-form-field';
 import { prefixName } from '@/utils/form';
 import { getDirAttribute } from '@/utils/text-direction';
 import { useFormContext, useWatch } from 'react-hook-form';
@@ -40,6 +41,11 @@ export default function ChatBasicSetting({
 
   const llmSettingPrefix = prefixName(prefix, 'llm_setting');
 
+  const emptyResponseValue = useWatch({
+    control: form.control,
+    name: 'prompt_config.empty_response',
+  });
+
   return (
     <div className="space-y-8">
       {hideName || (
@@ -56,7 +62,26 @@ export default function ChatBasicSetting({
         collapseOpen={collapseOpen}
         onCollapseOpenChange={onCollapseOpenChange}
       ></LlmSettingFieldItems>
-
+      <PermissionFormField />
+      <FormField
+        control={form.control}
+        name={'prompt_config.empty_response'}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel tooltip={t('emptyResponseTip')}>
+              {t('emptyResponse')}
+            </FormLabel>
+            <FormControl>
+              <Textarea
+                {...field}
+                placeholder={t('emptyResponsePlaceholder')}
+                dir={getDirAttribute(emptyResponseValue || '')}
+              ></Textarea>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
       <FormField
         control={form.control}
         name={prefixName(prefix, 'prompt_config.prologue')}

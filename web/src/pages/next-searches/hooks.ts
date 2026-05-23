@@ -30,6 +30,7 @@ import { useParams, useSearchParams } from 'react-router';
 interface CreateSearchProps {
   name: string;
   description?: string;
+  permission?: 'me' | 'team';
 }
 
 interface CreateSearchResponse {
@@ -90,6 +91,7 @@ export interface ISearchAppProps {
   name: string;
   nickname: string;
   status: string;
+  permission: 'me' | 'team';
   tenant_avatar: any;
   tenant_id: string;
   update_time: number;
@@ -188,6 +190,7 @@ export interface ISearchAppDetailProps {
   description: string;
   id: string;
   name: string;
+  permission?: 'me' | 'team';
   search_config: {
     cross_languages: string[];
     doc_ids: string[];

@@ -20,11 +20,12 @@ import {
 } from '@tanstack/react-query';
 
 import {
-  LucideClipboardList,
   LucideDot,
+  LucideLink,
   LucideTrash2,
   LucideUserLock,
   LucideUserPlus,
+  LucideUsers,
 } from 'lucide-react';
 
 import { rsaPsw } from '@/utils';
@@ -394,44 +395,58 @@ function AdminUserManagement() {
 
           return (
             <div className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity">
+              {!isMe && (
+                <Button
+                  variant="transparent"
+                  size="icon"
+                  className="border-0"
+                  onClick={() => {
+                    setUserToMakeAction(row.original);
+                    setPasswordModalOpen(true);
+                  }}
+                >
+                  <LucideUserLock />
+                </Button>
+              )}
               <Button
                 variant="transparent"
                 size="icon"
                 className="border-0"
+                title={t('setting.teamMembers')}
                 onClick={() =>
                   navigate(
-                    `${Routes.AdminUserManagement}/${row.original.email}`,
+                    `${Routes.AdminUserManagement}/${row.original.email}/team`,
                   )
                 }
               >
-                <LucideClipboardList />
+                <LucideUsers />
+              </Button>
+              <Button
+                variant="transparent"
+                size="icon"
+                className="border-0"
+                title={t('setting.joinedTeams')}
+                onClick={() =>
+                  navigate(
+                    `${Routes.AdminUserManagement}/${row.original.email}/members`,
+                  )
+                }
+              >
+                <LucideLink />
               </Button>
 
               {!isMe && (
-                <>
-                  <Button
-                    variant="transparent"
-                    size="icon"
-                    className="border-0"
-                    onClick={() => {
-                      setUserToMakeAction(row.original);
-                      setPasswordModalOpen(true);
-                    }}
-                  >
-                    <LucideUserLock />
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="icon"
-                    className="border-0"
-                    onClick={() => {
-                      setUserToMakeAction(row.original);
-                      setDeleteModalOpen(true);
-                    }}
-                  >
-                    <LucideTrash2 />
-                  </Button>
-                </>
+                <Button
+                  variant="danger"
+                  size="icon"
+                  className="border-0"
+                  onClick={() => {
+                    setUserToMakeAction(row.original);
+                    setDeleteModalOpen(true);
+                  }}
+                >
+                  <LucideTrash2 />
+                </Button>
               )}
             </div>
           );

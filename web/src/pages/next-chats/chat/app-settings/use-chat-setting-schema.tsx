@@ -62,6 +62,8 @@ export function useChatSettingSchema() {
       name: z.string().min(1, { message: t('assistantNameMessage') }),
       icon: z.string(),
       description: z.string().optional(),
+      // Eurelis (group_work) — visibilité me|team d'un assistant
+      permission: z.enum(['me', 'team']).optional(),
       dataset_ids: z.array(z.string()).min(0, {
         message: t('knowledgeBasesMessage'),
       }),

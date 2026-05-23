@@ -93,6 +93,10 @@ export enum Routes {
   AdminWhitelist = `${Admin}/whitelist`,
   AdminRoles = `${Admin}/roles`,
   AdminMonitoring = `${Admin}/monitoring`,
+  AdminTeams = `${Admin}/teams`,
+  AdminTeamDetail = `${Admin}/teams/:tenantId`,
+  AdminUserMembers = `${Admin}/users/:id/members`,
+  AdminUserTeam = `${Admin}/users/:id/team`,
 }
 
 const defaultRouteFallback = (
@@ -402,8 +406,16 @@ const routeConfigOptions = [
         Component: () => import('@/pages/admin/layouts/authorized-layout'),
         children: [
           {
-            path: `${Routes.AdminUserManagement}/:id`,
-            Component: () => import('@/pages/admin/user-detail'),
+            path: Routes.AdminUserMembers,
+            Component: () => import('@/pages/admin/user-team'),
+          },
+          {
+            path: Routes.AdminUserTeam,
+            Component: () => import('@/pages/admin/user-own-team'),
+          },
+          {
+            path: Routes.AdminTeamDetail,
+            Component: () => import('@/pages/admin/team-detail'),
           },
           {
             Component: () => import('@/pages/admin/layouts/navigation-layout'),
@@ -415,6 +427,10 @@ const routeConfigOptions = [
               {
                 path: Routes.AdminUserManagement,
                 Component: () => import('@/pages/admin/users'),
+              },
+              {
+                path: Routes.AdminTeams,
+                Component: () => import('@/pages/admin/teams'),
               },
               {
                 path: Routes.AdminSandboxSettings,

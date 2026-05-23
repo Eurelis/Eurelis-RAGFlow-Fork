@@ -123,8 +123,13 @@ const {
   adminUpdateUserStatus,
   adminUpdateUserPassword,
   adminDeleteUser,
-  adminListUserDatasets,
-  adminListUserAgents,
+  adminListUserTenants,
+
+  adminListTenants,
+  adminGetTenantMembers,
+  adminAddTenantMember,
+  adminRemoveTenantMember,
+  adminUpdateTenantMemberRole,
 
   adminListServices,
   adminShowServiceDetails,
@@ -185,14 +190,6 @@ export const revokeSuperuser = (email: string) =>
 export const getUserDetails = (email: string) =>
   request.get<ResponseData<[AdminService.UserDetail]>>(
     adminGetUserDetails(email),
-  );
-export const listUserDatasets = (email: string) =>
-  request.get<ResponseData<AdminService.ListUserDatasetItem[]>>(
-    adminListUserDatasets(email),
-  );
-export const listUserAgents = (email: string) =>
-  request.get<ResponseData<AdminService.ListUserAgentItem[]>>(
-    adminListUserAgents(email),
   );
 export const updateUserStatus = (email: string, status: 'on' | 'off') =>
   request.put(adminUpdateUserStatus(email), { activate_status: status });
@@ -334,3 +331,45 @@ export const testSandboxConnection = (params: {
     provider_type: params.providerType,
     config: params.config,
   });
+
+// Team (tenant) membership APIs
+
+export const listTenants = (withMembersOnly?: boolean) =>
+  request.get<ResponseData<AdminService.ListTenantsItem[]>>(adminListTenants, {
+    params: withMembersOnly ? { with_members_only: true } : {},
+  });
+
+export const listTenantMembers = (tenantId: string) =>
+  request.get<ResponseData<AdminService.TenantMember[]>>(
+    adminGetTenantMembers(tenantId),
+  );
+
+export const addTenantMember = (
+  tenantId: string,
+  userId: string,
+  role: string = 'normal',
+) =>
+  request.post<ResponseData<AdminService.TenantMember>>(
+    adminAddTenantMember(tenantId),
+    { user_id: userId, role },
+  );
+
+export const removeTenantMember = (tenantId: string, userId: string) =>
+  request.delete<ResponseData<boolean>>(
+    adminRemoveTenantMember(tenantId, userId),
+  );
+
+export const updateTenantMemberRole = (
+  tenantId: string,
+  userId: string,
+  role: string,
+) =>
+  request.put<ResponseData<boolean>>(
+    adminUpdateTenantMemberRole(tenantId, userId),
+    { role },
+  );
+
+export const listUserTenants = (userId: string) =>
+  request.get<ResponseData<AdminService.UserTenantMembership[]>>(
+    adminListUserTenants(userId),
+  );

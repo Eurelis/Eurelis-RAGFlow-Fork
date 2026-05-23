@@ -36,6 +36,8 @@ export const SearchSettingFormSchema = z
     name: z.string().min(1, 'Name is required'),
     avatar: z.string().optional(),
     description: z.string().optional(),
+    // Eurelis (group_work) — visibilité me|team d'une app Search
+    permission: z.enum(['me', 'team']).optional(),
     search_config: z.object({
       kb_ids: z.array(z.string()).min(1, 'At least one dataset is required'),
       vector_similarity_weight: z.number().min(0).max(1),
