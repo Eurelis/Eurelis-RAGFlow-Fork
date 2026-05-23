@@ -1,5 +1,6 @@
 /node_modules
 /.env.local
+/.env.*.local
 /.umirc.local.ts
 /config/config.local.ts
 /src/.umi/*
