@@ -2,6 +2,7 @@
 
 import AvatarNameDescription from '@/components/avatar-name-description';
 import { KnowledgeBaseFormField } from '@/components/knowledge-base-item';
+import { PermissionFormField } from '@/pages/dataset/dataset-setting/permission-form-field';
 import {
   LLMIdFormField,
   LlmSettingEnabledSchema,
@@ -57,6 +58,7 @@ const SearchSettingFormSchema = z
     name: z.string().min(1, 'Name is required'),
     avatar: z.string().optional(),
     description: z.string().optional(),
+    permission: z.enum(['me', 'team']).optional(),
     search_config: z.object({
       kb_ids: z.array(z.string()).min(1, 'At least one dataset is required'),
       vector_similarity_weight: z.number().min(0).max(1),
@@ -124,6 +126,7 @@ const SearchSetting: React.FC<SearchSettingProps> = ({
       name: data?.name || '',
       avatar: data?.avatar || '',
       description: data?.description || descriptionDefaultValue,
+      permission: data?.permission ?? 'me',
       search_config: {
         kb_ids: search_config?.kb_ids || [],
         vector_similarity_weight:
@@ -353,6 +356,8 @@ const SearchSetting: React.FC<SearchSettingProps> = ({
             className="space-y-6"
           >
             <AvatarNameDescription avatarField="avatar" />
+
+            <PermissionFormField />
 
             <KnowledgeBaseFormField
               name="search_config.kb_ids"
