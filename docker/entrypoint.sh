@@ -165,21 +165,19 @@ TEMPLATE_FILE="${CONF_DIR}/service_conf.yaml.template"
 CONF_FILE="${CONF_DIR}/service_conf.yaml"
 
 rm -f "${CONF_FILE}"
-DEF_ENV_VALUE_PATTERN="\$\{([^:]+):-([^}]+)\}"
-while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ DEF_ENV_VALUE_PATTERN ]]; then
-        varname="${BASH_REMATCH[1]}"
-        default="${BASH_REMATCH[2]}"
-
-        if [ -n "${!varname}" ]; then
-            eval "echo \"$line"\" >> "${CONF_FILE}"
-        else
-            echo "$line" | sed -E "s/\\\$\{[^:]+:-([^}]+)\}/\1/g" >> "${CONF_FILE}"
-        fi
-    else
-        eval "echo \"$line\"" >> "${CONF_FILE}"
-    fi
-done < "${TEMPLATE_FILE}"
+python3 - "${TEMPLATE_FILE}" "${CONF_FILE}" << 'PYEOF'
+import os, re, sys
+def replace_env(match):
+    varname = match.group(1)
+    default = match.group(2) if match.group(2) is not None else ''
+    return os.environ.get(varname, default)
+template_file, conf_file = sys.argv[1], sys.argv[2]
+with open(template_file) as f:
+    content = f.read()
+result = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}', replace_env, content)
+with open(conf_file, 'w') as f:
+    f.write(result)
+PYEOF
 
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/"
 PY=python3
