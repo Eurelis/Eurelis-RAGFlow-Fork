@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslate } from '@/hooks/common-hooks';
 import { useFetchKnowledgeMetadataKeys } from '@/hooks/use-knowledge-request';
+import { PermissionFormField } from '@/pages/dataset/dataset-setting/permission-form-field';
 import { getDirAttribute } from '@/utils/text-direction';
 import { useEffect, useMemo } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
@@ -72,6 +73,7 @@ export default function ChatBasicSetting() {
   return (
     <div className="space-y-8">
       <AvatarNameDescription />
+      <PermissionFormField />
       <FormField
         control={form.control}
         name={'prompt_config.empty_response'}
