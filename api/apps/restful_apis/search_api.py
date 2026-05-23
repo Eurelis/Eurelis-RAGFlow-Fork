@@ -59,6 +59,10 @@ async def create():
     search_name = search_name.strip()
     search_name = duplicate_name(SearchService.query, name=search_name, tenant_id=current_user.id, status=StatusEnum.VALID.value)
 
+    req.setdefault("permission", "me")
+    if req.get("permission") not in ("me", "team"):
+        return get_data_error_result(message="`permission` must be 'me' or 'team'.")
+
     req["id"] = get_uuid()
     req["name"] = search_name
     req["description"] = description
@@ -85,8 +89,11 @@ def list_searches():
 
     try:
         if not owner_ids:
-            tenants = []
-            search_apps, total = SearchService.get_by_tenant_ids(tenants, current_user.id, page_number, items_per_page, orderby, desc, keywords)
+            # Include team-shared searches from tenants the user has joined, not just
+            # their own — otherwise permission='team' searches never show in the list.
+            joined = TenantService.get_joined_tenants_by_user_id(current_user.id)
+            joined_tenant_ids = [t["tenant_id"] for t in joined]
+            search_apps, total = SearchService.get_by_tenant_ids(joined_tenant_ids, current_user.id, page_number, items_per_page, orderby, desc, keywords)
         else:
             search_apps, total = SearchService.get_by_tenant_ids(owner_ids, current_user.id, 0, 0, orderby, desc, keywords)
             search_apps = [s for s in search_apps if s["tenant_id"] in owner_ids]
@@ -129,6 +136,9 @@ async def update(search_id):
     if len(req["name"].encode("utf-8")) > DATASET_NAME_LIMIT:
         return get_data_error_result(message=f"Search name length is {len(req['name'])} which is large than {DATASET_NAME_LIMIT}")
     req["name"] = req["name"].strip()
+
+    if "permission" in req and req["permission"] not in ("me", "team"):
+        return get_data_error_result(message="`permission` must be 'me' or 'team'.")
 
     e, _ = TenantService.get_by_id(current_user.id)
     if not e:
