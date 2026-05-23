@@ -23,6 +23,7 @@ declare namespace AdminService {
   };
 
   export type ListUsersItem = {
+    id: string;
     create_date: string;
     email: string;
     is_active: '0' | '1';
@@ -32,6 +33,7 @@ declare namespace AdminService {
   };
 
   export type UserDetail = {
+    id: string;
     avatar?: string;
     create_date: string;
     email: string;
@@ -44,26 +46,6 @@ declare namespace AdminService {
     status: '0' | '1';
     update_date: string;
     role: string;
-  };
-
-  export type ListUserDatasetItem = {
-    avatar?: string;
-    chunk_num: number;
-    create_date: string;
-    doc_num: number;
-    language: string;
-    name: string;
-    permission: string;
-    status: '0' | '1';
-    token_num: number;
-    update_date: string;
-  };
-
-  export type ListUserAgentItem = {
-    avatar?: string;
-    canvas_category: 'agent';
-    permission: 'string';
-    title: string;
   };
 
   export type TaskExecutorHeartbeatItem = {
@@ -165,6 +147,34 @@ declare namespace AdminService {
     create_time: number;
     update_date: string;
     update_time: number;
+  };
+
+  export type ListTenantsItem = {
+    tenant_id: string;
+    owner_email: string;
+    owner_nickname: string;
+    member_count: number;
+  };
+
+  export type TenantMember = {
+    id: string;
+    user_id: string;
+    status: string;
+    role: 'owner' | 'admin' | 'normal' | 'invite';
+    nickname: string;
+    email: string;
+    avatar?: string;
+    update_date: string;
+    is_superuser?: boolean;
+  };
+
+  export type UserTenantMembership = {
+    tenant_id: string;
+    role: 'owner' | 'admin' | 'normal' | 'invite';
+    nickname: string;
+    email: string;
+    avatar?: string;
+    update_date: string;
   };
 
   // Sandbox settings types

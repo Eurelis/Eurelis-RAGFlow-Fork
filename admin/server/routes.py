@@ -25,7 +25,7 @@ from flask_login import current_user, login_required, logout_user
 
 from auth import login_verify, login_admin, check_admin_auth
 from responses import success_response, error_response
-from services import UserMgr, ServiceMgr, UserServiceMgr, SettingsMgr, ConfigMgr, EnvironmentsMgr, SandboxMgr
+from services import UserMgr, ServiceMgr, UserServiceMgr, SettingsMgr, ConfigMgr, EnvironmentsMgr, SandboxMgr, TenantMgr
 from roles import RoleMgr
 from api.common.exceptions import AdminException
 from common.versions import get_ragflow_version
@@ -203,34 +203,6 @@ def get_user_details(username):
     try:
         user_details = UserMgr.get_user_details(username)
         return success_response(user_details)
-
-    except AdminException as e:
-        return error_response(e.message, e.code)
-    except Exception as e:
-        return error_response(str(e), 500)
-
-
-@admin_bp.route("/users/<username>/datasets", methods=["GET"])
-@login_required
-@check_admin_auth
-def get_user_datasets(username):
-    try:
-        datasets_list = UserServiceMgr.get_user_datasets(username)
-        return success_response(datasets_list)
-
-    except AdminException as e:
-        return error_response(e.message, e.code)
-    except Exception as e:
-        return error_response(str(e), 500)
-
-
-@admin_bp.route("/users/<username>/agents", methods=["GET"])
-@login_required
-@check_admin_auth
-def get_user_agents(username):
-    try:
-        agents_list = UserServiceMgr.get_user_agents(username)
-        return success_response(agents_list)
 
     except AdminException as e:
         return error_response(e.message, e.code)
@@ -687,5 +659,96 @@ def set_logger_level():
             return success_response({"pkg_name": pkg_name, "level": level}, "Log level updated successfully")
         else:
             return error_response(f"Invalid log level: {level}", 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+# ---------------------------------------------------------------------------
+# Team (tenant) management endpoints
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/tenants", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_tenants():
+    """List all tenants, optionally filtered to those with at least one member."""
+    try:
+        with_members_only = request.args.get("with_members_only", "false").lower() == "true"
+        tenants = TenantMgr.list_tenants(with_members_only=with_members_only)
+        return success_response(tenants, "Get all tenants", 0)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/tenants/<tenant_id>/users", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_tenant_members(tenant_id: str):
+    """List all members of a tenant."""
+    try:
+        members = TenantMgr.get_tenant_members(tenant_id)
+        return success_response(members, "Get tenant members", 0)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/tenants/<tenant_id>/users", methods=["POST"])
+@login_required
+@check_admin_auth
+def add_tenant_member(tenant_id: str):
+    """Add a user to a tenant directly (bypasses email invite)."""
+    try:
+        data = request.get_json()
+        if not data or "user_id" not in data:
+            return error_response("user_id is required", 400)
+        user_id = data["user_id"]
+        role = data.get("role", "normal")
+        record = TenantMgr.add_member(tenant_id, user_id, role)
+        return success_response(record, "Member added", 0)
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/tenants/<tenant_id>/users/<user_id>", methods=["DELETE"])
+@login_required
+@check_admin_auth
+def remove_tenant_member(tenant_id: str, user_id: str):
+    """Remove a user from a tenant."""
+    try:
+        TenantMgr.remove_member(tenant_id, user_id)
+        return success_response(True, "Member removed", 0)
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/tenants/<tenant_id>/users/<user_id>/role", methods=["PUT"])
+@login_required
+@check_admin_auth
+def update_tenant_member_role(tenant_id: str, user_id: str):
+    """Update a member's role within a tenant."""
+    try:
+        data = request.get_json()
+        if not data or "role" not in data:
+            return error_response("role is required", 400)
+        TenantMgr.update_member_role(tenant_id, user_id, data["role"])
+        return success_response(True, "Role updated", 0)
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/users/<user_id>/tenants", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_user_tenants(user_id: str):
+    """List all teams a user is a member of (excluding their own team)."""
+    try:
+        data = TenantMgr.list_user_memberships(user_id)
+        return success_response(data, "Get user tenants", 0)
     except Exception as e:
         return error_response(str(e), 500)

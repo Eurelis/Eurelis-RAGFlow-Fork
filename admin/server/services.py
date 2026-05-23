@@ -18,20 +18,23 @@ import json
 import os
 import logging
 import re
+import peewee
+from datetime import datetime
 from typing import Any
 
 from werkzeug.security import check_password_hash
-from common.constants import ActiveEnum
+from common.constants import ActiveEnum, StatusEnum
+from api.db import UserTenantRole
 from api.db.services import UserService
 from api.db.joint_services.user_account_service import create_new_user, delete_user_data
-from api.db.services.canvas_service import UserCanvasService
-from api.db.services.user_service import TenantService, UserTenantService
-from api.db.services.knowledgebase_service import KnowledgebaseService
+from api.db.services.user_service import UserTenantService
 from api.db.services.system_settings_service import SystemSettingsService
 from api.db.services.api_service import APITokenService
-from api.db.db_models import APIToken
+from api.db.db_models import APIToken, DB, UserTenant
 from api.utils.crypt import decrypt
 from api.utils import health_utils
+from common.misc_utils import get_uuid
+from common.time_utils import current_timestamp, datetime_format
 
 from api.common.exceptions import AdminException, UserAlreadyExistsError, UserNotFoundError
 from config import SERVICE_CONFIGS
@@ -45,6 +48,7 @@ class UserMgr:
         for user in users:
             result.append(
                 {
+                    "id": user.id,
                     "email": user.email,
                     "nickname": user.nickname,
                     "create_date": user.create_date,
@@ -62,6 +66,7 @@ class UserMgr:
         for user in users:
             result.append(
                 {
+                    "id": user.id,
                     "avatar": user.avatar,
                     "email": user.email,
                     "language": user.language,
@@ -225,37 +230,6 @@ class UserMgr:
 
 
 class UserServiceMgr:
-    @staticmethod
-    def get_user_datasets(username):
-        # use email to find user.
-        user_list = UserService.query_user_by_email(username)
-        if not user_list:
-            raise UserNotFoundError(username)
-        elif len(user_list) > 1:
-            raise AdminException(f"Exist more than 1 user: {username}!")
-        # find tenants
-        usr = user_list[0]
-        tenants = TenantService.get_joined_tenants_by_user_id(usr.id)
-        tenant_ids = [m["tenant_id"] for m in tenants]
-        # filter permitted kb and owned kb
-        return KnowledgebaseService.get_all_kb_by_tenant_ids(tenant_ids, usr.id)
-
-    @staticmethod
-    def get_user_agents(username):
-        # use email to find user.
-        user_list = UserService.query_user_by_email(username)
-        if not user_list:
-            raise UserNotFoundError(username)
-        elif len(user_list) > 1:
-            raise AdminException(f"Exist more than 1 user: {username}!")
-        # find tenants
-        usr = user_list[0]
-        tenants = TenantService.get_joined_tenants_by_user_id(usr.id)
-        tenant_ids = [m["tenant_id"] for m in tenants]
-        # filter permitted agents and owned agents
-        res = UserCanvasService.get_all_agents_by_tenant_ids(tenant_ids, usr.id)
-        return [{"title": r["title"], "permission": r["permission"], "canvas_category": r["canvas_category"].split("_")[0], "avatar": r["avatar"]} for r in res]
-
     @staticmethod
     def get_user_tenants(email: str) -> list[dict[str, Any]]:
         users: list[Any] = UserService.query_user_by_email(email)
@@ -760,3 +734,100 @@ def main() -> dict:
             import traceback
             error_details = traceback.format_exc()
             raise AdminException(f"Connection test failed: {str(e)}\\n\\nStack trace:\\n{error_details}")
+
+
+class TenantMgr:
+    """Admin service for managing team (tenant) membership without email invite flow."""
+
+    @staticmethod
+    def list_tenants(with_members_only: bool = False) -> list[dict]:
+        """List all tenants. If with_members_only, only return tenants with at least one non-owner member."""
+        owners = UserService.query(status=StatusEnum.VALID.value)
+
+        # Bulk-fetch member counts in a single aggregated query to avoid N+1
+        with DB.connection_context():
+            count_rows = (
+                UserTenant
+                .select(UserTenant.tenant_id, peewee.fn.COUNT(UserTenant.id).alias('cnt'))
+                .where(
+                    (UserTenant.status == StatusEnum.VALID.value) &
+                    (UserTenant.role != UserTenantRole.OWNER.value)
+                )
+                .group_by(UserTenant.tenant_id)
+            )
+            count_map = {row.tenant_id: row.cnt for row in count_rows}
+
+        result = []
+        for owner in owners:
+            member_count = count_map.get(owner.id, 0)
+            if with_members_only and member_count <= 1:
+                continue
+            result.append({
+                "tenant_id": owner.id,
+                "owner_email": owner.email,
+                "owner_nickname": owner.nickname,
+                "member_count": member_count,
+            })
+        return result
+
+    @staticmethod
+    def get_tenant_members(tenant_id: str) -> list[dict]:
+        """List all non-owner members of a tenant."""
+        return UserTenantService.get_by_tenant_id(tenant_id)
+
+    @staticmethod
+    def add_member(tenant_id: str, user_id: str, role: str = "normal") -> dict:
+        """Add a user to a tenant directly (no email invite)."""
+        if role not in (UserTenantRole.NORMAL.value, UserTenantRole.ADMIN.value):
+            raise ValueError(f"Invalid role '{role}'. Must be 'normal' or 'admin'.")
+
+        existing = UserTenantService.filter_by_tenant_and_user_id(tenant_id, user_id)
+        if existing and existing.status == StatusEnum.VALID.value:
+            raise ValueError("User is already a member of this team.")
+
+        now = current_timestamp()
+        record = {
+            "id": get_uuid(),
+            "user_id": user_id,
+            "tenant_id": tenant_id,
+            "role": role,
+            "invited_by": tenant_id,
+            "status": StatusEnum.VALID.value,
+            "create_time": now,
+            "create_date": datetime_format(datetime.now()),
+            "update_time": now,
+            "update_date": datetime_format(datetime.now()),
+        }
+        UserTenantService.save(**record)
+        return record
+
+    @staticmethod
+    def remove_member(tenant_id: str, user_id: str) -> bool:
+        """Remove a user from a tenant. Raises if trying to remove the owner."""
+        if user_id == tenant_id:
+            raise ValueError("Cannot remove the owner from their own team.")
+        UserTenantService.filter_update(
+            [UserTenant.tenant_id == tenant_id, UserTenant.user_id == user_id],
+            {"status": StatusEnum.INVALID.value},
+        )
+        return True
+
+    @staticmethod
+    def update_member_role(tenant_id: str, user_id: str, role: str) -> bool:
+        """Update a member's role within a tenant."""
+        if user_id == tenant_id:
+            raise ValueError("Cannot change the owner's role.")
+        if role not in (UserTenantRole.NORMAL.value, UserTenantRole.ADMIN.value):
+            raise ValueError(f"Invalid role '{role}'. Must be 'normal' or 'admin'.")
+        UserTenantService.filter_update(
+            [UserTenant.tenant_id == tenant_id, UserTenant.user_id == user_id,
+             UserTenant.status == StatusEnum.VALID.value],
+            {"role": role},
+        )
+        return True
+
+    @staticmethod
+    def list_user_memberships(user_id: str) -> list[dict]:
+        """List all teams a user is a member of (excludes their own team)."""
+        rows = UserTenantService.get_tenants_by_user_id(user_id)
+        return [r for r in rows if r.get("role") != UserTenantRole.OWNER.value]
