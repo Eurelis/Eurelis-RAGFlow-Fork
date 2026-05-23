@@ -159,7 +159,49 @@ git push origin eurelis/main --force-with-lease
 
 ---
 
-## ÉTAPE 7 — Enregistrement du rapport
+## ÉTAPE 7 — Analyse des changements upstream
+
+Avant d'écrire le rapport, analyser l'impact des commits intégrés sur le code Eurelis.
+
+### 7a — Commits upstream intégrés
+
+```bash
+git log backup/main-before-sync..main --oneline --no-merges
+```
+
+Catégoriser les commits par thème :
+- **Bugs corrigés** (Fix, fix, Bug) — les lister avec leur impact potentiel
+- **Nouvelles fonctionnalités** (Feat, feat) — les lister
+- **Providers Go** (Go:, go:, go-models) — les regrouper sans détail (peu d'impact Eurelis)
+- **Docs / Tests** — ignorer
+
+### 7b — Intersection avec le code Eurelis
+
+Identifier les fichiers touchés **à la fois** par l'upstream et par les commits Eurelis :
+
+```bash
+# Fichiers modifiés par l'upstream
+git diff backup/main-before-sync..main --name-only | sort > /tmp/upstream_files.txt
+
+# Fichiers modifiés par les commits Eurelis (eurelis/main par rapport à main)
+git diff main..eurelis/main --name-only | sort > /tmp/eurelis_files.txt
+
+# Intersection
+comm -12 /tmp/upstream_files.txt /tmp/eurelis_files.txt
+```
+
+Pour chaque fichier en intersection, afficher :
+- Les commits upstream qui l'ont modifié (`git log backup/main-before-sync..main --oneline -- <fichier>`)
+- Ce que fait notre code Eurelis dans ce fichier (brève description)
+- Le verdict : **risque de conflit futur**, **zones distinctes** ou **à vérifier**
+
+### 7c — Commits absorbés
+
+Signaler les commits Eurelis qui ont été **automatiquement écartés** lors du rebase (skipped previously applied) — cela indique que notre contribution a été mergée upstream.
+
+---
+
+## ÉTAPE 8 — Enregistrement du rapport
 
 Obtenir la date du jour :
 ```bash
@@ -171,19 +213,37 @@ Créer le fichier `docs/eurelis/eurelis-ragflow-sync-upstream/YYYY-MM-DD.md` (re
 ```markdown
 # Sync upstream — YYYY-MM-DD
 
-## Rapport final
+## Rapport de synchronisation
 
 | Branche | SHA avant | SHA après | Commits intégrés |
 |---|---|---|---|
 | `main` | `SHA_MAIN_AVANT` | `SHA_MAIN_APRÈS` | N commits upstream |
 | `eurelis/main` | `SHA_EURELIS_AVANT` | `SHA_EURELIS_APRÈS` | N commits Eurelis rebasés |
 
-## Conflits résolus
+## Analyse des changements upstream
 
+### Bugs corrigés notables
+<!-- Liste des fixes significatifs avec impact potentiel sur Eurelis -->
+
+### Nouvelles fonctionnalités
+<!-- Liste des features ajoutées -->
+
+### Providers Go ajoutés
+<!-- Liste groupée, sans détail -->
+
+### Fichiers en intersection (upstream ∩ Eurelis)
+<!-- Fichiers touchés par les deux — verdict par fichier -->
+
+### Commits Eurelis absorbés par upstream
+<!-- Commits écartés lors du rebase car déjà présents upstream -->
+
+## Conflits résolus
 <!-- Lister ici les conflits rencontrés et leur résolution, ou supprimer cette section si aucun conflit -->
 ```
 
-Si aucun conflit n'a eu lieu, supprimer la section `## Conflits résolus` du fichier généré.
+Si aucun conflit, supprimer la section `## Conflits résolus`.  
+Si aucun fichier en intersection, remplacer par `Aucune intersection — impact nul sur le code Eurelis.`  
+Si aucun commit absorbé, supprimer la section correspondante.
 
 ---
 
@@ -195,6 +255,8 @@ Si aucun conflit n'a eu lieu, supprimer la section `## Conflits résolus` du fic
 |---|---|---|---|
 | main | SHA_MAIN_AVANT | SHA_MAIN_APRÈS | N |
 | eurelis/main | SHA_EURELIS_AVANT | SHA_EURELIS_APRÈS | N (rebasés) |
+
+Suivi de l'analyse d'impact (résumé de l'étape 7).
 
 Puis afficher les commandes de rollback (toujours, même en cas de succès) :
 
