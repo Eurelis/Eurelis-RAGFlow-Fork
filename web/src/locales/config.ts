@@ -3,9 +3,14 @@ import storage from '@/utils/authorization-util';
 import dayjs from 'dayjs';
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import { upperFirst } from 'lodash';
+import { merge, upperFirst } from 'lodash';
 import { initReactI18next } from 'react-i18next';
 import translation_en from './en';
+import eurelis_en from './eurelis/en';
+
+const eurelisImports: Record<string, () => Promise<{ default: any }>> = {
+  [LanguageAbbreviation.Fr]: () => import('./eurelis/fr'),
+};
 
 //The language is based on the .ng file stored in the client's local storage.
 // The language stored in the database is for agent template resources, as these resources reside on the server.
@@ -48,7 +53,9 @@ export const DEFAULT_LANGUAGE_CODE =
   import.meta.env.VITE_DEFAULT_LANGUAGE_CODE || LanguageAbbreviation.En;
 
 const resources = {
-  [LanguageAbbreviation.En]: translation_en,
+  [LanguageAbbreviation.En]: merge({}, translation_en, {
+    translation: eurelis_en,
+  }),
 };
 
 const updateDocumentLocale = (lng: string) => {
@@ -90,7 +97,15 @@ export const loadLanguageAsync = async (lng: string): Promise<void> => {
   try {
     const module = await importFn();
     const translationData = module.default?.translation || module.default;
-    i18n.addResourceBundle(normalizedLng, 'translation', translationData);
+    const eurelisImportFn = eurelisImports[normalizedLng];
+    const eurelisData = eurelisImportFn
+      ? ((await eurelisImportFn()).default ?? {})
+      : {};
+    i18n.addResourceBundle(
+      normalizedLng,
+      'translation',
+      merge({}, translationData, eurelisData),
+    );
   } catch (error) {
     console.error(`Failed to load language ${lng}:`, error);
   }

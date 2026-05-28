@@ -47,6 +47,7 @@ from api.utils.api_utils import (
     validate_request,
 )
 from api.utils.tenant_utils import ensure_tenant_model_id_for_params
+from api.db import TenantPermission
 from common.constants import LLMType, RetCode, StatusEnum
 from common import settings
 from common.misc_utils import get_uuid, thread_pool_exec
@@ -131,10 +132,28 @@ def _build_session_response(conv: dict) -> dict:
 
 
 async def _ensure_owned_chat(chat_id):
-    return await thread_pool_exec(
+    dialogs = await thread_pool_exec(
         DialogService.query,
         tenant_id=current_user.id, id=chat_id, status=StatusEnum.VALID.value
     )
+    if dialogs:
+        return dialogs
+
+    # Also allow access to team-shared chats where the user is a tenant member
+    dialogs = await thread_pool_exec(
+        DialogService.query,
+        id=chat_id, status=StatusEnum.VALID.value,
+        permission=TenantPermission.TEAM.value
+    )
+    if not dialogs:
+        return None
+    dialog = dialogs[0]
+    joined = await thread_pool_exec(
+        TenantService.get_joined_tenants_by_user_id, current_user.id
+    )
+    if any(t['tenant_id'] == dialog.tenant_id for t in joined):
+        return dialogs
+    return None
 
 
 def _build_default_completion_dialog():
@@ -375,6 +394,9 @@ async def create():
         req.setdefault("similarity_threshold", 0.1)
         req.setdefault("vector_similarity_weight", 0.3)
         req.setdefault("icon", "")
+        req.setdefault("permission", "me")
+        if req.get("permission") not in ("me", "team"):
+            return get_data_error_result(message="`permission` must be 'me' or 'team'.")
         _apply_prompt_defaults(req)
         # err = _validate_prompt_config(req["prompt_config"])
         # if err:
@@ -540,6 +562,9 @@ async def update_chat(chat_id):
         # kb_ids = req.get("kb_ids", current_chat.get("kb_ids", []))
         # if not kb_ids and not prompt_config.get("tavily_api_key") and _has_knowledge_placeholder(prompt_config):
         #     return get_data_error_result(message="Please remove `{knowledge}` in system prompt since no dataset / Tavily used here.")
+
+        if "permission" in req and req["permission"] not in ("me", "team"):
+            return get_data_error_result(message="`permission` must be 'me' or 'team'.")
 
         req = ensure_tenant_model_id_for_params(current_user.id, req)
         req = {field: value for field, value in req.items() if field in _PERSISTED_FIELDS}
@@ -763,7 +788,8 @@ async def create_session(chat_id):
 @login_required
 async def list_sessions(chat_id):
     try:
-        if not await _ensure_owned_chat(chat_id):
+        dialogs = await _ensure_owned_chat(chat_id)
+        if not dialogs:
             return get_json_result(
                 data=False,
                 message="No authorization.",
@@ -776,6 +802,10 @@ async def list_sessions(chat_id):
         session_id = request.args.get("id")
         name = request.args.get("name")
         user_id = request.args.get("user_id")
+        # Non-owners accessing a team-shared chat only see their own sessions
+        is_owner = dialogs[0].tenant_id == current_user.id
+        if not is_owner:
+            user_id = current_user.id
         convs = ConversationService.get_list(
             chat_id, page_number, items_per_page, orderby, desc, session_id, name, user_id
         )

@@ -290,10 +290,18 @@ export default {
   adminUpdateUserPassword: (username: string) =>
     `${restAPIv1}/admin/users/${username}/password`,
   adminDeleteUser: (username: string) => `${restAPIv1}/admin/users/${username}`,
-  adminListUserDatasets: (username: string) =>
-    `${restAPIv1}/admin/users/${username}/datasets`,
-  adminListUserAgents: (username: string) =>
-    `${restAPIv1}/admin/users/${username}/agents`,
+  adminListUserTenants: (userId: string) =>
+    `${restAPIv1}/admin/users/${userId}/tenants`,
+
+  adminListTenants: `${restAPIv1}/admin/tenants`,
+  adminGetTenantMembers: (tenantId: string) =>
+    `${restAPIv1}/admin/tenants/${tenantId}/users`,
+  adminAddTenantMember: (tenantId: string) =>
+    `${restAPIv1}/admin/tenants/${tenantId}/users`,
+  adminRemoveTenantMember: (tenantId: string, userId: string) =>
+    `${restAPIv1}/admin/tenants/${tenantId}/users/${userId}`,
+  adminUpdateTenantMemberRole: (tenantId: string, userId: string) =>
+    `${restAPIv1}/admin/tenants/${tenantId}/users/${userId}/role`,
 
   adminListServices: `${restAPIv1}/admin/services`,
   adminShowServiceDetails: (serviceId: string) =>

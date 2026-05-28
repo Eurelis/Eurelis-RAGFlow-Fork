@@ -77,6 +77,7 @@ export interface IDialog {
   top_n: number;
   rerank_id?: string;
   meta_data_filter: MetaDataFilter;
+  permission?: 'me' | 'team';
 }
 
 interface MetaDataFilter {
