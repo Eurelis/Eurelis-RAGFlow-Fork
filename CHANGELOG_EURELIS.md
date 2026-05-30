@@ -4,6 +4,33 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.6-eurelis.1] - 2026-05-30
+
+Basé sur RAGFlow `v0.25.6`.
+
+### Added
+
+- **Gestion des équipes (admin)** — nouvelle feature `eurelis/group_work` :
+  - `admin/server/routes.py` + `admin/server/services.py` — API admin pour la gestion des équipes : listing, ajout/suppression de membres, changement de rôle, validation d'invitation.
+  - `web/src/pages/admin/teams.tsx` — page `/admin/teams` : liste des équipes avec compteur de membres.
+  - `web/src/pages/admin/team-detail.tsx` — page `/admin/teams/:id` : détail d'une équipe et gestion de ses membres.
+  - `web/src/pages/admin/user-own-team.tsx` — page `/admin/users/:id/team` : gestion des membres de l'équipe propre d'un utilisateur.
+  - `web/src/pages/admin/user-team.tsx` — page `/admin/users/:id/members` : équipes auxquelles appartient un utilisateur.
+  - `api/db/db_models.py` — champ `chat_permission` sur le modèle `Dialog` pour contrôler l'accès aux chats partagés.
+  - `web/src/locales/eurelis/en.ts` + `fr.ts` — clés i18n Eurelis isolées de l'upstream.
+
+### Changed
+
+- Synchronisation upstream RAGFlow `v0.25.6` (43 commits intégrés, dont `feat(i18n): complete French translation` — notre contribution FR a été mergée dans l'upstream sous `50424df48`).
+- `web/src/pages/admin/users.tsx` — refonte des boutons d'action : icônes distinctes (`LucideUsers` / `LucideLink`) pour les deux pages équipes, changement de mot de passe en première position.
+
+### Fixed
+
+- `web/src/components/llm-setting-items/next.tsx` — le paramètre *Creativity* du chat n'était pas sauvegardé (cherry-pick upstream PR #15243).
+- `web/src/pages/agents/template-card.tsx` — descriptions des templates d'agent non affichées pour les langues non couvertes (`en`/`zh`/`de`) : fallback sur `'en'`, correction typo `hypens-auto` → `hyphens-auto`, ajout de `i18n.language` dans les dépendances du `useMemo` (PR upstream [#15370](https://github.com/infiniflow/ragflow/pull/15370)).
+
+---
+
 ## [v0.25.4-eurelis.1] - 2026-05-17
 
 Basé sur RAGFlow `v0.25.4`.
