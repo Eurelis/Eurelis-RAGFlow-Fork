@@ -754,19 +754,28 @@ def apply_pii_masking(
     masking_enabled = os.getenv("PII_MASKING_ENABLED", "false").lower() == "true"
     audit_enabled = os.getenv("PII_AUDIT_LOG_ENABLED", "false").lower() == "true"
 
-    if not (masking_enabled or audit_enabled) or not PiiMaskingEngine.is_available():
+    if not masking_enabled and not audit_enabled:
+        logger.debug("pii_masking: skipped — PII_MASKING_ENABLED and PII_AUDIT_LOG_ENABLED are both false")
+        return history, effective_model_name, {}
+
+    if not PiiMaskingEngine.is_available():
+        logger.warning("pii_masking: skipped — engine not initialized (call PiiMaskingEngine.initialize() at startup)")
         return history, effective_model_name, {}
 
     # Check provider whitelist
     providers_filter = os.getenv("PII_MASKING_PROVIDERS", "").strip()
     if not providers_filter:
+        logger.debug("pii_masking: skipped — PII_MASKING_PROVIDERS is empty")
         return history, effective_model_name, {}
 
     match_target = f"{raw_model_name}@{provider}"
     should_process = _matches_providers_filter(match_target, providers_filter)
 
     if not should_process:
+        logger.debug("pii_masking: skipped — %r does not match providers filter %r", match_target, providers_filter)
         return history, effective_model_name, {}
+
+    logger.info("pii_masking: processing %r (masking=%s audit=%s)", match_target, masking_enabled, audit_enabled)
 
     # Apply masking / analysis
     engine = PiiMaskingEngine.get()
@@ -778,6 +787,12 @@ def apply_pii_masking(
         language=language,
         roles_to_mask=roles,
         mask=masking_enabled,
+    )
+
+    logger.info(
+        "pii_masking: done — %d placeholder(s), entities_by_role=%s",
+        len(mapping),
+        {r: [e.entity_type for e in ents] for r, ents in entities_by_role.items()},
     )
 
     if audit_enabled and entities_by_role:
