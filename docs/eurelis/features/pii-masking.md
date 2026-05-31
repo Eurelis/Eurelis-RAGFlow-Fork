@@ -1,8 +1,8 @@
 # Feature : PII Masking (Presidio)
 
 **Branche** : `eurelis/feature/pii-masking`  
-**Date** : 2026-05-30  
-**Statut** : Spécification
+**Date** : 2026-05-31  
+**Statut** : Implémenté (MVP + réhydratation des réponses)
 
 ---
 
@@ -20,11 +20,11 @@ Les LLM providers (OpenAI, Anthropic, AWS Bedrock, etc.) ne doivent jamais recev
 |------|-------------|-------|
 | Module `pii_masking.py` | Détection + masquage via Presidio Python | MVP |
 | Intégration `chat_model.py` | Hook dans `LiteLLMBase._construct_completion_args()` | MVP |
-| Masquage input uniquement | Pas d'unmasking des réponses LLM | MVP |
+| Masquage input + réhydratation réponse | Remplacement des placeholders dans la réponse LLM avant retour client | MVP |
 | Configuration par variable d'env | Toggle `PII_MASKING_ENABLED`, langues, entités | MVP |
 | Audit log configurable | Journalisation des PII détectés (sans valeur originale), niveau et destination configurables | MVP |
 | Coexistence direct/masqué — Option A (suffixe `__pii`) | Même modèle disponible en direct et masqué via convention de nommage | MVP |
-| Streaming unmask — sliding window | Démasquage des réponses en flux | v1 |
+| Streaming unmask — sliding window | Démasquage des réponses en flux (non-streaming + streaming) | MVP |
 | Coexistence direct/masqué — Option B (flag `Dialog.pii_masking`) | Activation du masquage par conversation, sans doublon de modèle | v1 |
 | Toggle par tenant | Activer/désactiver le masquage par tenant | v1 |
 | Support multilingue FR | Modèle spaCy `fr_core_news_lg` | v1 |
@@ -87,7 +87,7 @@ web/src/                                ← MODIFIÉ : UI toggle dans les settin
 
 ## Flux de données détaillé
 
-### MVP — Masquage input, pas d'unmasking
+### Masquage input + réhydratation réponse
 
 ```
 Input :  "Mon email est john@example.com, je m'appelle Jean Dupont"
@@ -96,16 +96,22 @@ Input :  "Mon email est john@example.com, je m'appelle Jean Dupont"
          [EMAIL_ADDRESS @ 14-30], [PERSON @ 46-57]
                 │
                 ▼  AnonymizerEngine.anonymize()
-Output : "Mon email est <EMAIL_ADDRESS>, je m'appelle <PERSON>"
+                    mapping : {"<EMAIL_ADDRESS_1>": "john@example.com",
+                               "<PERSON_1>": "Jean Dupont"}
+Masqué : "Mon email est <EMAIL_ADDRESS_1>, je m'appelle <PERSON_1>"
                 │
                 ▼  → LLM (ne voit que les placeholders)
 
-Réponse LLM : "J'ai bien noté votre email <EMAIL_ADDRESS>."
+Réponse LLM : "J'ai bien noté votre email <EMAIL_ADDRESS_1>."
                 │
-                ▼  → Client (tel quel en MVP)
+                ▼  unmask_text() / StreamingUnmasker
+                    lookup mapping
+Output : "J'ai bien noté votre email john@example.com."
+                │
+                ▼  → Client (valeur originale restaurée)
 ```
 
-### v1 — Masquage input + Unmasking streaming
+### Unmasking en mode streaming
 
 ```
 Input masqué → LLM
@@ -115,7 +121,7 @@ Input masqué → LLM
         "noté votre email " → flush immédiat → client
         "<" → début de placeholder potentiel → buffering
         "EMAIL" → buffering
-        "_ADDRESS>" → placeholder complet détecté
+        "_ADDRESS_1>" → placeholder complet détecté
                 │
                 ▼  lookup dans mapping
         "john@example.com" → flush → client
@@ -248,44 +254,49 @@ INFO  ragflow_server  PII masking disabled — PiiMaskingEngine skipped
 
 ### Intégration dans le hook `_construct_completion_args`
 
-Avec le singleton, le hook devient :
+Le hook est implémenté via `apply_pii_masking()` qui retourne un 3-tuple :
 
 ```python
 # rag/llm/chat_model.py — LiteLLMBase._construct_completion_args()
 
-import re
-from rag.llm.pii_masking import PiiMaskingEngine
+pii_mapping: dict = {}
+try:
+    from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+    history, effective_model_name, pii_mapping = apply_pii_masking(
+        history=history,
+        model_name=self.model_name,
+        prefix=self.prefix,
+        provider=str(self.provider),
+    )
+except PiiBlockedException:
+    raise
+except Exception as _pii_exc:
+    logging.warning(f"PII masking error (continuing without masking): {_pii_exc}")
 
-masking_enabled = os.getenv("PII_MASKING_ENABLED", "false").lower() == "true"
-audit_enabled   = os.getenv("PII_AUDIT_LOG_ENABLED", "false").lower() == "true"
+# ...
+return completion_args, pii_mapping   # ← 2-tuple propagé aux callers
+```
 
-if (masking_enabled or audit_enabled) and PiiMaskingEngine.is_available():
+Les callers (`async_chat`, `async_chat_streamly`, `async_chat_with_tools`, `async_chat_streamly_with_tools`) déballent le tuple et réhydratent la réponse :
 
-    # Ciblage : vérifier si ce modèle est dans la whitelist
-    providers_filter = os.getenv("PII_MASKING_PROVIDERS", "").strip()
-    should_mask = False
-    if providers_filter:
-        # Cible : "raw_model_name@factory" au sens RAGFlow
-        raw_model_name = self.model_name.removeprefix(self.prefix)
-        match_target = f"{raw_model_name}@{self.provider}"
-        patterns = [p.strip() for p in providers_filter.split(",") if p.strip()]
-        should_mask = any(re.fullmatch(p, match_target) for p in patterns)
-    # Si PII_MASKING_PROVIDERS est vide → should_mask reste False (aucun masquage)
+```python
+# Non-streaming
+completion_args, pii_mapping = self._construct_completion_args(...)
+ans = response.choices[0].message.content
+if pii_mapping:
+    from rag.llm.pii_masking import unmask_text
+    ans = unmask_text(ans, pii_mapping)
 
-    if should_mask:
-        engine = PiiMaskingEngine.get()
-        history, pii_mapping, all_entities = engine.mask_messages(
-            history,
-            language=os.getenv("PII_MASKING_LANGUAGES", "en").split(",")[0],
-            roles_to_mask=os.getenv("PII_MASKING_ROLES", "user").split(","),
-            mask=masking_enabled,
-        )
-        if audit_enabled and all_entities:
-            engine.audit_logger.log_detection(
-                entities=all_entities,
-                conversation_id=kwargs.get("conversation_id"),
-                model=match_target,   # loggué pour traçabilité
-            )
+# Streaming
+_pii_unmasker = StreamingUnmasker(pii_mapping) if pii_mapping else None
+async for chunk in response:
+    chunk = _pii_unmasker.process_chunk(chunk) if _pii_unmasker else chunk
+    if chunk:
+        yield chunk
+if _pii_unmasker:
+    tail = _pii_unmasker.flush()
+    if tail:
+        yield tail
 ```
 
 > Les engines `AnalyzerEngine` et `AnonymizerEngine` sont thread-safe (stateless par appel) — pas de lock nécessaire dans le hot path.
@@ -306,28 +317,59 @@ class DetectedEntity:
     start: int          # position de début dans le texte original
     end: int            # position de fin
     score: float        # score de confiance Presidio (0.0–1.0)
-    placeholder: str    # "<EMAIL_ADDRESS>", "<PERSON>", …
+    placeholder: str    # "<EMAIL_ADDRESS_1>", "<PERSON_2>", … (numéroté)
 
 @dataclass
 class MaskingResult:
     masked_text: str
-    mapping: dict[str, str]          # {"<EMAIL_ADDRESS>": "john@...", "<PERSON>": "Jean Dupont"}
+    mapping: dict[str, str]          # {"<EMAIL_ADDRESS_1>": "john@...", "<PERSON_1>": "Jean Dupont"}
     entities: list[DetectedEntity]   # détail complet des entités trouvées
 
-def mask_pii_in_text(text: str, language: str = "en") -> MaskingResult:
-    """Masque les PII dans un texte. Retourne le texte masqué + le mapping."""
+class PiiMaskingEngine:
+    def mask_messages(
+        self,
+        messages: list[dict],
+        language: str = "en",
+        roles_to_mask: list[str] | None = None,  # défaut: ["user"]
+        mask: bool = True,
+    ) -> tuple[list[dict], dict[str, str], dict[str, list[DetectedEntity]]]:
+        """
+        Masque les PII dans une liste de messages au format OpenAI.
+        Retourne :
+          - messages masqués
+          - mapping {placeholder → valeur originale} pour la réhydratation
+          - entities_by_role {role → [DetectedEntity]} (rôle correct pour l'audit log)
+        Un seul _SharedMaskingState est partagé entre tous les messages :
+        même valeur → même placeholder numéroté dans tous les rôles.
+        """
+        ...
+
+    def _mask_text(
+        self,
+        text: str,
+        language: str = "en",
+        mask: bool = True,
+        shared_state: "_SharedMaskingState | None" = None,
+    ) -> MaskingResult:
+        """Analyse et anonymise un texte unique."""
+        ...
+
+def apply_pii_masking(
+    history: list[dict],
+    model_name: str,
+    prefix: str,
+    provider: str,
+) -> tuple[list[dict], str, dict[str, str]]:
+    """
+    Point d'entrée appelé depuis LiteLLMBase._construct_completion_args().
+    Retourne (masked_history, effective_model_name, mapping).
+    - effective_model_name : suffixe __pii strippé.
+    - mapping : {placeholder → valeur originale}, vide si masquage non appliqué.
+    """
     ...
 
-def mask_pii_in_messages(
-    messages: list[dict],
-    language: str = "en",
-    roles_to_mask: list[str] = ["user"],
-) -> tuple[list[dict], dict[str, str]]:
-    """
-    Masque les PII dans une liste de messages au format OpenAI.
-    Retourne les messages masqués + le mapping global (union de tous les messages).
-    Seuls les rôles listés dans roles_to_mask sont masqués (par défaut: user uniquement).
-    """
+def unmask_text(text: str, mapping: dict[str, str]) -> str:
+    """Remplace tous les placeholders dans text par leurs valeurs originales."""
     ...
 
 class StreamingUnmasker:
@@ -368,16 +410,19 @@ class PiiAuditLogger:
     """
     Journalise les événements de détection PII sans jamais exposer
     les valeurs originales ni les mappings placeholder→valeur.
+    Niveau : INFO (logger Python "ragflow.pii" + fichier dédié si configuré).
     """
     def log_detection(
         self,
         entities: list[DetectedEntity],
         conversation_id: str | None = None,
         message_role: str = "user",
+        model: str | None = None,
     ) -> None:
         """
         Émet un log structuré par entité détectée.
         Ne logue jamais la valeur originale ni le mapping.
+        message_role reflète le rôle réel du message (user, system, …).
         """
         ...
 ```
@@ -460,9 +505,6 @@ PII_MASKING_SCORE_THRESHOLD=0.7
 # Exemple : PERSON plus strict (faux positifs fréquents sur prénoms communs)
 PII_MASKING_SCORE_OVERRIDES=PERSON:0.85,CREDIT_CARD:0.6
 
-# Activer l'unmasking des réponses LLM (v1)
-PII_UNMASKING_ENABLED=false
-
 # Rôles des messages à masquer (comma-separated)
 # "user" uniquement par défaut — ne pas masquer "system" ni "assistant"
 PII_MASKING_ROLES=user
@@ -482,9 +524,9 @@ PII_MASKING_STARTUP_FAIL=true
 PII_MASKING_NER=false
 
 # Modèle spaCy à utiliser pour l'anglais
-# Valeurs : en_core_web_sm (rapide, moins précis) | en_core_web_md | en_core_web_lg (défaut, précis)
+# Valeurs : en_core_web_sm (défaut, déjà installé via pyproject.toml) | en_core_web_md | en_core_web_lg (précis, ~750 MB)
 # Note : en_core_web_trf (transformers) requiert PyTorch — non recommandé sans GPU
-PII_MASKING_NER_MODEL_EN=en_core_web_lg
+PII_MASKING_NER_MODEL_EN=en_core_web_sm
 
 # Modèle spaCy à utiliser pour le français (si "fr" dans PII_MASKING_LANGUAGES)
 # Valeurs : fr_core_news_sm | fr_core_news_md | fr_core_news_lg (défaut)
@@ -502,7 +544,7 @@ PII_AUDIT_LOG_ENABLED=false
 PII_AUDIT_LOG_LEVEL=summary
 
 # Destination des logs
-# "app"      : via le logger Python applicatif (logger "ragflow.pii", niveau WARNING)
+# "app"      : via le logger Python applicatif (logger "ragflow.pii", niveau INFO)
 # "file"     : fichier dédié (chemin défini par PII_AUDIT_LOG_FILE)
 # "both"     : les deux destinations
 PII_AUDIT_LOG_DESTINATION=app
@@ -774,7 +816,7 @@ Il contient uniquement des **métadonnées de détection** permettant l'audit de
 #### Mode `summary` (production)
 
 ```
-[2026-05-30T14:32:11Z] [ragflow.pii] WARNING pii_detected conversation_id=abc123 role=user entities=EMAIL_ADDRESS:1,PERSON:2 total=3
+[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=user entities=EMAIL_ADDRESS:1,PERSON:2 total=3 model=gpt-4o@OpenAI
 ```
 
 Champs :
@@ -788,9 +830,11 @@ Champs :
 #### Mode `detailed` (debug)
 
 ```
-[2026-05-30T14:32:11Z] [ragflow.pii] WARNING pii_detected conversation_id=abc123 role=user entity_type=EMAIL_ADDRESS placeholder=<EMAIL_ADDRESS> start=14 end=30 score=0.99
-[2026-05-30T14:32:11Z] [ragflow.pii] WARNING pii_detected conversation_id=abc123 role=user entity_type=PERSON placeholder=<PERSON> start=46 end=57 score=0.85
+[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=user entity_type=EMAIL_ADDRESS placeholder=<EMAIL_ADDRESS_1> start=14 end=30 score=0.99 model=gpt-4o@OpenAI
+[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=system entity_type=PERSON placeholder=<PERSON_1> start=46 end=57 score=0.85 model=gpt-4o@OpenAI
 ```
+
+> **Note** : `role` reflète le rôle réel du message — `system` pour les détections dans le contexte RAG, `user` pour les messages utilisateur. Les placeholders sont numérotés (`_1`, `_2`, …) et cohérents entre messages : la même valeur reçoit le même placeholder quel que soit le rôle.
 
 Champs supplémentaires :
 | Champ | Description |
@@ -813,52 +857,48 @@ PII_AUDIT_LOG_LEVEL=summary
 
 ### Intégration dans le point d'injection
 
+L'audit est géré dans `apply_pii_masking()`, qui appelle `engine.audit_logger.log_detection()` une fois par rôle présent dans `entities_by_role` :
+
 ```python
-# rag/llm/chat_model.py — LiteLLMBase._construct_completion_args()
+# rag/llm/pii_masking.py — apply_pii_masking()
 
-from rag.llm.pii_masking import mask_pii_in_messages, PiiAuditLogger
+masked_history, mapping, entities_by_role = engine.mask_messages(
+    messages=history,
+    language=language,
+    roles_to_mask=roles,
+    mask=masking_enabled,  # False = mode audit seul, messages non modifiés
+)
 
-masking_enabled = os.getenv("PII_MASKING_ENABLED", "false").lower() == "true"
-audit_enabled   = os.getenv("PII_AUDIT_LOG_ENABLED", "false").lower() == "true"
-
-if masking_enabled or audit_enabled:
-    languages = os.getenv("PII_MASKING_LANGUAGES", "en").split(",")
-    roles     = os.getenv("PII_MASKING_ROLES", "user").split(",")
-
-    history, pii_mapping, all_entities = mask_pii_in_messages(
-        history,
-        language=languages[0],
-        roles_to_mask=roles,
-        mask=masking_enabled,   # si False : analyse seule, pas d'anonymisation
-    )
-
-    if audit_enabled and all_entities:
-        PiiAuditLogger().log_detection(
-            entities=all_entities,
-            conversation_id=kwargs.get("conversation_id"),
-            message_role="user",
+if audit_enabled and entities_by_role:
+    for role, entities in entities_by_role.items():
+        engine.audit_logger.log_detection(
+            entities=entities,
+            message_role=role,   # "user", "system", …
+            model=match_target,
         )
 ```
 
-> `mask_pii_in_messages` accepte un paramètre `mask=False` pour fonctionner en mode analyse seule (retourne les entités détectées sans modifier les messages).
+> En mode `PII_MASKING_ENABLED=false` + `PII_AUDIT_LOG_ENABLED=true` : Presidio analyse mais n'anonymise pas. Les messages retournés sont inchangés, les logs de détection sont émis.
 
 ---
 
 ## Dépendances Python
 
 ```toml
-# pyproject.toml — à ajouter dans [project.dependencies]
+# pyproject.toml — dépendances ajoutées
 "presidio-analyzer>=2.2.354",
 "presidio-anonymizer>=2.2.354",
 
-# Modèles spaCy (téléchargés au build Docker ou au démarrage)
-# Anglais (obligatoire si PII_MASKING_LANGUAGES contient "en")
-# → python -m spacy download en_core_web_lg  (~750 MB)
-# Français (si PII_MASKING_LANGUAGES contient "fr")
-# → python -m spacy download fr_core_news_lg  (~550 MB)
+# Modèle spaCy anglais — déjà déclaré comme wheel dans pyproject.toml (utilisé aussi par GraphRAG)
+"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+
+# Modèles plus larges (NER précis) — à télécharger manuellement si besoin :
+# → uv run python -m spacy download en_core_web_lg  (~750 MB)
+# Français (si PII_MASKING_LANGUAGES contient "fr") :
+# → uv run python -m spacy download fr_core_news_lg  (~550 MB)
 ```
 
-> **Note Docker** : les modèles spaCy doivent être téléchargés dans l'image ou au premier démarrage. Prévoir +1 GB d'espace image si les deux langues sont activées. Envisager un téléchargement lazy au premier appel avec cache.
+> **Note Docker** : `en_core_web_sm` est inclus via `uv sync`. Les modèles `lg` doivent être téléchargés dans l'image (`RUN python -m spacy download en_core_web_lg`) si NER haute précision est requis. Prévoir +1 GB d'espace image par modèle large.
 
 ---
 
@@ -868,28 +908,30 @@ if masking_enabled or audit_enabled:
 # rag/llm/chat_model.py — classe LiteLLMBase
 
 def _construct_completion_args(self, history, stream: bool, tools: bool, **kwargs):
-    # --- PII MASKING ---
-    from rag.llm.pii_masking import mask_pii_in_messages
-    import os
-    if os.getenv("PII_MASKING_ENABLED", "false").lower() == "true":
-        languages = os.getenv("PII_MASKING_LANGUAGES", "en").split(",")
-        roles = os.getenv("PII_MASKING_ROLES", "user").split(",")
-        history, _pii_mapping = mask_pii_in_messages(
-            history,
-            language=languages[0],  # v1 : support multi-langue
-            roles_to_mask=roles,
+    # --- PII MASKING (Eurelis) ---
+    effective_model_name = self.model_name
+    pii_mapping: dict = {}
+    try:
+        from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+        history, effective_model_name, pii_mapping = apply_pii_masking(
+            history=history,
+            model_name=self.model_name,
+            prefix=self.prefix,
+            provider=str(self.provider),
         )
-    # --- FIN PII MASKING ---
+    except PiiBlockedException:
+        raise
+    except Exception as _pii_exc:
+        logging.warning(f"PII masking error (continuing without masking): {_pii_exc}")
+    # --- END PII MASKING ---
 
     completion_args = {
-        "model": self.model_name,
+        "model": effective_model_name,  # __pii strippé si présent
         "messages": history,
         ...
     }
-    return completion_args
+    return completion_args, pii_mapping  # 2-tuple : les callers réhydratent la réponse
 ```
-
-> Pour la v1 avec unmasking streaming, `_pii_mapping` sera passé au générateur via un mécanisme de contexte ou de closure.
 
 ---
 
@@ -899,7 +941,9 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 |-----------|-------------|
 | `PII_MASKING_ENABLED=false` | Pass-through total, zéro overhead |
 | Aucun PII détecté | Messages retournés inchangés, mapping vide |
-| Même PII plusieurs fois | `<EMAIL_ADDRESS>` pour la 1re occurrence, `<EMAIL_ADDRESS_2>` pour la 2e (Presidio natif) |
+| Même PII plusieurs fois dans un message | Même placeholder numéroté (`<EMAIL_ADDRESS_1>` × 2) — déduplication via `_SharedMaskingState` |
+| Même PII dans user + system | Même placeholder dans les deux messages — `_SharedMaskingState` partagé sur toute la requête |
+| Deux PII distincts du même type | `<EMAIL_ADDRESS_1>` et `<EMAIL_ADDRESS_2>` — compteur par type |
 | PII dans message `system` | Non masqué (role non inclus dans `PII_MASKING_ROLES`) |
 | PII dans message `assistant` (historique) | Non masqué par défaut |
 | Faux positif (ex: prénom commun) | Masqué → `<PERSON>` → LLM répond normalement |
@@ -916,12 +960,11 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 
 ## Tests
 
-### Tests unitaires (`test/test_pii_masking.py`)
+### Tests unitaires (`test/unit_test/rag/llm/test_pii_masking.py`)
 
-- `test_mask_email` : email simple → `<EMAIL_ADDRESS>`
-- `test_mask_person` : prénom + nom → `<PERSON>`
-- `test_mask_phone_fr` : numéro FR → `<PHONE_NUMBER>`
-- `test_mask_multiple_same_type` : 2 emails → `<EMAIL_ADDRESS>` et `<EMAIL_ADDRESS_2>`
+- `test_mask_email` : email simple → `<EMAIL_ADDRESS_N>` (numéroté)
+- `test_mask_person` : prénom + nom → `<PERSON_N>`
+- `test_mask_multiple_same_type` : 2 emails distincts → deux placeholders numérotés différents
 - `test_no_pii` : texte sans PII → retour inchangé, mapping vide
 - `test_mask_messages_user_only` : seul le rôle `user` est masqué
 - `test_mask_disabled` : `PII_MASKING_ENABLED=false` → pass-through
