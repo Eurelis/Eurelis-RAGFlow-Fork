@@ -4329,6 +4329,15 @@ wheels = [
 ]
 
 [[package]]
+name = "phonenumbers"
+version = "9.0.31"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/20/51f0eafd5819e923d09c6f508a764b84d00e7e7d96c4087627a1adab8d30/phonenumbers-9.0.31.tar.gz", hash = "sha256:287dbd012b12cf9bcc4803b55a29e0d204db5a0df747d38c9130fee1b1b6b0aa", size = 2306679 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/d3/17268202ea3fa5a597c98ca5dd178ca013f96b42373c54604e59b3bb8d02/phonenumbers-9.0.31-py2.py3-none-any.whl", hash = "sha256:f308c1f425e2637b92ff34a174f0888ddf47aacfa6199531f7097e00ad90f57c", size = 2595455 },
+]
+
+[[package]]
 name = "pillow"
 version = "12.2.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -4525,6 +4534,33 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/d1/c7/f1a996c6832234efd4d543041b582418d41ac480ee55c557ec9e65344637/preshed-3.0.13-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:7c333f18e9a81c8a6de0603fd8781e17115324b117c445ca91abdf7bfb1abe49" },
     { url = "https://mirrors.aliyun.com/pypi/packages/e3/b9/96fb71499049885ce19545903fdd38877bbc2be0da47e37c04d01f3e9f66/preshed-3.0.13-cp313-cp313-win_amd64.whl", hash = "sha256:461327f8dd36520dcf1fd55a671e0c3c2c97a2d95e22fc85faa31173f4785dda" },
     { url = "https://mirrors.aliyun.com/pypi/packages/ef/a7/32a4903019d936a2316fdd330bedddac287ac26326107d24fb76a1fbc60a/preshed-3.0.13-cp313-cp313-win_arm64.whl", hash = "sha256:35d6c5acb3ee3b12b87a551913063f0cec784055c2af16e028c19fe875f079d0" },
+]
+
+[[package]]
+name = "presidio-analyzer"
+version = "2.2.362"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "phonenumbers" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "regex" },
+    { name = "spacy" },
+    { name = "tldextract" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/8a/d6cf4bddbb11d9c78f5c9342bbbcde4f90fe4e3c7de114a836ec4ed8a6cf/presidio_analyzer-2.2.362-py3-none-any.whl", hash = "sha256:4c36438924b1fcb4df92ea5cf2d8dc57508808e116b10923c983b8732aa07d90", size = 201084 },
+]
+
+[[package]]
+name = "presidio-anonymizer"
+version = "2.2.362"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/01/1c3404e8da63a979ae951b8822576bc0e52ca3a46a624ac9439786990c6d/presidio_anonymizer-2.2.362-py3-none-any.whl", hash = "sha256:b2d81542cb797360d18506a1aa73ea0dfacc44abca15248c81dd062f582e6b2b", size = 36603 },
 ]
 
 [[package]]
@@ -7967,6 +8003,8 @@ dependencies = [
     { name = "pdfplumber" },
     { name = "peewee" },
     { name = "pluginlib" },
+    { name = "presidio-analyzer" },
+    { name = "presidio-anonymizer" },
     { name = "psycopg2-binary" },
     { name = "pyairtable" },
     { name = "pyclipper" },
@@ -8125,6 +8163,8 @@ requires-dist = [
     { name = "pdfplumber", specifier = "==0.10.4" },
     { name = "peewee", specifier = ">=3.17.1,<4.0.0" },
     { name = "pluginlib", specifier = ">=0.10.0" },
+    { name = "presidio-analyzer", specifier = ">=2.2.354" },
+    { name = "presidio-anonymizer", specifier = ">=2.2.354" },
     { name = "psycopg2-binary", specifier = ">=2.9.11,<3.0.0" },
     { name = "pyairtable", specifier = ">=3.3.0" },
     { name = "pyclipper", specifier = ">=1.4.0,<2.0.0" },
@@ -8356,6 +8396,18 @@ wheels = [
 [package.optional-dependencies]
 socks = [
     { name = "pysocks" },
+]
+
+[[package]]
+name = "requests-file"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/f8/5dc70102e4d337063452c82e1f0d95e39abfe67aa222ed8a5ddeb9df8de8/requests_file-3.0.1.tar.gz", hash = "sha256:f14243d7796c588f3521bd423c5dea2ee4cc730e54a3cac9574d78aca1272576", size = 6967 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/d5/de8f089119205a09da657ed4784c584ede8381a0ce6821212a6d4ca47054/requests_file-3.0.1-py2.py3-none-any.whl", hash = "sha256:d0f5eb94353986d998f80ac63c7f146a307728be051d4d1cd390dbdb59c10fa2", size = 4514 },
 ]
 
 [[package]]
@@ -9312,6 +9364,21 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/22/1f/ae535223a8c4ef4c0c1192e3f9b82da660be9eb66b9279e95c99288e9dab/tiktoken-0.12.0-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:04f0e6a985d95913cabc96a741c5ffec525a2c72e9df086ff17ebe35985c800e" },
     { url = "https://mirrors.aliyun.com/pypi/packages/78/a7/f8ead382fce0243cb625c4f266e66c27f65ae65ee9e77f59ea1653b6d730/tiktoken-0.12.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:0ee8f9ae00c41770b5f9b0bb1235474768884ae157de3beb5439ca0fd70f3e25" },
     { url = "https://mirrors.aliyun.com/pypi/packages/93/e0/6cc82a562bc6365785a3ff0af27a2a092d57c47d7a81d9e2295d8c36f011/tiktoken-0.12.0-cp313-cp313t-win_amd64.whl", hash = "sha256:dc2dd125a62cb2b3d858484d6c614d136b5b848976794edfb63688d539b8b93f" },
+]
+
+[[package]]
+name = "tldextract"
+version = "5.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "idna" },
+    { name = "requests" },
+    { name = "requests-file" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/7b/644fbbb49564a6cb124a8582013315a41148dba2f72209bba14a84242bf0/tldextract-5.3.1.tar.gz", hash = "sha256:a72756ca170b2510315076383ea2993478f7da6f897eef1f4a5400735d5057fb", size = 126105 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/42/0e49d6d0aac449ca71952ec5bae764af009754fcb2e76a5cc097543747b3/tldextract-5.3.1-py3-none-any.whl", hash = "sha256:6bfe36d518de569c572062b788e16a659ccaceffc486d243af0484e8ecf432d9", size = 105886 },
 ]
 
 [[package]]
