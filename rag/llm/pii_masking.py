@@ -65,7 +65,8 @@ class DetectedEntity:
     start: int         # position in original text
     end: int           # position in original text
     score: float       # Presidio confidence score (0.0–1.0)
-    placeholder: str   # e.g. "<EMAIL_ADDRESS>"
+    placeholder: str   # e.g. "<EMAIL_ADDRESS_1>"
+    recognizer: str = ""  # e.g. "SpacyRecognizer", "EmailRecognizer", "PhoneRecognizer"
 
 
 @dataclass
@@ -278,10 +279,12 @@ class PiiAuditLogger:
 
         elif self._level == "detailed":
             for e in entities:
+                recognizer_part = f" recognizer={e.recognizer}" if e.recognizer else ""
                 self._emit(
                     f"pii_detected conversation_id={conv_id} role={message_role}"
                     f" entity_type={e.entity_type} placeholder={e.placeholder}"
-                    f" start={e.start} end={e.end} score={e.score:.2f}{model_part}"
+                    f" start={e.start} end={e.end} score={e.score:.2f}"
+                    f"{recognizer_part}{model_part}"
                 )
 
 
@@ -657,6 +660,7 @@ class PiiMaskingEngine:
                 end=r.end,
                 score=r.score,
                 placeholder=f"<{r.entity_type}>",
+                recognizer=(r.recognition_metadata or {}).get("recognizer_name", ""),
             )
             for r in filtered
         ]
