@@ -4,6 +4,37 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [Unreleased] — branche `eurelis/feature/pii-masking`
+
+### Added
+
+- **PII Masking** — masquage automatique des données personnelles (PII) avant envoi aux LLM, via [Microsoft Presidio](https://github.com/microsoft/presidio) :
+  - `rag/llm/pii_masking.py` — moteur Presidio : détection, anonymisation, réhydratation des réponses (`StreamingUnmasker`, `PiiAuditLogger`, `PiiMaskingEngine` singleton).
+  - `rag/llm/chat_model.py` — hook dans `LiteLLMBase._construct_completion_args()` + réhydratation dans tous les callers (`async_chat`, `async_chat_streamly`, `async_chat_with_tools`, `async_chat_streamly_with_tools`).
+  - `rag/llm/cv_model.py` — intégration dans `GeminiCV` (`async_chat` + `async_chat_streamly`) : masquage du contexte RAG (`system`) + de l'historique en un seul appel.
+  - `api/ragflow_server.py` — initialisation `PiiMaskingEngine.initialize()` au démarrage.
+  - `conf/llm_factories.json` — ajout de `gemini-3.5-flash::pii` (`image2text`) comme variante avec masquage.
+  - `test/unit_test/rag/llm/test_pii_masking.py` — 41 tests unitaires.
+  - `docs/eurelis/features/pii-masking.md` — documentation technique complète.
+
+- **Fonctionnalités du moteur PII Masking :**
+  - Détection par regex/checksum (EMAIL, PHONE, CREDIT_CARD, IBAN, IP) sans dépendance NER.
+  - Détection contextuelle via spaCy NER (PERSON, LOCATION, DATE_TIME) — optionnelle, configurable par langue.
+  - Actions `MASK` (remplacement par `<TYPE_N>`) et `BLOCK` (exception, requête bloquée).
+  - Placeholders numérotés et cohérents entre messages : même valeur → même placeholder (`_SharedMaskingState`).
+  - Réhydratation des réponses en mode streaming (sliding-window buffer, `StreamingUnmasker`).
+  - Audit log configurable : niveau `summary` ou `detailed`, destination `app`/`file`/`both`, niveau INFO.
+  - Champ `recognizer` dans l'audit log `detailed` (`SpacyRecognizer` vs `EmailRecognizer`, etc.).
+  - Recognizers personnalisés via fichier YAML (pattern regex, deny-list, boosting contextuel).
+  - Opt-in par modèle via suffix `::pii` (ex. `gemini-3.5-flash::pii`) ou ciblage par provider regex.
+  - Mode "audit sans masquage" : `PII_AUDIT_LOG_ENABLED=true` + `PII_MASKING_ENABLED=false`.
+
+- **Variables d'environnement ajoutées :** `PII_MASKING_ENABLED`, `PII_MASKING_PROVIDERS`, `PII_MASKING_ENTITIES`, `PII_MASKING_SCORE_THRESHOLD`, `PII_MASKING_SCORE_OVERRIDES`, `PII_MASKING_ROLES`, `PII_MASKING_LANGUAGES`, `PII_MASKING_NER`, `PII_MASKING_NER_MODEL_EN`, `PII_MASKING_NER_MODEL_FR`, `PII_MASKING_CUSTOM_RECOGNIZERS_FILE`, `PII_MASKING_STARTUP_FAIL`, `PII_AUDIT_LOG_ENABLED`, `PII_AUDIT_LOG_LEVEL`, `PII_AUDIT_LOG_DESTINATION`, `PII_AUDIT_LOG_FILE`.
+
+- **Dépendances Python ajoutées :** `presidio-analyzer>=2.2.354`, `presidio-anonymizer>=2.2.354` (+ `en-core-web-sm` déjà présent via GraphRAG).
+
+---
+
 ## [v0.25.6-eurelis.1] - 2026-05-30
 
 Basé sur RAGFlow `v0.25.6`.
