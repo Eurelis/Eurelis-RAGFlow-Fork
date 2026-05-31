@@ -787,6 +787,14 @@ class GeminiCV(Base):
         from google import genai
 
         self.api_key = key
+        # Strip ::pii suffix (Eurelis PII masking convention) — the Gemini API
+        # only accepts the real model name without this suffix.
+        try:
+            from rag.llm.pii_masking import PII_MODEL_SUFFIX
+            if model_name.endswith(PII_MODEL_SUFFIX):
+                model_name = model_name[: -len(PII_MODEL_SUFFIX)]
+        except Exception:
+            pass
         self.model_name = model_name
         self.client = genai.Client(api_key=key)
         self.lang = lang
