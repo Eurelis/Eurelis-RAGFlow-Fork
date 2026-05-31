@@ -42,8 +42,10 @@ from typing import AsyncIterator
 logger = logging.getLogger(__name__)
 
 # Suffix convention for "masked" variant of a model (Option A).
-# e.g. "gpt-4o__pii@OpenAI" → actual model "gpt-4o", PII masking enabled.
-PII_MODEL_SUFFIX = "__pii"
+# e.g. "gemini-3-pro-preview::pii@Gemini" → actual model "gemini-3-pro-preview", PII masking enabled.
+# "::" is chosen because getRealModelName() in the frontend splits on "__" — "::" is not stripped,
+# so the model appears with its full name in the UI selection list.
+PII_MODEL_SUFFIX = "::pii"
 
 
 # ---------------------------------------------------------------------------

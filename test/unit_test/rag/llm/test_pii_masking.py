@@ -316,7 +316,7 @@ class TestScoreThresholds:
 
 
 # ---------------------------------------------------------------------------
-# Provider matching / __pii suffix
+# Provider matching / ::pii suffix
 # ---------------------------------------------------------------------------
 
 class TestProviderMatching:
@@ -359,44 +359,44 @@ class TestProviderMatching:
 
     @patch.dict(os.environ, {
         "PII_MASKING_ENABLED": "true",
-        "PII_MASKING_PROVIDERS": ".*__pii@.*",
+        "PII_MASKING_PROVIDERS": ".*::pii@.*",
         "PII_MASKING_NER": "false",
         "PII_MASKING_ENTITIES": "EMAIL_ADDRESS:MASK",
     })
     def test_pii_suffix_stripped_from_model_name(self):
-        """__pii suffix must be removed before the model name is sent to LiteLLM."""
+        """::pii suffix must be removed before the model name is sent to LiteLLM."""
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = _make_engine()
         messages = [{"role": "user", "content": "Email: user@example.com"}]
         _, effective, _mapping = apply_pii_masking(
-            messages, "openai/gpt-4o__pii", "openai/", "OpenAI"
+            messages, "openai/gpt-4o::pii", "openai/", "OpenAI"
         )
         assert effective == "openai/gpt-4o"    # suffix stripped
 
     @patch.dict(os.environ, {
         "PII_MASKING_ENABLED": "true",
-        "PII_MASKING_PROVIDERS": ".*__pii@.*",
+        "PII_MASKING_PROVIDERS": ".*::pii@.*",
         "PII_MASKING_NER": "false",
     })
     def test_pii_suffix_match_uses_suffixed_name(self):
-        """Regex matching must happen on the name WITH __pii, not after stripping."""
+        """Regex matching must happen on the name WITH ::pii, not after stripping."""
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine, _matches_providers_filter
-        # gpt-4o__pii@OpenAI should match .*__pii@.*
-        assert _matches_providers_filter("gpt-4o__pii@OpenAI", ".*__pii@.*") is True
-        # gpt-4o@OpenAI should NOT match .*__pii@.*
-        assert _matches_providers_filter("gpt-4o@OpenAI", ".*__pii@.*") is False
+        # gpt-4o::pii@OpenAI should match .*::pii@.*
+        assert _matches_providers_filter("gpt-4o::pii@OpenAI", ".*::pii@.*") is True
+        # gpt-4o@OpenAI should NOT match .*::pii@.*
+        assert _matches_providers_filter("gpt-4o@OpenAI", ".*::pii@.*") is False
 
     @patch.dict(os.environ, {
         "PII_MASKING_ENABLED": "false",
-        "PII_MASKING_PROVIDERS": ".*__pii@.*",
+        "PII_MASKING_PROVIDERS": ".*::pii@.*",
     })
     def test_pii_suffix_stripped_even_when_masking_disabled(self):
-        """The __pii suffix must always be stripped regardless of masking state."""
+        """The ::pii suffix must always be stripped regardless of masking state."""
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = None
         messages = [{"role": "user", "content": "Hello"}]
         _, effective, _mapping = apply_pii_masking(
-            messages, "openai/gpt-4o__pii", "openai/", "OpenAI"
+            messages, "openai/gpt-4o::pii", "openai/", "OpenAI"
         )
         assert effective == "openai/gpt-4o"
 
@@ -523,6 +523,6 @@ class TestPiiAuditLogger:
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
         with patch.object(al._audit_logger, "info") as mock_warn:
-            al.log_detection(self._make_entities(), model="gpt-4o__pii@OpenAI")
+            al.log_detection(self._make_entities(), model="gpt-4o::pii@OpenAI")
         msg = mock_warn.call_args[0][0]
-        assert "gpt-4o__pii@OpenAI" in msg
+        assert "gpt-4o::pii@OpenAI" in msg
