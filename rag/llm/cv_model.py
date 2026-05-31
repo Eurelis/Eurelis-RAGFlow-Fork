@@ -884,6 +884,15 @@ class GeminiCV(Base):
         from google import genai
 
         self.api_key = key
+        # Keep the original name (with ::pii suffix) for PII provider matching,
+        # then strip it so the Gemini API receives the real model name.
+        self._original_model_name = model_name
+        try:
+            from rag.llm.pii_masking import PII_MODEL_SUFFIX
+            if model_name.endswith(PII_MODEL_SUFFIX):
+                model_name = model_name[: -len(PII_MODEL_SUFFIX)]
+        except Exception:
+            pass
         self.model_name = model_name
         self.client = genai.Client(api_key=key)
         self.lang = lang
@@ -1016,6 +1025,22 @@ class GeminiCV(Base):
         images_len = len(images) if images else 0
         logging.info(f"[GeminiCV] async_chat called: history_len={history_len} images_len={images_len} gen_conf={gen_conf}")
 
+        # --- PII MASKING (Eurelis) ---
+        pii_mapping: dict = {}
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+            history, _, pii_mapping = apply_pii_masking(
+                history=history,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[GeminiCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         generation_config = types.GenerateContentConfig(
             temperature=gen_conf.get("temperature", 0.3),
             top_p=gen_conf.get("top_p", 0.7),
@@ -1027,6 +1052,14 @@ class GeminiCV(Base):
                 config=generation_config,
             )
             ans = response.text
+            # --- PII UNMASKING (Eurelis) ---
+            if pii_mapping:
+                try:
+                    from rag.llm.pii_masking import unmask_text
+                    ans = unmask_text(ans, pii_mapping)
+                except Exception as _pii_exc:
+                    logging.warning(f"[GeminiCV] PII unmasking error: {_pii_exc}")
+            # --- END PII UNMASKING ---
             logging.info("[GeminiCV] async_chat completed")
             return ans, total_token_count_from_response(response)
         except Exception as e:
@@ -1036,6 +1069,26 @@ class GeminiCV(Base):
     async def async_chat_streamly(self, system, history, gen_conf, images=None, **kwargs):
         ans = ""
         response = None
+
+        # --- PII MASKING (Eurelis) ---
+        # Run before the outer try/except so PiiBlockedException propagates to caller.
+        pii_mapping: dict = {}
+        _pii_unmasker = None
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, StreamingUnmasker, apply_pii_masking
+            history, _, pii_mapping = apply_pii_masking(
+                history=history,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+            _pii_unmasker = StreamingUnmasker(pii_mapping) if pii_mapping else None
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[GeminiCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         try:
             from google.genai import types
 
@@ -1056,7 +1109,15 @@ class GeminiCV(Base):
             async for chunk in response_stream:
                 if chunk.text:
                     ans += chunk.text
-                    yield chunk.text
+                    _chunk = _pii_unmasker.process_chunk(chunk.text) if _pii_unmasker else chunk.text
+                    yield _chunk
+
+            # Flush any remaining buffered placeholder fragments
+            if _pii_unmasker:
+                remainder = _pii_unmasker.flush()
+                if remainder:
+                    yield remainder
+
             logging.info("[GeminiCV] chat_streamly completed")
         except Exception as e:
             logging.warning(f"[GeminiCV] chat_streamly error: {e}")
@@ -1366,6 +1427,14 @@ class BedrockCV(Base):
     _FACTORY_NAME = "Bedrock"
 
     def __init__(self, key, model_name, lang="Chinese", **kwargs):
+        # Keep the original name (with ::pii suffix if present) for PII provider matching.
+        self._original_model_name = model_name
+        try:
+            from rag.llm.pii_masking import PII_MODEL_SUFFIX
+            if model_name.endswith(PII_MODEL_SUFFIX):
+                model_name = model_name[: -len(PII_MODEL_SUFFIX)]
+        except Exception:
+            pass
         self.model_name = f"bedrock/{model_name}"
         self.lang = lang
         self._parse_credentials(key)
@@ -1429,6 +1498,104 @@ class BedrockCV(Base):
 
     def describe(self, image):
         return self.describe_with_prompt(image)
+
+    async def async_chat(self, system, history, gen_conf, images=None, **kwargs):
+        import litellm
+
+        # --- PII MASKING (Eurelis) ---
+        pii_mapping: dict = {}
+        _combined = ([{"role": "system", "content": system}] if system else []) + list(history or [])
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+            _masked, _, pii_mapping = apply_pii_masking(
+                history=_combined,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+            if system:
+                system = _masked[0]["content"]
+                history = _masked[1:]
+            else:
+                history = _masked
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[BedrockCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
+        try:
+            response = await litellm.acompletion(
+                model=self.model_name,
+                messages=self._form_history(system, history, images),
+                **self._get_aws_creds(),
+            )
+            ans = response.choices[0].message.content.strip()
+            # --- PII UNMASKING (Eurelis) ---
+            if pii_mapping:
+                try:
+                    from rag.llm.pii_masking import unmask_text
+                    ans = unmask_text(ans, pii_mapping)
+                except Exception as _pii_exc:
+                    logging.warning(f"[BedrockCV] PII unmasking error: {_pii_exc}")
+            # --- END PII UNMASKING ---
+            return ans, response.usage.total_tokens
+        except Exception as e:
+            return "**ERROR**: " + str(e), 0
+
+    async def async_chat_streamly(self, system, history, gen_conf, images=None, **kwargs):
+        import litellm
+
+        # --- PII MASKING (Eurelis) ---
+        # Run before the outer try/except so PiiBlockedException propagates to caller.
+        pii_mapping: dict = {}
+        _pii_unmasker = None
+        _combined = ([{"role": "system", "content": system}] if system else []) + list(history or [])
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, StreamingUnmasker, apply_pii_masking
+            _masked, _, pii_mapping = apply_pii_masking(
+                history=_combined,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+            if system:
+                system = _masked[0]["content"]
+                history = _masked[1:]
+            else:
+                history = _masked
+            _pii_unmasker = StreamingUnmasker(pii_mapping) if pii_mapping else None
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[BedrockCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
+        ans = ""
+        tk_count = 0
+        try:
+            response = await litellm.acompletion(
+                model=self.model_name,
+                messages=self._form_history(system, history, images),
+                stream=True,
+                **self._get_aws_creds(),
+            )
+            async for chunk in response:
+                if not chunk.choices[0].delta.content:
+                    continue
+                delta = chunk.choices[0].delta.content
+                ans += delta
+                _chunk = _pii_unmasker.process_chunk(delta) if _pii_unmasker else delta
+                if _chunk:
+                    yield _chunk
+            if _pii_unmasker:
+                remainder = _pii_unmasker.flush()
+                if remainder:
+                    yield remainder
+        except Exception as e:
+            yield ans + "\n**ERROR**: " + str(e)
+
+        yield tk_count
 
 
 class NewAPICv(GptV4):
