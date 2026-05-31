@@ -229,18 +229,18 @@ class PiiAuditLogger:
                 backupCount=5,
                 encoding="utf-8",
             )
-            handler.setLevel(logging.WARNING)
+            handler.setLevel(logging.INFO)
             self._file_handler = handler
         except Exception as e:
             logger.warning(f"PiiAuditLogger: could not set up file handler at {self._file_path}: {e}")
 
     def _emit(self, msg: str) -> None:
         if self._destination in ("app", "both"):
-            self._audit_logger.warning(msg)
+            self._audit_logger.info(msg)
         if self._destination in ("file", "both") and self._file_handler:
             record = logging.LogRecord(
                 name="ragflow.pii",
-                level=logging.WARNING,
+                level=logging.INFO,
                 pathname="",
                 lineno=0,
                 msg=msg,

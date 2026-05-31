@@ -479,7 +479,7 @@ class TestPiiAuditLogger:
     def test_summary_log_emitted(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="abc123")
         mock_warn.assert_called_once()
         msg = mock_warn.call_args[0][0]
@@ -492,7 +492,7 @@ class TestPiiAuditLogger:
     def test_detailed_log_per_entity(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="xyz")
         assert mock_warn.call_count == 2
         first_msg = mock_warn.call_args_list[0][0][0]
@@ -504,7 +504,7 @@ class TestPiiAuditLogger:
         """Original PII values must never appear in audit logs."""
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="abc")
         msg = mock_warn.call_args[0][0]
         assert "john@example.com" not in msg
@@ -514,7 +514,7 @@ class TestPiiAuditLogger:
     def test_empty_entities_no_log(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection([])
         mock_warn.assert_not_called()
 
@@ -522,7 +522,7 @@ class TestPiiAuditLogger:
     def test_model_included_in_log(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), model="gpt-4o__pii@OpenAI")
         msg = mock_warn.call_args[0][0]
         assert "gpt-4o__pii@OpenAI" in msg
