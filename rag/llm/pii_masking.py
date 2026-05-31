@@ -109,6 +109,10 @@ class _SharedMaskingState:
         self._placeholder_to_value[placeholder] = original_value
         return placeholder
 
+    def get_placeholder(self, original_value: str) -> str | None:
+        """Return the existing placeholder for *original_value*, or None if not yet mapped."""
+        return self._value_to_placeholder.get(original_value)
+
     @property
     def placeholder_to_value(self) -> dict[str, str]:
         """Snapshot of the placeholder → original value mapping (for v1 unmasking)."""
@@ -689,6 +693,14 @@ class PiiMaskingEngine:
         except Exception as exc:
             logging.warning(f"Presidio anonymization failed: {exc}")
             return MaskingResult(masked_text=text, entities=entities)
+
+        # Update each entity's placeholder to the actual numbered value assigned
+        # by _state during anonymization (e.g. <PERSON_2> instead of generic <PERSON>).
+        for entity in entities:
+            original_value = text[entity.start:entity.end]
+            actual = _state.get_placeholder(original_value)
+            if actual is not None:
+                entity.placeholder = actual
 
         return MaskingResult(
             masked_text=anonymized.text,

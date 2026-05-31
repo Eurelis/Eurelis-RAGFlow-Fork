@@ -175,6 +175,23 @@ class TestCrossMessageConsistency:
             f"Expected numbered placeholder, got: {result.masked_text}"
         )
 
+    def test_entity_placeholder_matches_text_placeholder(self):
+        """DetectedEntity.placeholder must reflect the actual <TYPE_N> used in masked_text."""
+        import re
+        engine = _make_engine()
+        result = engine._mask_text("Email: user@example.com", language="en", mask=True)
+        email_entities = [e for e in result.entities if e.entity_type == "EMAIL_ADDRESS"]
+        assert email_entities, "No EMAIL_ADDRESS entity detected"
+        entity_ph = email_entities[0].placeholder
+        # placeholder must be numbered
+        assert re.match(r"<EMAIL_ADDRESS_\d+>$", entity_ph), (
+            f"Entity placeholder not numbered: {entity_ph}"
+        )
+        # placeholder must appear in the masked text
+        assert entity_ph in result.masked_text, (
+            f"Entity placeholder {entity_ph!r} absent from masked text: {result.masked_text}"
+        )
+
     def test_repeated_value_same_message_gets_same_placeholder(self):
         """The same value repeated within a single message → same placeholder both times."""
         import re
