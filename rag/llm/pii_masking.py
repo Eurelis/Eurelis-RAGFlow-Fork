@@ -112,6 +112,10 @@ class _SharedMaskingState:
         self._placeholder_to_value[placeholder] = original_value
         return placeholder
 
+    def get_placeholder(self, original_value: str) -> str | None:
+        """Return the existing placeholder for *original_value*, or None if not yet mapped."""
+        return self._value_to_placeholder.get(original_value)
+
     @property
     def placeholder_to_value(self) -> dict[str, str]:
         """Snapshot of the placeholder → original value mapping (for v1 unmasking)."""
@@ -228,18 +232,18 @@ class PiiAuditLogger:
                 backupCount=5,
                 encoding="utf-8",
             )
-            handler.setLevel(logging.WARNING)
+            handler.setLevel(logging.INFO)
             self._file_handler = handler
         except Exception as e:
             logger.warning(f"PiiAuditLogger: could not set up file handler at {self._file_path}: {e}")
 
     def _emit(self, msg: str) -> None:
         if self._destination in ("app", "both"):
-            self._audit_logger.warning(msg)
+            self._audit_logger.info(msg)
         if self._destination in ("file", "both") and self._file_handler:
             record = logging.LogRecord(
                 name="ragflow.pii",
-                level=logging.WARNING,
+                level=logging.INFO,
                 pathname="",
                 lineno=0,
                 msg=msg,
@@ -566,7 +570,7 @@ class PiiMaskingEngine:
         language: str = "en",
         roles_to_mask: list[str] | None = None,
         mask: bool = True,
-    ) -> tuple[list[dict], dict[str, str], list[DetectedEntity]]:
+    ) -> tuple[list[dict], dict[str, str], dict[str, list[DetectedEntity]]]:
         """
         Analyze (and optionally anonymize) PII in a list of OpenAI-format messages.
 
@@ -577,15 +581,16 @@ class PiiMaskingEngine:
             mask:          If True, replace PII with placeholders. If False, analyze only.
 
         Returns:
-            (masked_messages, mapping, all_entities)
+            (masked_messages, mapping, entities_by_role)
             - masked_messages: messages with PII replaced (or original if mask=False)
-            - mapping: {placeholder: original_value} for v1 unmasking (empty in MVP)
-            - all_entities: all DetectedEntity instances across all processed messages
+            - mapping: {placeholder: original_value} for response rehydration
+            - entities_by_role: {role: [DetectedEntity, ...]} — entities grouped by the
+              message role they were detected in (preserves correct role for audit logging)
         """
         if roles_to_mask is None:
             roles_to_mask = ["user"]
 
-        all_entities: list[DetectedEntity] = []
+        entities_by_role: dict[str, list[DetectedEntity]] = {}
         masked_messages: list[dict] = []
         # One shared state for the whole request — same value → same placeholder across messages.
         shared_state = _SharedMaskingState()
@@ -599,7 +604,8 @@ class PiiMaskingEngine:
                 continue
 
             result = self._mask_text(content, language=language, mask=mask, shared_state=shared_state)
-            all_entities.extend(result.entities)
+            if result.entities:
+                entities_by_role.setdefault(role, []).extend(result.entities)
 
             if mask and result.masked_text != content:
                 masked_msg = dict(msg)
@@ -608,7 +614,7 @@ class PiiMaskingEngine:
             else:
                 masked_messages.append(msg)
 
-        return masked_messages, shared_state.placeholder_to_value, all_entities
+        return masked_messages, shared_state.placeholder_to_value, entities_by_role
 
     def _mask_text(
         self,
@@ -696,6 +702,14 @@ class PiiMaskingEngine:
             logging.warning(f"Presidio anonymization failed: {exc}")
             return MaskingResult(masked_text=text, entities=entities)
 
+        # Update each entity's placeholder to the actual numbered value assigned
+        # by _state during anonymization (e.g. <PERSON_2> instead of generic <PERSON>).
+        for entity in entities:
+            original_value = text[entity.start:entity.end]
+            actual = _state.get_placeholder(original_value)
+            if actual is not None:
+                entity.placeholder = actual
+
         return MaskingResult(
             masked_text=anonymized.text,
             mapping={},   # MVP: unmasking not implemented
@@ -740,38 +754,54 @@ def apply_pii_masking(
     masking_enabled = os.getenv("PII_MASKING_ENABLED", "false").lower() == "true"
     audit_enabled = os.getenv("PII_AUDIT_LOG_ENABLED", "false").lower() == "true"
 
-    if not (masking_enabled or audit_enabled) or not PiiMaskingEngine.is_available():
+    if not masking_enabled and not audit_enabled:
+        logger.debug("pii_masking: skipped — PII_MASKING_ENABLED and PII_AUDIT_LOG_ENABLED are both false")
+        return history, effective_model_name, {}
+
+    if not PiiMaskingEngine.is_available():
+        logger.warning("pii_masking: skipped — engine not initialized (call PiiMaskingEngine.initialize() at startup)")
         return history, effective_model_name, {}
 
     # Check provider whitelist
     providers_filter = os.getenv("PII_MASKING_PROVIDERS", "").strip()
     if not providers_filter:
+        logger.debug("pii_masking: skipped — PII_MASKING_PROVIDERS is empty")
         return history, effective_model_name, {}
 
     match_target = f"{raw_model_name}@{provider}"
     should_process = _matches_providers_filter(match_target, providers_filter)
 
     if not should_process:
+        logger.debug("pii_masking: skipped — %r does not match providers filter %r", match_target, providers_filter)
         return history, effective_model_name, {}
+
+    logger.info("pii_masking: processing %r (masking=%s audit=%s)", match_target, masking_enabled, audit_enabled)
 
     # Apply masking / analysis
     engine = PiiMaskingEngine.get()
     language = os.getenv("PII_MASKING_LANGUAGES", "en").split(",")[0].strip()
     roles = [r.strip() for r in os.getenv("PII_MASKING_ROLES", "user").split(",")]
 
-    masked_history, mapping, all_entities = engine.mask_messages(
+    masked_history, mapping, entities_by_role = engine.mask_messages(
         messages=history,
         language=language,
         roles_to_mask=roles,
         mask=masking_enabled,
     )
 
-    if audit_enabled and all_entities:
-        engine.audit_logger.log_detection(
-            entities=all_entities,
-            message_role="user",
-            model=match_target,
-        )
+    logger.info(
+        "pii_masking: done — %d placeholder(s), entities_by_role=%s",
+        len(mapping),
+        {r: [e.entity_type for e in ents] for r, ents in entities_by_role.items()},
+    )
+
+    if audit_enabled and entities_by_role:
+        for role, entities in entities_by_role.items():
+            engine.audit_logger.log_detection(
+                entities=entities,
+                message_role=role,
+                model=match_target,
+            )
 
     return masked_history, effective_model_name, mapping
 
