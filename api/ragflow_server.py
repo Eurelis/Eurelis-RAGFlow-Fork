@@ -136,6 +136,11 @@ if __name__ == "__main__":
 
     GlobalPluginManager.load_plugins()
 
+    # --- PII MASKING (Eurelis) ---
+    from rag.llm.pii_masking import PiiMaskingEngine
+    PiiMaskingEngine.initialize()
+    # --- END PII MASKING ---
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 

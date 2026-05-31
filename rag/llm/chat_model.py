@@ -1937,7 +1937,7 @@ class LiteLLMBase(ABC):
             request_kwargs=kwargs,
         )
 
-        completion_args = self._construct_completion_args(history=hist, stream=False, tools=False, **{**gen_conf, **kwargs})
+        completion_args, pii_mapping = self._construct_completion_args(history=hist, stream=False, tools=False, **{**gen_conf, **kwargs})
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -1955,7 +1955,11 @@ class LiteLLMBase(ABC):
                 ans = response.choices[0].message.content.strip()
                 if response.choices[0].finish_reason == "length":
                     ans = self._length_stop(ans)
-
+                # --- PII UNMASKING (Eurelis) ---
+                if pii_mapping:
+                    from rag.llm.pii_masking import unmask_text
+                    ans = unmask_text(ans, pii_mapping)
+                # --- END PII UNMASKING ---
                 return ans, total_token_count_from_response(response)
             except Exception as e:
                 e = await self._exceptions_async(e, attempt)
@@ -1974,7 +1978,7 @@ class LiteLLMBase(ABC):
         # Reset so a stale split from a previous call can't leak into this one.
         self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-        completion_args = self._construct_completion_args(history=history, stream=True, tools=False, **gen_conf)
+        completion_args, pii_mapping = self._construct_completion_args(history=history, stream=True, tools=False, **gen_conf)
         stop = kwargs.get("stop")
         if stop:
             completion_args["stop"] = stop
@@ -1989,6 +1993,13 @@ class LiteLLMBase(ABC):
                     drop_params=True,
                     timeout=self.timeout,
                 )
+
+                # --- PII UNMASKING (Eurelis) ---
+                _pii_unmasker = None
+                if pii_mapping:
+                    from rag.llm.pii_masking import StreamingUnmasker
+                    _pii_unmasker = StreamingUnmasker(pii_mapping)
+                # --- END PII UNMASKING ---
 
                 async for resp in stream:
                     # Authoritative usage may arrive on a usage-only final chunk that
@@ -2028,7 +2039,15 @@ class LiteLLMBase(ABC):
                         else:
                             ans += LENGTH_NOTIFICATION_EN
 
-                    yield ans
+                    if _pii_unmasker:
+                        ans = _pii_unmasker.process_chunk(ans)
+                    if ans:
+                        yield ans
+
+                if _pii_unmasker:
+                    _tail = _pii_unmasker.flush()
+                    if _tail:
+                        yield _tail
                 yield total_tokens
                 return
             except Exception as e:
@@ -2198,7 +2217,7 @@ class LiteLLMBase(ABC):
                 for _ in range(self.max_rounds + 1):
                     logging.info(f"HAS TOOL:{len(self.tools)}\n{history=}")
 
-                    completion_args = self._construct_completion_args(history=history, stream=False, tools=True, **gen_conf)
+                    completion_args, pii_mapping = self._construct_completion_args(history=history, stream=False, tools=True, **gen_conf)
                     response = await litellm.acompletion(
                         **completion_args,
                         drop_params=True,
@@ -2221,7 +2240,13 @@ class LiteLLMBase(ABC):
                         ans += message.content or ""
                         if response.choices[0].finish_reason == "length":
                             ans = self._length_stop(ans)
-                        return self._sanitize_answer(ans), tk_count
+                        ans = self._sanitize_answer(ans)
+                        # --- PII UNMASKING (Eurelis) ---
+                        if pii_mapping:
+                            from rag.llm.pii_masking import unmask_text
+                            ans = unmask_text(ans, pii_mapping)
+                        # --- END PII UNMASKING ---
+                        return ans, tk_count
 
                     async def _exec_tool(tc):
                         name = tc.function.name
@@ -2296,15 +2321,23 @@ class LiteLLMBase(ABC):
 
         for attempt in range(self.max_retries + 1):
             history = deepcopy(hist)
+            cumulative_pii_mapping: dict = {}
             try:
                 for _round in range(self.max_rounds + 1):
                     reasoning_start = False
                     reasoning_content = ""
                     logging.info(f"[Tool loop] Deciding what to do next (step {_round + 1}); available tools: {', '.join(t['function']['name'] for t in tools)}")
 
-                    completion_args = self._construct_completion_args(history=history, stream=True, tools=True, **gen_conf)
+                    completion_args, round_pii_mapping = self._construct_completion_args(history=history, stream=True, tools=True, **gen_conf)
                     # Request authoritative usage on the final streaming chunk.
                     completion_args.setdefault("stream_options", {})["include_usage"] = True
+                    cumulative_pii_mapping.update(round_pii_mapping)
+                    # --- PII STREAMING UNMASKER (Eurelis) ---
+                    _pii_unmasker = None
+                    if cumulative_pii_mapping:
+                        from rag.llm.pii_masking import StreamingUnmasker
+                        _pii_unmasker = StreamingUnmasker(cumulative_pii_mapping)
+                    # --- END PII STREAMING UNMASKER ---
                     response = await litellm.acompletion(
                         **completion_args,
                         drop_params=True,
@@ -2357,12 +2390,12 @@ class LiteLLMBase(ABC):
                         else:
                             reasoning_start = False
                             answer += delta.content
-                            if _sanitizer is not None:
-                                emitted = _sanitizer.feed(delta.content)
-                                if emitted:
-                                    yield emitted
-                            else:
-                                yield delta.content
+                            emitted = _sanitizer.feed(delta.content) if _sanitizer is not None else delta.content
+                            # --- PII UNMASKING (Eurelis) ---
+                            _chunk = _pii_unmasker.process_chunk(emitted) if _pii_unmasker else emitted
+                            if _chunk:
+                                yield _chunk
+                            # --- END PII UNMASKING ---
 
                         if not _u["total_tokens"]:
                             round_estimate += num_tokens_from_string(delta.content)
@@ -2374,6 +2407,10 @@ class LiteLLMBase(ABC):
                     # Flush any held-back (sanitized) answer content for this round.
                     if _sanitizer is not None:
                         tail = _sanitizer.flush()
+                        # --- PII UNMASKING (Eurelis) ---
+                        if tail and _pii_unmasker:
+                            tail = _pii_unmasker.process_chunk(tail)
+                        # --- END PII UNMASKING ---
                         if tail:
                             yield tail
 
@@ -2382,6 +2419,12 @@ class LiteLLMBase(ABC):
 
                     if answer and not final_tool_calls:
                         logging.info(f"[Tool loop] Answering directly at step {_round + 1} — no tool needed.")
+                        # --- PII FLUSH (Eurelis) ---
+                        if _pii_unmasker:
+                            _tail = _pii_unmasker.flush()
+                            if _tail:
+                                yield _tail
+                        # --- END PII FLUSH ---
                         yield total_tokens
                         return
 
@@ -2435,8 +2478,15 @@ class LiteLLMBase(ABC):
                 logging.warning(f"Exceed max rounds: {self.max_rounds}")
                 history.append({"role": "user", "content": f"Exceed max rounds: {self.max_rounds}"})
 
-                completion_args = self._construct_completion_args(history=history, stream=True, tools=True, **gen_conf)
+                completion_args, round_pii_mapping = self._construct_completion_args(history=history, stream=True, tools=True, **gen_conf)
                 completion_args.setdefault("stream_options", {})["include_usage"] = True
+                cumulative_pii_mapping.update(round_pii_mapping)
+                # --- PII STREAMING UNMASKER (Eurelis) ---
+                _pii_unmasker_overflow = None
+                if cumulative_pii_mapping:
+                    from rag.llm.pii_masking import StreamingUnmasker
+                    _pii_unmasker_overflow = StreamingUnmasker(cumulative_pii_mapping)
+                # --- END PII STREAMING UNMASKER ---
                 response = await litellm.acompletion(
                     **completion_args,
                     drop_params=True,
@@ -2456,8 +2506,18 @@ class LiteLLMBase(ABC):
                         continue
                     if not _u["total_tokens"]:
                         fb_estimate += num_tokens_from_string(delta.content)
-                    yield delta.content
+                    # --- PII UNMASKING (Eurelis) ---
+                    _chunk = _pii_unmasker_overflow.process_chunk(delta.content) if _pii_unmasker_overflow else delta.content
+                    if _chunk:
+                        yield _chunk
+                    # --- END PII UNMASKING ---
 
+                # --- PII FLUSH (Eurelis) ---
+                if _pii_unmasker_overflow:
+                    _tail = _pii_unmasker_overflow.flush()
+                    if _tail:
+                        yield _tail
+                # --- END PII FLUSH ---
                 _commit_round(fb_usage, fb_estimate)
                 yield total_tokens
                 return
@@ -2472,8 +2532,25 @@ class LiteLLMBase(ABC):
         assert False, "Shouldn't be here."
 
     def _construct_completion_args(self, history, stream: bool, tools: bool, **kwargs):
+        # --- PII MASKING (Eurelis) ---
+        effective_model_name = self.model_name
+        pii_mapping: dict = {}
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+            history, effective_model_name, pii_mapping = apply_pii_masking(
+                history=history,
+                model_name=self.model_name,
+                prefix=self.prefix,
+                provider=str(self.provider),
+            )
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         completion_args = {
-            "model": self.model_name,
+            "model": effective_model_name,
             "messages": history,
             "api_key": self.api_key,
             **kwargs,
@@ -2586,7 +2663,7 @@ class LiteLLMBase(ABC):
         _move_litellm_provider_body_fields(self.provider, completion_args)
         if extra_headers:
             completion_args["extra_headers"] = extra_headers
-        return completion_args
+        return completion_args, pii_mapping
 
 
 class RAGconChat(Base):
