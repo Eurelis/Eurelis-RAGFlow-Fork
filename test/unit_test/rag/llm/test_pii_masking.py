@@ -102,7 +102,7 @@ class TestMaskMessages:
             {"role": "user", "content": "My email is user@example.com"},
             {"role": "assistant", "content": "I see your email is user@example.com"},
         ]
-        masked, _, entities = engine.mask_messages(messages, language="en", roles_to_mask=["user"])
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en", roles_to_mask=["user"])
 
         # system and assistant must be unchanged
         assert masked[0]["content"] == messages[0]["content"]
@@ -113,9 +113,9 @@ class TestMaskMessages:
     def test_no_pii_messages_unchanged(self):
         engine = _make_engine()
         messages = [{"role": "user", "content": "Hello, how are you?"}]
-        masked, _, entities = engine.mask_messages(messages, language="en")
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en")
         assert masked[0]["content"] == messages[0]["content"]
-        assert entities == []
+        assert entities_by_role == {}
 
     def test_multiple_messages_aggregated_entities(self):
         engine = _make_engine()
@@ -123,14 +123,15 @@ class TestMaskMessages:
             {"role": "user", "content": "My email is a@b.com"},
             {"role": "user", "content": "My other email is c@d.com"},
         ]
-        _, _, entities = engine.mask_messages(messages, language="en")
-        email_entities = [e for e in entities if e.entity_type == "EMAIL_ADDRESS"]
+        _, _, entities_by_role = engine.mask_messages(messages, language="en")
+        all_entities = [e for role_entities in entities_by_role.values() for e in role_entities]
+        email_entities = [e for e in all_entities if e.entity_type == "EMAIL_ADDRESS"]
         assert len(email_entities) >= 2
 
     def test_non_string_content_skipped(self):
         engine = _make_engine()
         messages = [{"role": "user", "content": None}]
-        masked, _, entities = engine.mask_messages(messages, language="en")
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en")
         assert masked[0] == messages[0]
 
 
@@ -173,6 +174,23 @@ class TestCrossMessageConsistency:
         result = engine._mask_text("Email: test@example.com", language="en", mask=True)
         assert re.search(r"<EMAIL_ADDRESS_\d+>", result.masked_text), (
             f"Expected numbered placeholder, got: {result.masked_text}"
+        )
+
+    def test_entity_placeholder_matches_text_placeholder(self):
+        """DetectedEntity.placeholder must reflect the actual <TYPE_N> used in masked_text."""
+        import re
+        engine = _make_engine()
+        result = engine._mask_text("Email: user@example.com", language="en", mask=True)
+        email_entities = [e for e in result.entities if e.entity_type == "EMAIL_ADDRESS"]
+        assert email_entities, "No EMAIL_ADDRESS entity detected"
+        entity_ph = email_entities[0].placeholder
+        # placeholder must be numbered
+        assert re.match(r"<EMAIL_ADDRESS_\d+>$", entity_ph), (
+            f"Entity placeholder not numbered: {entity_ph}"
+        )
+        # placeholder must appear in the masked text
+        assert entity_ph in result.masked_text, (
+            f"Entity placeholder {entity_ph!r} absent from masked text: {result.masked_text}"
         )
 
     def test_repeated_value_same_message_gets_same_placeholder(self):
@@ -461,7 +479,7 @@ class TestPiiAuditLogger:
     def test_summary_log_emitted(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="abc123")
         mock_warn.assert_called_once()
         msg = mock_warn.call_args[0][0]
@@ -474,7 +492,7 @@ class TestPiiAuditLogger:
     def test_detailed_log_per_entity(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="xyz")
         assert mock_warn.call_count == 2
         first_msg = mock_warn.call_args_list[0][0][0]
@@ -486,7 +504,7 @@ class TestPiiAuditLogger:
         """Original PII values must never appear in audit logs."""
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection(self._make_entities(), conversation_id="abc")
         msg = mock_warn.call_args[0][0]
         assert "john@example.com" not in msg
@@ -496,7 +514,7 @@ class TestPiiAuditLogger:
     def test_empty_entities_no_log(self):
         from rag.llm.pii_masking import PiiAuditLogger
         al = PiiAuditLogger()
-        with patch.object(al._audit_logger, "warning") as mock_warn:
+        with patch.object(al._audit_logger, "info") as mock_warn:
             al.log_detection([])
         mock_warn.assert_not_called()
 
