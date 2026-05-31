@@ -973,15 +973,23 @@ class GeminiCV(Base):
         logging.info(f"[GeminiCV] async_chat called: history_len={history_len} images_len={images_len} gen_conf={gen_conf}")
 
         # --- PII MASKING (Eurelis) ---
+        # system (RAG context) is separate from history in GeminiCV — combine them
+        # so apply_pii_masking can analyse and mask both in a single pass.
         pii_mapping: dict = {}
         try:
             from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
-            history, _, pii_mapping = apply_pii_masking(
-                history=history,
+            _combined = ([{"role": "system", "content": system}] if system else []) + list(history or [])
+            _masked_combined, _, pii_mapping = apply_pii_masking(
+                history=_combined,
                 model_name=self._original_model_name,
                 prefix="",
                 provider=self._FACTORY_NAME,
             )
+            if system:
+                system = _masked_combined[0]["content"]
+                history = _masked_combined[1:]
+            else:
+                history = _masked_combined
         except PiiBlockedException:
             raise
         except Exception as _pii_exc:
@@ -1019,16 +1027,24 @@ class GeminiCV(Base):
 
         # --- PII MASKING (Eurelis) ---
         # Run before the outer try/except so PiiBlockedException propagates to caller.
+        # system (RAG context) is separate from history in GeminiCV — combine them
+        # so apply_pii_masking can analyse and mask both in a single pass.
         pii_mapping: dict = {}
         _pii_unmasker = None
         try:
             from rag.llm.pii_masking import PiiBlockedException, StreamingUnmasker, apply_pii_masking
-            history, _, pii_mapping = apply_pii_masking(
-                history=history,
+            _combined = ([{"role": "system", "content": system}] if system else []) + list(history or [])
+            _masked_combined, _, pii_mapping = apply_pii_masking(
+                history=_combined,
                 model_name=self._original_model_name,
                 prefix="",
                 provider=self._FACTORY_NAME,
             )
+            if system:
+                system = _masked_combined[0]["content"]
+                history = _masked_combined[1:]
+            else:
+                history = _masked_combined
             _pii_unmasker = StreamingUnmasker(pii_mapping) if pii_mapping else None
         except PiiBlockedException:
             raise
