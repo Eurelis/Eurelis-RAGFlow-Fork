@@ -1634,6 +1634,13 @@
             "rank": "997",
             "llm": [
                 {
+                    "llm_name": "gemini-3-pro-preview::pii",
+                    "tags": "LLM,CHAT,1M,IMAGE2TEXT",
+                    "max_tokens": 1048576,
+                    "model_type": "image2text",
+                    "is_tools": true
+                },
+                {
                     "llm_name": "gemini-3-pro-preview",
                     "tags": "LLM,1M,IMAGE2TEXT",
                     "max_tokens": 1048576,
