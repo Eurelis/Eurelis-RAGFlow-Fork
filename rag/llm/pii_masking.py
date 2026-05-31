@@ -732,7 +732,9 @@ def apply_pii_masking(
         provider:   RAGFlow factory name (e.g. "OpenAI").
 
     Returns:
-        (masked_history, effective_model_name)
+        (masked_history, effective_model_name, mapping)
+        - mapping: {placeholder → original_value} for response rehydration.
+          Empty dict when masking is disabled or no PII detected.
     """
     # Strip __pii suffix from the name sent to LiteLLM
     raw_model_name = model_name.removeprefix(prefix)
@@ -745,25 +747,25 @@ def apply_pii_masking(
     audit_enabled = os.getenv("PII_AUDIT_LOG_ENABLED", "false").lower() == "true"
 
     if not (masking_enabled or audit_enabled) or not PiiMaskingEngine.is_available():
-        return history, effective_model_name
+        return history, effective_model_name, {}
 
     # Check provider whitelist
     providers_filter = os.getenv("PII_MASKING_PROVIDERS", "").strip()
     if not providers_filter:
-        return history, effective_model_name
+        return history, effective_model_name, {}
 
     match_target = f"{raw_model_name}@{provider}"
     should_process = _matches_providers_filter(match_target, providers_filter)
 
     if not should_process:
-        return history, effective_model_name
+        return history, effective_model_name, {}
 
     # Apply masking / analysis
     engine = PiiMaskingEngine.get()
     language = os.getenv("PII_MASKING_LANGUAGES", "en").split(",")[0].strip()
     roles = [r.strip() for r in os.getenv("PII_MASKING_ROLES", "user").split(",")]
 
-    masked_history, _mapping, all_entities = engine.mask_messages(
+    masked_history, mapping, all_entities = engine.mask_messages(
         messages=history,
         language=language,
         roles_to_mask=roles,
@@ -777,7 +779,17 @@ def apply_pii_masking(
             model=match_target,
         )
 
-    return masked_history, effective_model_name
+    return masked_history, effective_model_name, mapping
+
+
+def unmask_text(text: str, mapping: dict[str, str]) -> str:
+    """Replace all placeholders in *text* with their original values.
+
+    Safe to call with an empty mapping (returns text unchanged).
+    """
+    for placeholder, original in mapping.items():
+        text = text.replace(placeholder, original)
+    return text
 
 
 def _matches_providers_filter(match_target: str, providers_filter: str) -> bool:

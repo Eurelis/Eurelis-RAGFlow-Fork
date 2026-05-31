@@ -328,7 +328,7 @@ class TestProviderMatching:
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = _make_engine()
         messages = [{"role": "user", "content": "Email: a@b.com"}]
-        masked, _ = apply_pii_masking(messages, "openai/gpt-4o", "openai/", "OpenAI")
+        masked, _, _mapping = apply_pii_masking(messages, "openai/gpt-4o", "openai/", "OpenAI")
         assert masked[0]["content"] == "Email: a@b.com"
 
     @patch.dict(os.environ, {
@@ -341,7 +341,7 @@ class TestProviderMatching:
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = _make_engine()
         messages = [{"role": "user", "content": "Email: user@example.com"}]
-        masked, _ = apply_pii_masking(messages, "openai/gpt-4o", "openai/", "OpenAI")
+        masked, _, _mapping = apply_pii_masking(messages, "openai/gpt-4o", "openai/", "OpenAI")
         assert "user@example.com" not in masked[0]["content"]
 
     @patch.dict(os.environ, {
@@ -353,7 +353,7 @@ class TestProviderMatching:
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = _make_engine()
         messages = [{"role": "user", "content": "Email: user@example.com"}]
-        masked, _ = apply_pii_masking(messages, "ollama_chat/llama3", "ollama_chat/", "Ollama")
+        masked, _, _mapping = apply_pii_masking(messages, "ollama_chat/llama3", "ollama_chat/", "Ollama")
         assert masked[0]["content"] == "Email: user@example.com"
 
     @patch.dict(os.environ, {
@@ -367,7 +367,7 @@ class TestProviderMatching:
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = _make_engine()
         messages = [{"role": "user", "content": "Email: user@example.com"}]
-        _, effective = apply_pii_masking(
+        _, effective, _mapping = apply_pii_masking(
             messages, "openai/gpt-4o__pii", "openai/", "OpenAI"
         )
         assert effective == "openai/gpt-4o"    # suffix stripped
@@ -394,7 +394,7 @@ class TestProviderMatching:
         from rag.llm.pii_masking import apply_pii_masking, PiiMaskingEngine
         PiiMaskingEngine._instance = None
         messages = [{"role": "user", "content": "Hello"}]
-        _, effective = apply_pii_masking(
+        _, effective, _mapping = apply_pii_masking(
             messages, "openai/gpt-4o__pii", "openai/", "OpenAI"
         )
         assert effective == "openai/gpt-4o"
