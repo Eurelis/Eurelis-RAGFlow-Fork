@@ -1849,8 +1849,24 @@ class LiteLLMBase(ABC):
         assert False, "Shouldn't be here."
 
     def _construct_completion_args(self, history, stream: bool, tools: bool, **kwargs):
+        # --- PII MASKING (Eurelis) ---
+        effective_model_name = self.model_name
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+            history, effective_model_name = apply_pii_masking(
+                history=history,
+                model_name=self.model_name,
+                prefix=self.prefix,
+                provider=str(self.provider),
+            )
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         completion_args = {
-            "model": self.model_name,
+            "model": effective_model_name,
             "messages": history,
             "api_key": self.api_key,
             "num_retries": self.max_retries,
