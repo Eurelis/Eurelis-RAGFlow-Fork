@@ -565,7 +565,7 @@ class PiiMaskingEngine:
         language: str = "en",
         roles_to_mask: list[str] | None = None,
         mask: bool = True,
-    ) -> tuple[list[dict], dict[str, str], list[DetectedEntity]]:
+    ) -> tuple[list[dict], dict[str, str], dict[str, list[DetectedEntity]]]:
         """
         Analyze (and optionally anonymize) PII in a list of OpenAI-format messages.
 
@@ -576,15 +576,16 @@ class PiiMaskingEngine:
             mask:          If True, replace PII with placeholders. If False, analyze only.
 
         Returns:
-            (masked_messages, mapping, all_entities)
+            (masked_messages, mapping, entities_by_role)
             - masked_messages: messages with PII replaced (or original if mask=False)
-            - mapping: {placeholder: original_value} for v1 unmasking (empty in MVP)
-            - all_entities: all DetectedEntity instances across all processed messages
+            - mapping: {placeholder: original_value} for response rehydration
+            - entities_by_role: {role: [DetectedEntity, ...]} — entities grouped by the
+              message role they were detected in (preserves correct role for audit logging)
         """
         if roles_to_mask is None:
             roles_to_mask = ["user"]
 
-        all_entities: list[DetectedEntity] = []
+        entities_by_role: dict[str, list[DetectedEntity]] = {}
         masked_messages: list[dict] = []
         # One shared state for the whole request — same value → same placeholder across messages.
         shared_state = _SharedMaskingState()
@@ -598,7 +599,8 @@ class PiiMaskingEngine:
                 continue
 
             result = self._mask_text(content, language=language, mask=mask, shared_state=shared_state)
-            all_entities.extend(result.entities)
+            if result.entities:
+                entities_by_role.setdefault(role, []).extend(result.entities)
 
             if mask and result.masked_text != content:
                 masked_msg = dict(msg)
@@ -607,7 +609,7 @@ class PiiMaskingEngine:
             else:
                 masked_messages.append(msg)
 
-        return masked_messages, shared_state.placeholder_to_value, all_entities
+        return masked_messages, shared_state.placeholder_to_value, entities_by_role
 
     def _mask_text(
         self,
@@ -765,19 +767,20 @@ def apply_pii_masking(
     language = os.getenv("PII_MASKING_LANGUAGES", "en").split(",")[0].strip()
     roles = [r.strip() for r in os.getenv("PII_MASKING_ROLES", "user").split(",")]
 
-    masked_history, mapping, all_entities = engine.mask_messages(
+    masked_history, mapping, entities_by_role = engine.mask_messages(
         messages=history,
         language=language,
         roles_to_mask=roles,
         mask=masking_enabled,
     )
 
-    if audit_enabled and all_entities:
-        engine.audit_logger.log_detection(
-            entities=all_entities,
-            message_role="user",
-            model=match_target,
-        )
+    if audit_enabled and entities_by_role:
+        for role, entities in entities_by_role.items():
+            engine.audit_logger.log_detection(
+                entities=entities,
+                message_role=role,
+                model=match_target,
+            )
 
     return masked_history, effective_model_name, mapping
 

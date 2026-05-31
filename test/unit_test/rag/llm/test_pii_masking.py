@@ -102,7 +102,7 @@ class TestMaskMessages:
             {"role": "user", "content": "My email is user@example.com"},
             {"role": "assistant", "content": "I see your email is user@example.com"},
         ]
-        masked, _, entities = engine.mask_messages(messages, language="en", roles_to_mask=["user"])
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en", roles_to_mask=["user"])
 
         # system and assistant must be unchanged
         assert masked[0]["content"] == messages[0]["content"]
@@ -113,9 +113,9 @@ class TestMaskMessages:
     def test_no_pii_messages_unchanged(self):
         engine = _make_engine()
         messages = [{"role": "user", "content": "Hello, how are you?"}]
-        masked, _, entities = engine.mask_messages(messages, language="en")
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en")
         assert masked[0]["content"] == messages[0]["content"]
-        assert entities == []
+        assert entities_by_role == {}
 
     def test_multiple_messages_aggregated_entities(self):
         engine = _make_engine()
@@ -123,14 +123,15 @@ class TestMaskMessages:
             {"role": "user", "content": "My email is a@b.com"},
             {"role": "user", "content": "My other email is c@d.com"},
         ]
-        _, _, entities = engine.mask_messages(messages, language="en")
-        email_entities = [e for e in entities if e.entity_type == "EMAIL_ADDRESS"]
+        _, _, entities_by_role = engine.mask_messages(messages, language="en")
+        all_entities = [e for role_entities in entities_by_role.values() for e in role_entities]
+        email_entities = [e for e in all_entities if e.entity_type == "EMAIL_ADDRESS"]
         assert len(email_entities) >= 2
 
     def test_non_string_content_skipped(self):
         engine = _make_engine()
         messages = [{"role": "user", "content": None}]
-        masked, _, entities = engine.mask_messages(messages, language="en")
+        masked, _, entities_by_role = engine.mask_messages(messages, language="en")
         assert masked[0] == messages[0]
 
 
