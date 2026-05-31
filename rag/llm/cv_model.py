@@ -787,8 +787,9 @@ class GeminiCV(Base):
         from google import genai
 
         self.api_key = key
-        # Strip ::pii suffix (Eurelis PII masking convention) — the Gemini API
-        # only accepts the real model name without this suffix.
+        # Keep the original name (with ::pii suffix) for PII provider matching,
+        # then strip it so the Gemini API receives the real model name.
+        self._original_model_name = model_name
         try:
             from rag.llm.pii_masking import PII_MODEL_SUFFIX
             if model_name.endswith(PII_MODEL_SUFFIX):
@@ -927,6 +928,22 @@ class GeminiCV(Base):
         images_len = len(images) if images else 0
         logging.info(f"[GeminiCV] async_chat called: history_len={history_len} images_len={images_len} gen_conf={gen_conf}")
 
+        # --- PII MASKING (Eurelis) ---
+        pii_mapping: dict = {}
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, apply_pii_masking
+            history, _, pii_mapping = apply_pii_masking(
+                history=history,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[GeminiCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         generation_config = types.GenerateContentConfig(
             temperature=gen_conf.get("temperature", 0.3),
             top_p=gen_conf.get("top_p", 0.7),
@@ -938,6 +955,14 @@ class GeminiCV(Base):
                 config=generation_config,
             )
             ans = response.text
+            # --- PII UNMASKING (Eurelis) ---
+            if pii_mapping:
+                try:
+                    from rag.llm.pii_masking import unmask_text
+                    ans = unmask_text(ans, pii_mapping)
+                except Exception as _pii_exc:
+                    logging.warning(f"[GeminiCV] PII unmasking error: {_pii_exc}")
+            # --- END PII UNMASKING ---
             logging.info("[GeminiCV] async_chat completed")
             return ans, total_token_count_from_response(response)
         except Exception as e:
@@ -947,6 +972,26 @@ class GeminiCV(Base):
     async def async_chat_streamly(self, system, history, gen_conf, images=None, **kwargs):
         ans = ""
         response = None
+
+        # --- PII MASKING (Eurelis) ---
+        # Run before the outer try/except so PiiBlockedException propagates to caller.
+        pii_mapping: dict = {}
+        _pii_unmasker = None
+        try:
+            from rag.llm.pii_masking import PiiBlockedException, StreamingUnmasker, apply_pii_masking
+            history, _, pii_mapping = apply_pii_masking(
+                history=history,
+                model_name=self._original_model_name,
+                prefix="",
+                provider=self._FACTORY_NAME,
+            )
+            _pii_unmasker = StreamingUnmasker(pii_mapping) if pii_mapping else None
+        except PiiBlockedException:
+            raise
+        except Exception as _pii_exc:
+            logging.warning(f"[GeminiCV] PII masking error (continuing without masking): {_pii_exc}")
+        # --- END PII MASKING ---
+
         try:
             from google.genai import types
 
@@ -967,7 +1012,15 @@ class GeminiCV(Base):
             async for chunk in response_stream:
                 if chunk.text:
                     ans += chunk.text
-                    yield chunk.text
+                    _chunk = _pii_unmasker.process_chunk(chunk.text) if _pii_unmasker else chunk.text
+                    yield _chunk
+
+            # Flush any remaining buffered placeholder fragments
+            if _pii_unmasker:
+                remainder = _pii_unmasker.flush()
+                if remainder:
+                    yield remainder
+
             logging.info("[GeminiCV] chat_streamly completed")
         except Exception as e:
             logging.warning(f"[GeminiCV] chat_streamly error: {e}")
