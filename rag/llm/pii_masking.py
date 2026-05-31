@@ -77,6 +77,45 @@ class MaskingResult:
 
 
 # ---------------------------------------------------------------------------
+# Shared masking state — consistent placeholders across all messages in a request
+# ---------------------------------------------------------------------------
+
+class _SharedMaskingState:
+    """
+    Maintains a canonical value → placeholder mapping for a single masking request.
+
+    Ensures that the same original value always gets the same numbered placeholder,
+    even when it appears across different messages (e.g. user and system/RAG context).
+
+    Example:
+        "Jean Dupont" → "<PERSON_1>" in the user message AND in the RAG system message.
+        "alice@corp.com" → "<EMAIL_ADDRESS_1>" consistently in all messages.
+    """
+
+    def __init__(self) -> None:
+        self._value_to_placeholder: dict[str, str] = {}
+        self._placeholder_to_value: dict[str, str] = {}
+        self._counters: dict[str, int] = {}
+
+    def get_or_create(self, entity_type: str, original_value: str) -> str:
+        """Return the placeholder for *original_value*, creating a new numbered one if needed."""
+        existing = self._value_to_placeholder.get(original_value)
+        if existing is not None:
+            return existing
+        count = self._counters.get(entity_type, 0) + 1
+        self._counters[entity_type] = count
+        placeholder = f"<{entity_type}_{count}>"
+        self._value_to_placeholder[original_value] = placeholder
+        self._placeholder_to_value[placeholder] = original_value
+        return placeholder
+
+    @property
+    def placeholder_to_value(self) -> dict[str, str]:
+        """Snapshot of the placeholder → original value mapping (for v1 unmasking)."""
+        return dict(self._placeholder_to_value)
+
+
+# ---------------------------------------------------------------------------
 # Streaming unmasker (v1 — included but not wired in MVP)
 # ---------------------------------------------------------------------------
 
@@ -542,8 +581,9 @@ class PiiMaskingEngine:
             roles_to_mask = ["user"]
 
         all_entities: list[DetectedEntity] = []
-        mapping: dict[str, str] = {}
         masked_messages: list[dict] = []
+        # One shared state for the whole request — same value → same placeholder across messages.
+        shared_state = _SharedMaskingState()
 
         for msg in messages:
             role = msg.get("role", "")
@@ -553,9 +593,8 @@ class PiiMaskingEngine:
                 masked_messages.append(msg)
                 continue
 
-            result = self._mask_text(content, language=language, mask=mask)
+            result = self._mask_text(content, language=language, mask=mask, shared_state=shared_state)
             all_entities.extend(result.entities)
-            mapping.update(result.mapping)
 
             if mask and result.masked_text != content:
                 masked_msg = dict(msg)
@@ -564,10 +603,23 @@ class PiiMaskingEngine:
             else:
                 masked_messages.append(msg)
 
-        return masked_messages, mapping, all_entities
+        return masked_messages, shared_state.placeholder_to_value, all_entities
 
-    def _mask_text(self, text: str, language: str = "en", mask: bool = True) -> MaskingResult:
-        """Analyze and optionally anonymize PII in a single text string."""
+    def _mask_text(
+        self,
+        text: str,
+        language: str = "en",
+        mask: bool = True,
+        shared_state: _SharedMaskingState | None = None,
+    ) -> MaskingResult:
+        """Analyze and optionally anonymize PII in a single text string.
+
+        Args:
+            shared_state: Optional shared state for cross-message placeholder consistency.
+                          If None, a local state is created (standalone call).
+                          Pass the same instance across multiple messages to ensure
+                          identical values receive identical numbered placeholders.
+        """
         from presidio_anonymizer.entities import OperatorConfig
 
         global_threshold = float(os.getenv("PII_MASKING_SCORE_THRESHOLD", "0.7"))
@@ -613,9 +665,16 @@ class PiiMaskingEngine:
         if not mask or not filtered:
             return MaskingResult(masked_text=text, entities=entities)
 
-        # Build replacement operators
+        # Use provided shared state or create a local one for this standalone call.
+        # The shared state ensures the same original value always receives the same
+        # numbered placeholder (e.g. <PERSON_1>) across all messages of a request.
+        _state = shared_state if shared_state is not None else _SharedMaskingState()
+
+        def _make_replacer(entity_type: str, state: _SharedMaskingState):
+            return lambda original_text: state.get_or_create(entity_type, original_text)
+
         operators = {
-            et: OperatorConfig("replace", {"new_value": f"<{et}>"})
+            et: OperatorConfig("custom", {"lambda": _make_replacer(et, _state)})
             for et, action in self.entities_config.items()
             if action == "MASK"
         }

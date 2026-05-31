@@ -58,10 +58,13 @@ def _make_engine(entities=None, score_thresholds=None):
 
 class TestMaskText:
     def test_mask_email(self):
+        import re
         engine = _make_engine()
         result = engine._mask_text("My email is john@example.com", language="en", mask=True)
         assert "john@example.com" not in result.masked_text
-        assert "<EMAIL_ADDRESS>" in result.masked_text
+        assert re.search(r"<EMAIL_ADDRESS_\d+>", result.masked_text), (
+            f"Expected numbered placeholder, got: {result.masked_text}"
+        )
         assert any(e.entity_type == "EMAIL_ADDRESS" for e in result.entities)
 
     def test_mask_person(self):
@@ -129,6 +132,62 @@ class TestMaskMessages:
         messages = [{"role": "user", "content": None}]
         masked, _, entities = engine.mask_messages(messages, language="en")
         assert masked[0] == messages[0]
+
+
+class TestCrossMessageConsistency:
+    """The same PII value must receive the same numbered placeholder across all messages."""
+
+    def test_same_value_same_placeholder_in_two_messages(self):
+        """jean@corp.com in user + system → same placeholder in both."""
+        engine = _make_engine()
+        messages = [
+            {"role": "system", "content": "Context: jean@corp.com is the contact."},
+            {"role": "user", "content": "Please contact jean@corp.com for details."},
+        ]
+        masked, mapping, _ = engine.mask_messages(
+            messages, language="en", roles_to_mask=["system", "user"]
+        )
+        # Exactly one placeholder for this email
+        placeholders = [ph for ph, val in mapping.items() if val == "jean@corp.com"]
+        assert len(placeholders) == 1, "Same value must map to exactly one placeholder"
+        ph = placeholders[0]
+        assert ph in masked[0]["content"], "Placeholder must appear in system message"
+        assert ph in masked[1]["content"], "Placeholder must appear in user message"
+
+    def test_two_distinct_emails_get_different_placeholders(self):
+        """Two different emails → two distinct <EMAIL_ADDRESS_N> placeholders."""
+        engine = _make_engine()
+        messages = [{"role": "user", "content": "First: a@example.com, second: b@example.com"}]
+        masked, mapping, _ = engine.mask_messages(messages, language="en")
+        # Both emails must be masked and have distinct placeholders in the mapping
+        assert "a@example.com" not in masked[0]["content"]
+        assert "b@example.com" not in masked[0]["content"]
+        email_values = {v for k, v in mapping.items() if k.startswith("<EMAIL_ADDRESS_")}
+        assert "a@example.com" in email_values
+        assert "b@example.com" in email_values
+
+    def test_placeholder_format_is_numbered(self):
+        """Standalone _mask_text() must also produce numbered placeholders."""
+        import re
+        engine = _make_engine()
+        result = engine._mask_text("Email: test@example.com", language="en", mask=True)
+        assert re.search(r"<EMAIL_ADDRESS_\d+>", result.masked_text), (
+            f"Expected numbered placeholder, got: {result.masked_text}"
+        )
+
+    def test_repeated_value_same_message_gets_same_placeholder(self):
+        """The same value repeated within a single message → same placeholder both times."""
+        import re
+        engine = _make_engine()
+        result = engine._mask_text(
+            "First: user@test.com and again: user@test.com", language="en", mask=True
+        )
+        assert "user@test.com" not in result.masked_text
+        # Find all email placeholders in the result
+        matches = re.findall(r"<EMAIL_ADDRESS_\d+>", result.masked_text)
+        # Should be exactly two placeholders, and they must be the same
+        assert len(matches) == 2, f"Expected 2 placeholders, got: {matches}"
+        assert matches[0] == matches[1], f"Same value must use same placeholder: {matches}"
 
 
 # ---------------------------------------------------------------------------
