@@ -23,7 +23,7 @@ Les LLM providers (OpenAI, Anthropic, AWS Bedrock, etc.) ne doivent jamais recev
 | Masquage input + réhydratation réponse | Remplacement des placeholders dans la réponse LLM avant retour client | MVP |
 | Configuration par variable d'env | Toggle `PII_MASKING_ENABLED`, langues, entités | MVP |
 | Audit log configurable | Journalisation des PII détectés (sans valeur originale), niveau et destination configurables | MVP |
-| Coexistence direct/masqué — Option A (suffixe `__pii`) | Même modèle disponible en direct et masqué via convention de nommage | MVP |
+| Coexistence direct/masqué — Option A (suffixe `::pii`) | Même modèle disponible en direct et masqué via convention de nommage | MVP |
 | Streaming unmask — sliding window | Démasquage des réponses en flux (non-streaming + streaming) | MVP |
 | Coexistence direct/masqué — Option B (flag `Dialog.pii_masking`) | Activation du masquage par conversation, sans doublon de modèle | v1 |
 | Toggle par tenant | Activer/désactiver le masquage par tenant | v1 |
@@ -71,7 +71,7 @@ RAGFlow utilise déjà LiteLLM **comme bibliothèque Python** (`litellm.acomplet
 ```
 rag/llm/
 ├── pii_masking.py                      ← NOUVEAU : moteur Presidio + StreamingUnmasker + PiiAuditLogger
-rag/llm/chat_model.py                   ← MODIFIÉ : hook dans LiteLLMBase (+ strip suffixe __pii)
+rag/llm/chat_model.py                   ← MODIFIÉ : hook dans LiteLLMBase (+ strip suffixe ::pii)
 api/ragflow_server.py                   ← MODIFIÉ : init PiiMaskingEngine au démarrage
 conf/pii_custom_recognizers.yaml        ← NOUVEAU : recognizers personnalisés (optionnel)
 pyproject.toml                          ← MODIFIÉ : dépendances Presidio
@@ -178,8 +178,8 @@ class PiiMaskingEngine:
         toutes les langues définies dans PII_MASKING_LANGUAGES.
         - Si PII_MASKING_ENABLED=false ET PII_AUDIT_LOG_ENABLED=false → no-op immédiat.
         - En cas d'erreur de chargement :
-            - PII_MASKING_STARTUP_FAIL=true (défaut) → lève une exception, serveur ne démarre pas.
-            - PII_MASKING_STARTUP_FAIL=false → log error, désactive silencieusement le masquage.
+            - PII_MASKING_STARTUP_FAIL=true → lève une exception, serveur ne démarre pas.
+            - PII_MASKING_STARTUP_FAIL=false (défaut) → log error, désactive silencieusement le masquage.
         """
         ...
 
@@ -225,10 +225,10 @@ PII_MASKING_ENABLED=true OU PII_AUDIT_LOG_ENABLED=true
     → Log : "PiiMaskingEngine initialized in 3.2s (NER enabled, languages: en)"
 
 Erreur de chargement spaCy (modèle absent, OOM, …)
-    PII_MASKING_STARTUP_FAIL=true  → RuntimeError → serveur ne démarre pas
-    PII_MASKING_STARTUP_FAIL=false → logging.error + _instance reste None
-                                     → is_available() = False
-                                     → masquage silencieusement désactivé
+    PII_MASKING_STARTUP_FAIL=true         → RuntimeError → serveur ne démarre pas
+    PII_MASKING_STARTUP_FAIL=false (défaut) → logging.error + _instance reste None
+                                              → is_available() = False
+                                              → masquage silencieusement désactivé
 ```
 
 ### Logs de démarrage attendus
@@ -318,6 +318,7 @@ class DetectedEntity:
     end: int            # position de fin
     score: float        # score de confiance Presidio (0.0–1.0)
     placeholder: str    # "<EMAIL_ADDRESS_1>", "<PERSON_2>", … (numéroté)
+    recognizer: str = ""  # "SpacyRecognizer" pour NER, "EmailRecognizer" pour regex, etc.
 
 @dataclass
 class MaskingResult:
@@ -363,7 +364,7 @@ def apply_pii_masking(
     """
     Point d'entrée appelé depuis LiteLLMBase._construct_completion_args().
     Retourne (masked_history, effective_model_name, mapping).
-    - effective_model_name : suffixe __pii strippé.
+    - effective_model_name : suffixe ::pii strippé.
     - mapping : {placeholder → valeur originale}, vide si masquage non appliqué.
     """
     ...
@@ -510,9 +511,9 @@ PII_MASKING_SCORE_OVERRIDES=PERSON:0.85,CREDIT_CARD:0.6
 PII_MASKING_ROLES=user
 
 # Comportement si le chargement des modèles échoue au démarrage
-# true  (défaut) : le serveur refuse de démarrer — garanti que le masquage est actif ou le serveur s'arrête
-# false           : log error + masquage silencieusement désactivé — le serveur démarre quand même
-PII_MASKING_STARTUP_FAIL=true
+# true  : le serveur refuse de démarrer — garanti que le masquage est actif ou le serveur s'arrête
+# false (défaut) : log error + masquage silencieusement désactivé — le serveur démarre quand même
+PII_MASKING_STARTUP_FAIL=false
 
 # ── NER (spaCy) ───────────────────────────────────────────────────────────────
 
@@ -663,7 +664,7 @@ recognizers:
 
 Un même modèle-fournisseur doit pouvoir être utilisé à la fois en appel direct (sans masquage) et à travers le PII masking selon le contexte d'usage. Deux approches sont spécifiées : l'Option A est retenue pour le MVP, l'Option B pour la v1.
 
-### Option A — Suffixe `__pii` sur le nom du modèle *(MVP)*
+### Option A — Suffixe `::pii` sur le nom du modèle *(MVP)*
 
 > **Approche retenue pour le MVP.** Cohérente avec les conventions existantes de RAGFlow (suffixe `___LocalAI`, `___HuggingFace`, etc.).
 
@@ -674,20 +675,20 @@ L'administrateur tenant enregistre deux entrées de modèle pour le même provid
 | Entrée dans RAGFlow | Comportement | `PII_MASKING_PROVIDERS` |
 |---------------------|-------------|------------------------|
 | `gpt-4o@OpenAI` | Appel direct, aucun masquage | ne matche pas |
-| `gpt-4o__pii@OpenAI` | Masquage PII activé | `.*__pii@.*` |
+| `gpt-4o::pii@OpenAI` | Masquage PII activé | `.*::pii@.*` |
 
-Le suffixe `__pii` est strippé avant l'appel LiteLLM — le provider reçoit bien `gpt-4o`, pas `gpt-4o__pii`.
+Le suffixe `::pii` est strippé avant l'appel LiteLLM — le provider reçoit bien `gpt-4o`, pas `gpt-4o::pii`.
 
 #### Configuration `PII_MASKING_PROVIDERS`
 
 Pour cibler uniquement les entrées suffixées :
 
 ```env
-# Masquer uniquement les modèles enregistrés avec le suffixe __pii
-PII_MASKING_PROVIDERS=.*__pii@.*
+# Masquer uniquement les modèles enregistrés avec le suffixe ::pii
+PII_MASKING_PROVIDERS=.*::pii@.*
 
 # Ou restreindre à un provider spécifique :
-PII_MASKING_PROVIDERS=.*__pii@OpenAI,.*__pii@Anthropic,.*__pii@Bedrock
+PII_MASKING_PROVIDERS=.*::pii@OpenAI,.*::pii@Anthropic,.*::pii@Bedrock
 ```
 
 #### Implémentation dans le hook
@@ -695,11 +696,11 @@ PII_MASKING_PROVIDERS=.*__pii@OpenAI,.*__pii@Anthropic,.*__pii@Bedrock
 ```python
 # rag/llm/chat_model.py — LiteLLMBase._construct_completion_args()
 
-PII_SUFFIX = "__pii"
+PII_MODEL_SUFFIX = "::pii"
 
 # Construire la cible de matching AVANT stripping
 raw_model_name = self.model_name.removeprefix(self.prefix)
-match_target = f"{raw_model_name}@{self.provider}"   # ex: "gpt-4o__pii@OpenAI"
+match_target = f"{raw_model_name}@{self.provider}"   # ex: "gpt-4o::pii@OpenAI"
 
 # Vérifier la whitelist
 providers_filter = os.getenv("PII_MASKING_PROVIDERS", "").strip()
@@ -708,13 +709,13 @@ should_mask = bool(providers_filter) and any(
     for p in providers_filter.split(",") if p.strip()
 )
 
-# Stripper le suffixe __pii du model_name envoyé à LiteLLM
+# Stripper le suffixe ::pii du model_name envoyé à LiteLLM
 effective_model_name = self.model_name
-if raw_model_name.endswith(PII_SUFFIX):
-    effective_model_name = self.prefix + raw_model_name[: -len(PII_SUFFIX)]
+if raw_model_name.endswith(PII_MODEL_SUFFIX):
+    effective_model_name = self.prefix + raw_model_name[: -len(PII_MODEL_SUFFIX)]
 
 completion_args = {
-    "model": effective_model_name,   # ← gpt-4o (sans __pii)
+    "model": effective_model_name,   # ← gpt-4o (sans ::pii)
     "messages": masked_history if should_mask else history,
     ...
 }
@@ -725,15 +726,15 @@ completion_args = {
 Dans l'UI RAGFlow (Settings → Models), l'administrateur voit deux entrées :
 ```
 OpenAI  │  gpt-4o          │  Chat  │  Enabled   ← direct
-OpenAI  │  gpt-4o__pii     │  Chat  │  Enabled   ← avec masquage PII
+OpenAI  │  gpt-4o::pii     │  Chat  │  Enabled   ← avec masquage PII
 ```
 
-Il assigne `gpt-4o__pii` aux Dialogs/Agents qui traitent des données sensibles, et `gpt-4o` aux autres.
+Il assigne `gpt-4o::pii` aux Dialogs/Agents qui traitent des données sensibles, et `gpt-4o` aux autres.
 
 #### Limites
 
 - La liste des modèles présente des doublons — à documenter pour les administrateurs
-- Le suffixe `__pii` est une convention : aucune validation empêche de l'utiliser sans activer `PII_MASKING_ENABLED`
+- Le suffixe `::pii` est une convention : aucune validation empêche de l'utiliser sans activer `PII_MASKING_ENABLED`
 
 ---
 
@@ -830,8 +831,8 @@ Champs :
 #### Mode `detailed` (debug)
 
 ```
-[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=user entity_type=EMAIL_ADDRESS placeholder=<EMAIL_ADDRESS_1> start=14 end=30 score=0.99 model=gpt-4o@OpenAI
-[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=system entity_type=PERSON placeholder=<PERSON_1> start=46 end=57 score=0.85 model=gpt-4o@OpenAI
+[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=user entity_type=EMAIL_ADDRESS placeholder=<EMAIL_ADDRESS_1> start=14 end=30 score=0.99 recognizer=EmailRecognizer model=gpt-4o@OpenAI
+[2026-05-31T14:32:11Z] [ragflow.pii] INFO pii_detected conversation_id=abc123 role=system entity_type=PERSON placeholder=<PERSON_1> start=46 end=57 score=0.85 recognizer=SpacyRecognizer model=gpt-4o@OpenAI
 ```
 
 > **Note** : `role` reflète le rôle réel du message — `system` pour les détections dans le contexte RAG, `user` pour les messages utilisateur. Les placeholders sont numérotés (`_1`, `_2`, …) et cohérents entre messages : la même valeur reçoit le même placeholder quel que soit le rôle.
@@ -842,6 +843,7 @@ Champs supplémentaires :
 | `placeholder` | Placeholder généré (`<EMAIL_ADDRESS>`, `<PERSON>`, …) — sans la valeur originale |
 | `start` / `end` | Position de l'entité dans le message original |
 | `score` | Score de confiance Presidio (0.0–1.0) |
+| `recognizer` | Nom du recognizer Presidio ayant détecté l'entité (`EmailRecognizer`, `SpacyRecognizer`, …) |
 
 > **Note** : `start`/`end` et `placeholder` suffisent à un auditeur pour vérifier qu'une entité a été masquée, sans révéler la valeur originale.
 
@@ -926,12 +928,33 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
     # --- END PII MASKING ---
 
     completion_args = {
-        "model": effective_model_name,  # __pii strippé si présent
+        "model": effective_model_name,  # ::pii strippé si présent
         "messages": history,
         ...
     }
     return completion_args, pii_mapping  # 2-tuple : les callers réhydratent la réponse
 ```
+
+---
+
+## Intégration GeminiCV (modèles Gemini natifs)
+
+Les modèles Gemini dans la factory **Gemini** (`model_type: image2text`) utilisent le client Google genai natif (`GeminiCV`) et non LiteLLMBase. L'intégration PII masking a été ajoutée directement dans `rag/llm/cv_model.py`.
+
+**Spécificités :**
+- Le `system` (contexte RAG, potentiellement large) et l'`history` sont **combinés** en un seul appel `apply_pii_masking`, puis re-séparés pour `_form_history`.
+- Le suffixe `::pii` est strippé dans `__init__` avant l'appel API Gemini.
+- `self._original_model_name` conserve le nom avec suffixe pour le matching provider.
+- En mode streaming, `StreamingUnmasker` est utilisé chunk par chunk + `flush()` en fin de stream.
+
+**Configuration identique :**
+```env
+PII_MASKING_PROVIDERS=.*::pii@.*
+# ou pour tous les modèles Gemini :
+# PII_MASKING_PROVIDERS=.*@Gemini
+```
+
+> **Note performance** : avec un contexte RAG de plusieurs dizaines de KB, Presidio analyse l'intégralité à chaque requête. Si les performances sont critiques, considérer `PII_MASKING_ROLES=user` (ne masque pas le `system`).
 
 ---
 
@@ -951,9 +974,9 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 | Chunk `<` sans `>` suivant (< MAX_LEN) | Buffer en attente du prochain chunk |
 | Erreur Presidio (exception) | Log warning + fallback pass-through (ne pas bloquer le chat) |
 | Mode `BLOCK` sur entité détectée | Lever une exception métier → réponse HTTP 400 avec message explicite |
-| Modèle `gpt-4o__pii@OpenAI` | `__pii` strippé → LiteLLM reçoit `gpt-4o`, masquage appliqué |
-| Modèle `gpt-4o@OpenAI` avec `PII_MASKING_PROVIDERS=.*__pii@.*` | No match → appel direct sans masquage |
-| Suffixe `__pii` sans `PII_MASKING_ENABLED=true` | Suffixe strippé quand même (safe), mais masquage non appliqué — à documenter |
+| Modèle `gpt-4o::pii@OpenAI` | `::pii` strippé → LiteLLM reçoit `gpt-4o`, masquage appliqué |
+| Modèle `gpt-4o@OpenAI` avec `PII_MASKING_PROVIDERS=.*::pii@.*` | No match → appel direct sans masquage |
+| Suffixe `::pii` sans `PII_MASKING_ENABLED=true` | Suffixe strippé quand même (safe), mais masquage non appliqué — à documenter |
 | Dialog `pii_masking=true` + `PII_MASKING_ENABLED=false` | Le flag dialog est ignoré si le moteur global est désactivé (v1) |
 
 ---
@@ -1008,10 +1031,10 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 - `test_providers_multiple_patterns` : `.*@OpenAI,.*@Anthropic` → match les deux providers
 - `test_providers_negative_lookahead` : `(?!.*@Ollama).*` → match tout sauf Ollama
 - `test_providers_invalid_regex` : pattern regex invalide → log warning + pattern ignoré, pas d'exception
-- `test_suffix_pii_stripped_from_model_name` : `gpt-4o__pii@OpenAI` → LiteLLM appelé avec `gpt-4o`, masquage activé
-- `test_suffix_pii_match_target_includes_suffix` : le matching regex se fait sur `gpt-4o__pii@OpenAI` (avec suffixe), pas sur `gpt-4o@OpenAI`
-- `test_suffix_pii_without_masking_enabled` : suffixe `__pii` strippé même si `PII_MASKING_ENABLED=false`
-- `test_no_suffix_no_masking` : `gpt-4o@OpenAI` avec `PII_MASKING_PROVIDERS=.*__pii@.*` → no match, appel direct
+- `test_suffix_pii_stripped_from_model_name` : `gpt-4o::pii@OpenAI` → LiteLLM appelé avec `gpt-4o`, masquage activé
+- `test_suffix_pii_match_target_includes_suffix` : le matching regex se fait sur `gpt-4o::pii@OpenAI` (avec suffixe), pas sur `gpt-4o@OpenAI`
+- `test_suffix_pii_without_masking_enabled` : suffixe `::pii` strippé même si `PII_MASKING_ENABLED=false`
+- `test_no_suffix_no_masking` : `gpt-4o@OpenAI` avec `PII_MASKING_PROVIDERS=.*::pii@.*` → no match, appel direct
 - `test_dialog_flag_pii_masking_true` : `kwargs["pii_masking"]=True` → masquage appliqué indépendamment de `PII_MASKING_PROVIDERS` (v1)
 - `test_dialog_flag_pii_masking_false` : `kwargs["pii_masking"]=False` → pas de masquage même si modèle matche la whitelist (v1)
 
@@ -1020,6 +1043,28 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 - Appel complet `LiteLLMBase` avec mock `litellm.acompletion` : vérifier que les messages envoyés sont masqués
 - Variable `PII_MASKING_ENABLED=true` + message avec email → vérifier le payload envoyé au LLM
 - `PII_AUDIT_LOG_ENABLED=true` + message avec PII → vérifier la présence et le contenu du log (sans valeur originale)
+
+---
+
+## Diagnostic et logs
+
+### Logs visibles au niveau INFO (défaut serveur)
+
+| Log | Signification |
+|-----|---------------|
+| `PiiMaskingEngine initialized in X.Xs (NER: en_core_web_sm)` | Démarrage OK |
+| `PII masking disabled — PiiMaskingEngine skipped` | `PII_MASKING_ENABLED=false` |
+| `pii_masking: processing 'gemini-3.5-flash::pii@Gemini' (masking=True audit=True)` | Masquage actif sur la requête |
+| `pii_masking: done — N placeholder(s), entities_by_role={'user': [...]}` | Résultat du masquage |
+| `pii_masking: skipped — engine not initialized` | WARN — `initialize()` non appelé |
+
+### Activer les logs DEBUG
+
+Pour voir les décisions de filtrage (`skipped — X does not match providers filter`) :
+
+```env
+LOG_LEVELS=rag.llm.pii_masking=DEBUG
+```
 
 ---
 
@@ -1041,7 +1086,7 @@ def _construct_completion_args(self, history, stream: bool, tools: bool, **kwarg
 | Seuil trop haut → faux négatifs | `CREDIT_CARD` avec seuil 0.9 peut rater des numéros légèrement ambigus — recommander 0.6 |
 | Recognizer custom regex catastrophique | Une regex trop générale peut masquer du contenu légitime à grande échelle — valider dans un environnement de test avant activation |
 | YAML recognizers rechargé à chaud | Non supporté : toute modification du fichier YAML nécessite un redémarrage du serveur |
-| Suffixe `__pii` mal compris | Un admin peut nommer un modèle `__pii` sans activer le masquage — ajouter un warning au démarrage si suffixe détecté mais `PII_MASKING_ENABLED=false` |
+| Suffixe `::pii` mal compris | Un admin peut nommer un modèle `::pii` sans activer le masquage — ajouter un warning au démarrage si suffixe détecté mais `PII_MASKING_ENABLED=false` |
 | Migration Dialog (Option B) | La migration ALTER TABLE doit être non-destructive (DEFAULT 0) et testée sur les données existantes |
 
 ---
