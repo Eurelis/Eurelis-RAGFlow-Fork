@@ -4,6 +4,16 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **`LiteLLMBase._clean_conf`** — `model_type` (champ interne RAGFlow injecté dans `llm_setting` depuis l'upstream [#15141](https://github.com/infiniflow/ragflow/pull/15141)) n'était pas filtré avant l'appel API, causant une erreur `400 Bad Request` sur Bedrock (`extraneous key [model_type] is not permitted`). Fix : `gen_conf.pop("model_type", None)` dans `LiteLLMBase._clean_conf` (`rag/llm/chat_model.py`). PR upstream ouverte : [infiniflow/ragflow#15491](https://github.com/infiniflow/ragflow/pull/15491).
+
+- **`BedrockCV`** — intégration PII masking + implémentation de `async_chat` et `async_chat_streamly` via `litellm.acompletion` (l'implémentation héritée de `Base` utilisait `self.async_client` non initialisé dans `BedrockCV`).
+
+---
+
 ## [v0.25.6-eurelis.2-exp.1] - 2026-05-31 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.25.6` — branche `eurelis/feature/pii-masking` (non mergée dans `eurelis/main`).
