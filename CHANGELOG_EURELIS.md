@@ -4,7 +4,9 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
-## [Unreleased]
+## [v0.25.6-eurelis.2-exp.2] - 2026-06-01 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.25.6` — branche `eurelis/feature/pii-masking` (non mergée dans `eurelis/main`).
 
 ### Fixed
 
