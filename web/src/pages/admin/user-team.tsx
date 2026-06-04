@@ -5,19 +5,12 @@ import { useNavigate, useParams } from 'react-router';
 import {
   LucideArrowLeft,
   LucideCheckCircle,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideDot,
-  LucidePlus,
-  LucideTrash2,
 } from 'lucide-react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table';
 
 import { Routes } from '@/routes';
 
@@ -26,223 +19,145 @@ import Spotlight from '@/components/spotlight';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { RAGFlowPagination } from '@/components/ui/ragflow-pagination';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import {
   addTenantMember,
   getUserDetails,
+  listTenants,
   listUserTenants,
   removeTenantMember,
   updateTenantMemberRole,
 } from '@/services/admin-service';
-
-import { TableEmpty } from '@/components/table-skeleton';
 import EnterpriseFeature from './components/enterprise-feature';
-import useAddToTeamForm from './forms/add-to-team-form';
 import { parseBooleanish } from './utils';
 
-const teamColumnHelper =
-  createColumnHelper<AdminService.UserTenantMembership>();
+function matchAvailableFilter(query: string) {
+  const q = query.toLowerCase().trim();
+  return (item: AdminService.ListTenantsItem) =>
+    !q ||
+    item.owner_email.toLowerCase().includes(q) ||
+    item.owner_nickname.toLowerCase().includes(q);
+}
 
-function UserTeamTable(props: {
-  userId: string;
-  data?: AdminService.UserTenantMembership[];
+function matchJoinedFilter(query: string) {
+  const q = query.toLowerCase().trim();
+  return (item: AdminService.UserTenantMembership) =>
+    !q ||
+    item.email.toLowerCase().includes(q) ||
+    item.nickname.toLowerCase().includes(q);
+}
+
+function AvailableTeamRow({
+  team,
+  checked,
+  onToggle,
+}: {
+  team: AdminService.ListTenantsItem;
+  checked: boolean;
+  onToggle: (id: string) => void;
 }) {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const { id: formId, form, FormComponent } = useAddToTeamForm();
-
-  const removeMutation = useMutation({
-    mutationFn: ({ tenantId }: { tenantId: string }) =>
-      removeTenantMember(tenantId, props.userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/userTeams', props.userId],
-      });
-    },
-  });
-
-  const addMutation = useMutation({
-    mutationFn: ({ tenantId, role }: { tenantId: string; role: string }) =>
-      addTenantMember(tenantId, props.userId, role),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/userTeams', props.userId],
-      });
-      setAddDialogOpen(false);
-      form.reset();
-    },
-  });
-
-  const validateMutation = useMutation({
-    mutationFn: (tenantId: string) =>
-      updateTenantMemberRole(tenantId, props.userId, 'normal'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/userTeams', props.userId],
-      });
-    },
-  });
-
-  const columnDefs = useMemo(
-    () => [
-      teamColumnHelper.accessor('email', {
-        header: t('admin.owner'),
-        cell: ({ row, cell }) => (
-          <div className="flex items-center gap-2">
-            <RAGFlowAvatar
-              avatar={row.original.avatar}
-              name={cell.getValue()}
-            />
-            <div className="flex flex-col">
-              <span>{cell.getValue()}</span>
-              {row.original.nickname && (
-                <span className="text-xs text-text-secondary">
-                  {row.original.nickname}
-                </span>
-              )}
-            </div>
-          </div>
-        ),
-      }),
-      teamColumnHelper.accessor('role', {
-        header: t('admin.teamMemberRole'),
-        cell: ({ cell }) => (
-          <Badge variant="secondary">{cell.getValue()}</Badge>
-        ),
-      }),
-      teamColumnHelper.accessor('update_date', {
-        header: t('admin.addedDate'),
-      }),
-      teamColumnHelper.display({
-        id: 'actions',
-        header: t('admin.actions'),
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            {row.original.role === 'invite' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t('admin.validateInvite')}
-                onClick={() => validateMutation.mutate(row.original.tenant_id)}
-              >
-                <LucideCheckCircle className="size-4" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              onClick={() =>
-                removeMutation.mutate({ tenantId: row.original.tenant_id })
-              }
-            >
-              <LucideTrash2 className="size-4" />
-            </Button>
-          </div>
-        ),
-      }),
-    ],
-    [t, removeMutation, validateMutation],
-  );
-
-  const table = useReactTable({
-    data: props.data ?? [],
-    columns: columnDefs,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableSorting: false,
-  });
-
-  const excludedTenantIds = (props.data ?? []).map((m) => m.tenant_id);
-
   return (
-    <section className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={() => setAddDialogOpen(true)}
-        >
-          <LucidePlus className="size-4" />
-          {t('admin.addTeam')}
-        </Button>
-      </div>
-
-      <Table>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableEmpty columnsLength={columnDefs.length} />
-          )}
-        </TableBody>
-      </Table>
-
-      <RAGFlowPagination
-        total={props.data?.length}
-        current={table.getState().pagination.pageIndex + 1}
-        pageSize={table.getState().pagination.pageSize}
-        onChange={(page, pageSize) => {
-          table.setPagination({ pageIndex: page - 1, pageSize });
-        }}
+    <div
+      className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors"
+      onClick={() => onToggle(team.tenant_id)}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={() => onToggle(team.tenant_id)}
+        onClick={(e) => e.stopPropagation()}
       />
+      <RAGFlowAvatar name={team.owner_email} />
+      <div className="flex flex-col min-w-0 grow">
+        <span className="text-sm truncate">{team.owner_email}</span>
+        {team.owner_nickname && (
+          <span className="text-xs text-text-secondary truncate">
+            {team.owner_nickname}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <Badge variant="outline" className="text-xs">
+          {team.member_count}
+        </Badge>
+      </div>
+    </div>
+  );
+}
 
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('admin.addTeam')}</DialogTitle>
-          </DialogHeader>
-          <FormComponent
-            excludeTenantIds={[props.userId, ...excludedTenantIds]}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              {t('admin.cancel')}
-            </Button>
-            <Button
-              form={formId}
-              type="submit"
-              disabled={addMutation.isPending}
-              onClick={form.handleSubmit((data) =>
-                addMutation.mutate({
-                  tenantId: data.tenantId,
-                  role: 'normal',
-                }),
-              )}
-            >
-              {t('admin.confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </section>
+function JoinedTeamRow({
+  team,
+  checked,
+  onToggle,
+  memberCount,
+  onValidate,
+}: {
+  team: AdminService.UserTenantMembership;
+  memberCount?: number;
+  checked: boolean;
+  onToggle: (id: string) => void;
+  onValidate: (id: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors"
+      onClick={() => onToggle(team.tenant_id)}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={() => onToggle(team.tenant_id)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <RAGFlowAvatar avatar={team.avatar} name={team.email} />
+      <div className="flex flex-col min-w-0 grow">
+        <span className="text-sm truncate">{team.email}</span>
+        {team.nickname && (
+          <span className="text-xs text-text-secondary truncate">
+            {team.nickname}
+          </span>
+        )}
+      </div>
+      <div
+        className="flex items-center gap-1 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {memberCount !== undefined && (
+          <Badge variant="outline" className="text-xs">
+            {memberCount}
+          </Badge>
+        )}
+        {team.role !== 'normal' && (
+          <Badge variant="secondary" className="text-xs">
+            {team.role}
+          </Badge>
+        )}
+        {team.role === 'invite' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={() => onValidate(team.tenant_id)}
+          >
+            <LucideCheckCircle className="size-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
 function AdminUserTeam() {
-  const navigate = useNavigate();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { id } = useParams();
+  const queryClient = useQueryClient();
+
+  const [leftFilter, setLeftFilter] = useState('');
+  const [rightFilter, setRightFilter] = useState('');
+  const [selectedLeft, setSelectedLeft] = useState<Set<string>>(new Set());
+  const [selectedRight, setSelectedRight] = useState<Set<string>>(new Set());
 
   const { data: detail } = useQuery({
     queryKey: ['admin/userDetail', id],
@@ -254,12 +169,127 @@ function AdminUserTeam() {
     retry: false,
   });
 
-  const { data: teams } = useQuery({
+  const { data: joinedTeams = [] } = useQuery({
     queryKey: ['admin/userTeams', detail?.id],
     queryFn: async () => (await listUserTenants(detail!.id)).data.data,
     enabled: !!detail?.id,
     retry: false,
   });
+
+  const { data: allTenants = [] } = useQuery({
+    queryKey: ['admin/listTenants'],
+    queryFn: async () => (await listTenants()).data.data,
+    retry: false,
+  });
+
+  const invalidateTeams = () => {
+    queryClient.invalidateQueries({
+      queryKey: ['admin/userTeams', detail?.id],
+    });
+    queryClient.invalidateQueries({ queryKey: ['admin/listTenants'] });
+  };
+
+  const addMutation = useMutation({
+    mutationFn: async (tenantIds: string[]) => {
+      for (const tid of tenantIds) {
+        await addTenantMember(tid, detail!.id, 'normal');
+      }
+    },
+    onSuccess: () => {
+      invalidateTeams();
+      setSelectedLeft(new Set());
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (tenantIds: string[]) => {
+      for (const tid of tenantIds) {
+        await removeTenantMember(tid, detail!.id);
+      }
+    },
+    onSuccess: () => {
+      invalidateTeams();
+      setSelectedRight(new Set());
+    },
+  });
+
+  const validateMutation = useMutation({
+    mutationFn: (tenantId: string) =>
+      updateTenantMemberRole(tenantId, detail!.id, 'normal'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['admin/userTeams', detail?.id],
+      });
+    },
+  });
+
+  const joinedTenantIds = useMemo(
+    () => new Set(joinedTeams.map((t) => t.tenant_id)),
+    [joinedTeams],
+  );
+
+  const tenantCountMap = useMemo(
+    () => new Map(allTenants.map((t) => [t.tenant_id, t.member_count])),
+    [allTenants],
+  );
+
+  const availableTeams = useMemo(
+    () =>
+      allTenants.filter(
+        (t) => t.tenant_id !== detail?.id && !joinedTenantIds.has(t.tenant_id),
+      ),
+    [allTenants, detail?.id, joinedTenantIds],
+  );
+
+  const filteredAvailable = useMemo(
+    () => availableTeams.filter(matchAvailableFilter(leftFilter)),
+    [availableTeams, leftFilter],
+  );
+
+  const filteredJoined = useMemo(
+    () => joinedTeams.filter(matchJoinedFilter(rightFilter)),
+    [joinedTeams, rightFilter],
+  );
+
+  const toggleLeft = (tid: string) =>
+    setSelectedLeft((prev) => {
+      const next = new Set(prev);
+      if (next.has(tid)) next.delete(tid);
+      else next.add(tid);
+      return next;
+    });
+
+  const toggleRight = (tid: string) =>
+    setSelectedRight((prev) => {
+      const next = new Set(prev);
+      if (next.has(tid)) next.delete(tid);
+      else next.add(tid);
+      return next;
+    });
+
+  const allLeftChecked =
+    filteredAvailable.length > 0 &&
+    filteredAvailable.every((t) => selectedLeft.has(t.tenant_id));
+  const someLeftChecked = filteredAvailable.some((t) =>
+    selectedLeft.has(t.tenant_id),
+  );
+  const allRightChecked =
+    filteredJoined.length > 0 &&
+    filteredJoined.every((t) => selectedRight.has(t.tenant_id));
+  const someRightChecked = filteredJoined.some((t) =>
+    selectedRight.has(t.tenant_id),
+  );
+
+  const leftCheckState = allLeftChecked
+    ? true
+    : someLeftChecked
+      ? 'indeterminate'
+      : false;
+  const rightCheckState = allRightChecked
+    ? true
+    : someRightChecked
+      ? 'indeterminate'
+      : false;
 
   return (
     <section className="px-10 py-5 size-full flex flex-col">
@@ -277,17 +307,15 @@ function AdminUserTeam() {
       <Card className="!shadow-none relative h-0 basis-0 grow flex flex-col bg-transparent border-0.5 border-border-button overflow-hidden">
         <Spotlight />
 
-        <CardHeader className="pb-10 border-b-0.5 dark:border-border-button space-y-8">
+        <CardHeader className="pb-6 border-b-0.5 dark:border-border-button shrink-0 space-y-4">
           <h1 className="text-xl font-semibold">{t('setting.joinedTeams')}</h1>
-          <section className="flex items-center gap-4 text-base">
+          <div className="flex items-center gap-4 text-base">
             <RAGFlowAvatar
               avatar={detail?.avatar}
               name={detail?.email}
               isPerson
             />
-
             <span>{detail?.email}</span>
-
             <Badge
               variant={
                 parseBooleanish(detail?.is_active) ? 'success' : 'destructive'
@@ -301,7 +329,6 @@ function AdminUserTeam() {
                   : 'admin.inactive',
               )}
             </Badge>
-
             <EnterpriseFeature>
               {() =>
                 detail?.role && (
@@ -309,13 +336,137 @@ function AdminUserTeam() {
                 )
               }
             </EnterpriseFeature>
-          </section>
+          </div>
         </CardHeader>
 
-        <CardContent className="h-0 basis-0 grow pt-6">
-          <ScrollArea className="h-full">
-            <UserTeamTable userId={detail?.id ?? id!} data={teams} />
-          </ScrollArea>
+        <CardContent className="h-0 basis-0 grow pt-4 flex gap-3 min-h-0">
+          {/* Left panel — available teams */}
+          <div className="flex-1 flex flex-col min-h-0 rounded-md border border-border-button">
+            <div className="px-3 py-2 border-b border-border-button shrink-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={leftCheckState}
+                  onCheckedChange={(c) => {
+                    if (c === true)
+                      setSelectedLeft(
+                        new Set(filteredAvailable.map((t) => t.tenant_id)),
+                      );
+                    else setSelectedLeft(new Set());
+                  }}
+                />
+                <span className="text-sm font-medium">
+                  {t('admin.teamsNotJoined')}
+                </span>
+                <Badge variant="outline" className="ml-auto text-xs">
+                  {selectedLeft.size > 0
+                    ? `${selectedLeft.size} / ${filteredAvailable.length}`
+                    : filteredAvailable.length}
+                </Badge>
+              </div>
+              <Input
+                placeholder={t('admin.filterUsers')}
+                value={leftFilter}
+                onChange={(e) => setLeftFilter(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-1">
+                {filteredAvailable.length === 0 ? (
+                  <p className="text-sm text-text-secondary text-center py-8">
+                    —
+                  </p>
+                ) : (
+                  filteredAvailable.map((team) => (
+                    <AvailableTeamRow
+                      key={team.tenant_id}
+                      team={team}
+                      checked={selectedLeft.has(team.tenant_id)}
+                      onToggle={toggleLeft}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Center controls */}
+          <div className="flex flex-col items-center justify-center gap-2 shrink-0 w-28">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1 text-xs"
+              disabled={selectedLeft.size === 0 || addMutation.isPending}
+              title={t('admin.addToTeam')}
+              onClick={() => addMutation.mutate([...selectedLeft])}
+            >
+              {t('admin.addToTeam')}
+              <LucideChevronRight className="size-3.5 shrink-0" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1 text-xs"
+              disabled={selectedRight.size === 0 || removeMutation.isPending}
+              title={t('admin.removeFromTeam')}
+              onClick={() => removeMutation.mutate([...selectedRight])}
+            >
+              <LucideChevronLeft className="size-3.5 shrink-0" />
+              {t('admin.removeFromTeam')}
+            </Button>
+          </div>
+
+          {/* Right panel — joined teams */}
+          <div className="flex-1 flex flex-col min-h-0 rounded-md border border-border-button">
+            <div className="px-3 py-2 border-b border-border-button shrink-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={rightCheckState}
+                  onCheckedChange={(c) => {
+                    if (c === true)
+                      setSelectedRight(
+                        new Set(filteredJoined.map((t) => t.tenant_id)),
+                      );
+                    else setSelectedRight(new Set());
+                  }}
+                />
+                <span className="text-sm font-medium">
+                  {t('setting.joinedTeams')}
+                </span>
+                <Badge variant="outline" className="ml-auto text-xs">
+                  {selectedRight.size > 0
+                    ? `${selectedRight.size} / ${filteredJoined.length}`
+                    : filteredJoined.length}
+                </Badge>
+              </div>
+              <Input
+                placeholder={t('admin.filterUsers')}
+                value={rightFilter}
+                onChange={(e) => setRightFilter(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-1">
+                {filteredJoined.length === 0 ? (
+                  <p className="text-sm text-text-secondary text-center py-8">
+                    —
+                  </p>
+                ) : (
+                  filteredJoined.map((team) => (
+                    <JoinedTeamRow
+                      key={team.tenant_id}
+                      team={team}
+                      memberCount={tenantCountMap.get(team.tenant_id)}
+                      checked={selectedRight.has(team.tenant_id)}
+                      onToggle={toggleRight}
+                      onValidate={(tid) => validateMutation.mutate(tid)}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </section>
