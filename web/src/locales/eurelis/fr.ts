@@ -4,7 +4,6 @@ export default {
   },
   admin: {
     teams: 'Équipes',
-    teamManagement: 'Gestion des équipes',
     owner: 'Propriétaire',
     memberCount: 'Membres',
     addToTeam: "Ajouter à l'équipe",

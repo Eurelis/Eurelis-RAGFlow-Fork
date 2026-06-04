@@ -4,7 +4,6 @@ export default {
   },
   admin: {
     teams: 'Teams',
-    teamManagement: 'Team management',
     owner: 'Owner',
     memberCount: 'Members',
     addToTeam: 'Add to team',
