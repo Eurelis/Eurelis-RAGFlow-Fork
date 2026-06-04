@@ -5,18 +5,12 @@ import { useNavigate, useParams } from 'react-router';
 import {
   LucideArrowLeft,
   LucideCheckCircle,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideDot,
-  LucidePlus,
-  LucideTrash2,
 } from 'lucide-react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-} from '@tanstack/react-table';
 
 import { Routes } from '@/routes';
 
@@ -25,31 +19,10 @@ import Spotlight from '@/components/spotlight';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
-import { TableEmpty } from '@/components/table-skeleton';
 import {
   addTenantMember,
   getUserDetails,
@@ -61,7 +34,106 @@ import {
 import EnterpriseFeature from './components/enterprise-feature';
 import { parseBooleanish } from './utils';
 
-const columnHelper = createColumnHelper<AdminService.TenantMember>();
+function matchFilter(query: string) {
+  const q = query.toLowerCase().trim();
+  return (item: { email: string; nickname?: string | null }) =>
+    !q ||
+    item.email.toLowerCase().includes(q) ||
+    (item.nickname ?? '').toLowerCase().includes(q);
+}
+
+type OutsideUser = {
+  id: string;
+  email: string;
+  nickname?: string | null;
+  avatar?: string | null;
+};
+
+function OutsideUserRow({
+  user,
+  checked,
+  onToggle,
+}: {
+  user: OutsideUser;
+  checked: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors"
+      onClick={() => onToggle(user.id)}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={() => onToggle(user.id)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <RAGFlowAvatar avatar={user.avatar ?? undefined} name={user.email} />
+      <div className="flex flex-col min-w-0 grow">
+        <span className="text-sm truncate">{user.email}</span>
+        {user.nickname && (
+          <span className="text-xs text-text-secondary truncate">
+            {user.nickname}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MemberRow({
+  member,
+  checked,
+  onToggle,
+  onValidate,
+}: {
+  member: AdminService.TenantMember;
+  checked: boolean;
+  onToggle: (id: string) => void;
+  onValidate: (id: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors"
+      onClick={() => onToggle(member.user_id)}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={() => onToggle(member.user_id)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <RAGFlowAvatar avatar={member.avatar} name={member.email} />
+      <div className="flex flex-col min-w-0 grow">
+        <span className="text-sm truncate">{member.email}</span>
+        {member.nickname && (
+          <span className="text-xs text-text-secondary truncate">
+            {member.nickname}
+          </span>
+        )}
+      </div>
+      <div
+        className="flex items-center gap-1 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {member.role !== 'normal' && (
+          <Badge variant="secondary" className="text-xs">
+            {member.role}
+          </Badge>
+        )}
+        {member.role === 'invite' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={() => onValidate(member.user_id)}
+          >
+            <LucideCheckCircle className="size-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AdminUserOwnTeam() {
   const { t } = useTranslation();
@@ -69,8 +141,10 @@ function AdminUserOwnTeam() {
   const { id } = useParams();
   const queryClient = useQueryClient();
 
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [leftFilter, setLeftFilter] = useState('');
+  const [rightFilter, setRightFilter] = useState('');
+  const [selectedLeft, setSelectedLeft] = useState<Set<string>>(new Set());
+  const [selectedRight, setSelectedRight] = useState<Set<string>>(new Set());
 
   const { data: detail } = useQuery({
     queryKey: ['admin/userDetail', id],
@@ -95,13 +169,34 @@ function AdminUserOwnTeam() {
     retry: false,
   });
 
-  const removeMutation = useMutation({
-    mutationFn: (userId: string) => removeTenantMember(detail!.id, userId),
+  const invalidateMembers = () => {
+    queryClient.invalidateQueries({
+      queryKey: ['admin/tenantMembers', detail?.id],
+    });
+    queryClient.invalidateQueries({ queryKey: ['admin/listTenants'] });
+  };
+
+  const addMutation = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      for (const uid of userIds) {
+        await addTenantMember(detail!.id, uid, 'normal');
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/tenantMembers', detail?.id],
-      });
-      queryClient.invalidateQueries({ queryKey: ['admin/listTenants'] });
+      invalidateMembers();
+      setSelectedLeft(new Set());
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      for (const uid of userIds) {
+        await removeTenantMember(detail!.id, uid);
+      }
+    },
+    onSuccess: () => {
+      invalidateMembers();
+      setSelectedRight(new Set());
     },
   });
 
@@ -115,92 +210,64 @@ function AdminUserOwnTeam() {
     },
   });
 
-  const addMutation = useMutation({
-    mutationFn: (userId: string) =>
-      addTenantMember(detail!.id, userId, 'normal'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/tenantMembers', detail?.id],
-      });
-      queryClient.invalidateQueries({ queryKey: ['admin/listTenants'] });
-      setAddDialogOpen(false);
-      setSelectedUserId('');
-    },
-  });
-
-  const existingUserIds = new Set(members.map((m) => m.user_id));
-  const availableUsers = allUsers.filter(
-    (u) => u.id !== detail?.id && !existingUserIds.has(u.id),
+  const existingUserIds = useMemo(
+    () => new Set(members.map((m) => m.user_id)),
+    [members],
   );
 
-  const columnDefs = useMemo(
-    () => [
-      columnHelper.accessor('email', {
-        header: t('admin.email'),
-        cell: ({ row, cell }) => (
-          <div className="flex items-center gap-2">
-            <RAGFlowAvatar
-              avatar={row.original.avatar}
-              name={cell.getValue()}
-            />
-            <div className="flex flex-col">
-              <span>{cell.getValue()}</span>
-              {row.original.nickname && (
-                <span className="text-xs text-text-secondary">
-                  {row.original.nickname}
-                </span>
-              )}
-            </div>
-          </div>
-        ),
-      }),
-      columnHelper.accessor('role', {
-        header: t('admin.teamMemberRole'),
-        cell: ({ cell }) => (
-          <Badge variant="secondary">{cell.getValue()}</Badge>
-        ),
-      }),
-      columnHelper.accessor('update_date', {
-        header: t('admin.addedDate'),
-      }),
-      columnHelper.display({
-        id: 'actions',
-        header: t('admin.actions'),
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            {row.original.role === 'invite' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t('admin.validateInvite')}
-                onClick={() =>
-                  validateInviteMutation.mutate(row.original.user_id)
-                }
-              >
-                <LucideCheckCircle className="size-4" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              onClick={() => removeMutation.mutate(row.original.user_id)}
-            >
-              <LucideTrash2 className="size-4" />
-            </Button>
-          </div>
-        ),
-      }),
-    ],
-    [t, removeMutation, validateInviteMutation],
+  const outsideUsers = useMemo(
+    () =>
+      allUsers.filter((u) => u.id !== detail?.id && !existingUserIds.has(u.id)),
+    [allUsers, detail?.id, existingUserIds],
   );
 
-  const table = useReactTable({
-    data: members,
-    columns: columnDefs,
-    getCoreRowModel: getCoreRowModel(),
-    enableSorting: false,
-  });
+  const filteredOutside = useMemo(
+    () => outsideUsers.filter(matchFilter(leftFilter)),
+    [outsideUsers, leftFilter],
+  );
+
+  const filteredMembers = useMemo(
+    () => members.filter(matchFilter(rightFilter)),
+    [members, rightFilter],
+  );
+
+  const toggleLeft = (uid: string) =>
+    setSelectedLeft((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+
+  const toggleRight = (uid: string) =>
+    setSelectedRight((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+
+  const allLeftChecked =
+    filteredOutside.length > 0 &&
+    filteredOutside.every((u) => selectedLeft.has(u.id));
+  const someLeftChecked = filteredOutside.some((u) => selectedLeft.has(u.id));
+  const allRightChecked =
+    filteredMembers.length > 0 &&
+    filteredMembers.every((m) => selectedRight.has(m.user_id));
+  const someRightChecked = filteredMembers.some((m) =>
+    selectedRight.has(m.user_id),
+  );
+
+  const leftCheckState = allLeftChecked
+    ? true
+    : someLeftChecked
+      ? 'indeterminate'
+      : false;
+  const rightCheckState = allRightChecked
+    ? true
+    : someRightChecked
+      ? 'indeterminate'
+      : false;
 
   return (
     <section className="px-10 py-5 size-full flex flex-col">
@@ -218,130 +285,167 @@ function AdminUserOwnTeam() {
       <Card className="!shadow-none relative h-0 basis-0 grow flex flex-col bg-transparent border-0.5 border-border-button overflow-hidden">
         <Spotlight />
 
-        <CardHeader className="pb-6 border-b-0.5 dark:border-border-button space-y-8">
+        <CardHeader className="pb-6 border-b-0.5 dark:border-border-button shrink-0 space-y-4">
           <h1 className="text-xl font-semibold">{t('setting.teamMembers')}</h1>
+          <div className="flex items-center gap-4 text-base">
+            <RAGFlowAvatar
+              avatar={detail?.avatar}
+              name={detail?.email}
+              isPerson
+            />
+            <span>{detail?.email}</span>
+            <Badge
+              variant={
+                parseBooleanish(detail?.is_active) ? 'success' : 'destructive'
+              }
+              className="pl-[.5em]"
+            >
+              <LucideDot className="size-[1em] stroke-[8] mr-1" />
+              {t(
+                parseBooleanish(detail?.is_active)
+                  ? 'admin.active'
+                  : 'admin.inactive',
+              )}
+            </Badge>
+            <EnterpriseFeature>
+              {() =>
+                detail?.role && (
+                  <Badge variant="secondary">{detail?.role}</Badge>
+                )
+              }
+            </EnterpriseFeature>
+          </div>
+        </CardHeader>
 
-          <section className="flex items-center justify-between">
-            <div className="flex items-center gap-4 text-base">
-              <RAGFlowAvatar
-                avatar={detail?.avatar}
-                name={detail?.email}
-                isPerson
+        <CardContent className="h-0 basis-0 grow pt-4 flex gap-3 min-h-0">
+          {/* Left panel — users not in team */}
+          <div className="flex-1 flex flex-col min-h-0 rounded-md border border-border-button">
+            <div className="px-3 py-2 border-b border-border-button shrink-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={leftCheckState}
+                  onCheckedChange={(c) => {
+                    if (c === true)
+                      setSelectedLeft(
+                        new Set(filteredOutside.map((u) => u.id)),
+                      );
+                    else setSelectedLeft(new Set());
+                  }}
+                />
+                <span className="text-sm font-medium">
+                  {t('admin.usersNotInTeam')}
+                </span>
+                <Badge variant="outline" className="ml-auto text-xs">
+                  {selectedLeft.size > 0
+                    ? `${selectedLeft.size} / ${filteredOutside.length}`
+                    : filteredOutside.length}
+                </Badge>
+              </div>
+              <Input
+                placeholder={t('admin.filterUsers')}
+                value={leftFilter}
+                onChange={(e) => setLeftFilter(e.target.value)}
+                className="h-8 text-sm"
               />
-              <span>{detail?.email}</span>
-              <Badge
-                variant={
-                  parseBooleanish(detail?.is_active) ? 'success' : 'destructive'
-                }
-                className="pl-[.5em]"
-              >
-                <LucideDot className="size-[1em] stroke-[8] mr-1" />
-                {t(
-                  parseBooleanish(detail?.is_active)
-                    ? 'admin.active'
-                    : 'admin.inactive',
-                )}
-              </Badge>
-              <EnterpriseFeature>
-                {() =>
-                  detail?.role && (
-                    <Badge variant="secondary">{detail?.role}</Badge>
-                  )
-                }
-              </EnterpriseFeature>
             </div>
+            <ScrollArea className="flex-1">
+              <div className="p-1">
+                {filteredOutside.length === 0 ? (
+                  <p className="text-sm text-text-secondary text-center py-8">
+                    —
+                  </p>
+                ) : (
+                  filteredOutside.map((user) => (
+                    <OutsideUserRow
+                      key={user.id}
+                      user={user}
+                      checked={selectedLeft.has(user.id)}
+                      onToggle={toggleLeft}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Center controls */}
+          <div className="flex flex-col items-center justify-center gap-2 shrink-0 w-28">
             <Button
               variant="outline"
               size="sm"
-              className="gap-2"
-              onClick={() => setAddDialogOpen(true)}
+              className="w-full gap-1 text-xs"
+              disabled={selectedLeft.size === 0 || addMutation.isPending}
+              title={t('admin.addToTeam')}
+              onClick={() => addMutation.mutate([...selectedLeft])}
             >
-              <LucidePlus className="size-4" />
               {t('admin.addToTeam')}
-            </Button>
-          </section>
-        </CardHeader>
-
-        <CardContent className="h-0 basis-0 grow pt-4">
-          <ScrollArea className="h-full">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableEmpty columnsLength={columnDefs.length} />
-                )}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('admin.addToTeam')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">
-                {t('admin.user')}
-              </label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('admin.selectUser')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.email}
-                      {u.nickname ? ` (${u.nickname})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              {t('admin.cancel')}
+              <LucideChevronRight className="size-3.5 shrink-0" />
             </Button>
             <Button
-              disabled={!selectedUserId || addMutation.isPending}
-              onClick={() => addMutation.mutate(selectedUserId)}
+              variant="outline"
+              size="sm"
+              className="w-full gap-1 text-xs"
+              disabled={selectedRight.size === 0 || removeMutation.isPending}
+              title={t('admin.removeFromTeam')}
+              onClick={() => removeMutation.mutate([...selectedRight])}
             >
-              {t('admin.confirm')}
+              <LucideChevronLeft className="size-3.5 shrink-0" />
+              {t('admin.removeFromTeam')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          {/* Right panel — team members */}
+          <div className="flex-1 flex flex-col min-h-0 rounded-md border border-border-button">
+            <div className="px-3 py-2 border-b border-border-button shrink-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={rightCheckState}
+                  onCheckedChange={(c) => {
+                    if (c === true)
+                      setSelectedRight(
+                        new Set(filteredMembers.map((m) => m.user_id)),
+                      );
+                    else setSelectedRight(new Set());
+                  }}
+                />
+                <span className="text-sm font-medium">
+                  {t('setting.teamMembers')}
+                </span>
+                <Badge variant="outline" className="ml-auto text-xs">
+                  {selectedRight.size > 0
+                    ? `${selectedRight.size} / ${filteredMembers.length}`
+                    : filteredMembers.length}
+                </Badge>
+              </div>
+              <Input
+                placeholder={t('admin.filterUsers')}
+                value={rightFilter}
+                onChange={(e) => setRightFilter(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-1">
+                {filteredMembers.length === 0 ? (
+                  <p className="text-sm text-text-secondary text-center py-8">
+                    —
+                  </p>
+                ) : (
+                  filteredMembers.map((member) => (
+                    <MemberRow
+                      key={member.user_id}
+                      member={member}
+                      checked={selectedRight.has(member.user_id)}
+                      onToggle={toggleRight}
+                      onValidate={(uid) => validateInviteMutation.mutate(uid)}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }
