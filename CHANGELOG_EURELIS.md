@@ -4,6 +4,20 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.6-eurelis.2-exp.3] - 2026-06-04 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.25.6` — branche `eurelis/feature/pii-masking` (non mergée dans `eurelis/main`).
+
+### Fixed
+
+- **`LiteLLMBase._clean_conf`** — cherry-pick du fix `model_type` depuis `fix/litellm-model-type-leaked-to-api` (absent du tag `v0.25.6-eurelis.2-exp.2`). `gen_conf.pop("model_type", None)` empêche l'envoi du champ interne RAGFlow à l'API Bedrock (`400 Bad Request: extraneous key [model_type] is not permitted`).
+
+### Changed
+
+- **Admin — suppression de la route `/admin/teams`** — la page de gestion des équipes (`/admin/teams`) et son entrée de navigation ont été retirées de l'interface admin. Les routes `/admin/users/:id/team` et `/admin/users/:id/members` restent opérationnelles.
+
+---
+
 ## [v0.25.6-eurelis.2-exp.2] - 2026-06-01 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.25.6` — branche `eurelis/feature/pii-masking` (non mergée dans `eurelis/main`).
