@@ -4,6 +4,22 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.6-eurelis.2-exp.4] - 2026-06-09 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.25.6` — branche `eurelis/main`.
+
+> Première release expérimentale issue de `eurelis/main` : la branche `eurelis/feature/pii-masking` a été intégrée. Contient toutes les modifications de `exp.3`, plus :
+
+### Changed
+
+- **Admin — interface double-liste pour la gestion des équipes** — refonte des pages de gestion membres/équipes :
+  - `/admin/users/:id/team` — dual-listbox permettant d'ajouter/retirer des membres de l'équipe d'un utilisateur (filtrage, sélection multiple, case à cocher globale).
+  - `/admin/users/:id/members` — dual-listbox pour gérer les équipes auxquelles appartient un utilisateur, avec affichage du compteur de membres dans les deux panneaux.
+  - Badge de rôle `normal` masqué (non informatif). Mutations séquentielles pour éviter les deadlocks MySQL (1213) lors de sélections multiples.
+  - Suppression des pages `/admin/teams` et `/admin/teams/:id` (remplacées par les vues ci-dessus).
+
+---
+
 ## [v0.25.6-eurelis.2-exp.3] - 2026-06-04 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.25.6` — branche `eurelis/feature/pii-masking` (non mergée dans `eurelis/main`).
