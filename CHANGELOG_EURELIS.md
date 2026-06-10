@@ -4,6 +4,49 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.25.6-eurelis.2] - 2026-06-10
+
+Basé sur RAGFlow `v0.25.6`.
+
+### Added
+
+- **PII Masking** — masquage automatique des données personnelles (PII) avant envoi aux LLM,
+  via [Microsoft Presidio](https://github.com/microsoft/presidio) :
+  - `rag/llm/pii_masking.py` — moteur Presidio : détection, anonymisation, réhydratation des
+    réponses (`StreamingUnmasker`, `PiiAuditLogger`, `PiiMaskingEngine` singleton).
+  - `rag/llm/chat_model.py` — hook dans `LiteLLMBase._construct_completion_args()` + réhydratation
+    dans `async_chat`, `async_chat_streamly`, `async_chat_with_tools`, `async_chat_streamly_with_tools`.
+  - `rag/llm/cv_model.py` — intégration dans `GeminiCV`.
+  - `api/ragflow_server.py` — initialisation `PiiMaskingEngine.initialize()` au démarrage.
+  - `conf/llm_factories.json` — variante `gemini-3.5-flash::pii` (`image2text`).
+  - `test/unit_test/rag/llm/test_pii_masking.py` — 41 tests unitaires.
+  - `docs/eurelis/features/pii-masking.md` — documentation technique complète.
+  - Variables d'environnement : `PII_MASKING_ENABLED`, `PII_MASKING_PROVIDERS`,
+    `PII_MASKING_ENTITIES`, `PII_MASKING_SCORE_THRESHOLD`, `PII_MASKING_SCORE_OVERRIDES`,
+    `PII_MASKING_ROLES`, `PII_MASKING_LANGUAGES`, `PII_MASKING_NER`, `PII_AUDIT_LOG_ENABLED`, etc.
+  - Dépendances : `presidio-analyzer>=2.2.354`, `presidio-anonymizer>=2.2.354`.
+
+### Changed
+
+- **Admin — refonte de la gestion des équipes** :
+  - Suppression des pages `/admin/teams` et `/admin/teams/:id`.
+  - `/admin/users/:id/team` — nouvelle interface double-liste (dual-listbox) pour gérer les membres
+    de l'équipe d'un utilisateur (filtrage, sélection multiple, case à cocher globale).
+  - `/admin/users/:id/members` — nouvelle interface double-liste pour gérer les équipes d'un
+    utilisateur, avec compteur de membres dans les deux panneaux.
+  - Mutations séquentielles pour éviter les deadlocks MySQL (1213) lors de sélections multiples.
+
+### Fixed
+
+- **`LiteLLMBase._clean_conf`** — `model_type` (champ interne RAGFlow injecté depuis l'upstream
+  [#15141](https://github.com/infiniflow/ragflow/pull/15141)) n'était pas filtré avant l'appel API,
+  causant une erreur `400 Bad Request` sur Bedrock (`extraneous key [model_type] is not permitted`).
+  Fix : `gen_conf.pop("model_type", None)` dans `rag/llm/chat_model.py`.
+- **`BedrockCV`** — implémentation de `async_chat` et `async_chat_streamly` via
+  `litellm.acompletion` (l'implémentation héritée utilisait `self.async_client` non initialisé).
+
+---
+
 ## [v0.25.6-eurelis.2-exp.4] - 2026-06-09 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.25.6` — branche `eurelis/main`.
