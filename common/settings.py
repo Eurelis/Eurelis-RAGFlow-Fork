@@ -340,6 +340,36 @@ def init_settings():
     except Exception:
         FACTORY_LLM_INFOS = []
 
+    # Merge Eurelis-specific overrides (ranks, new models, new providers).
+    # Keys other than "name" and "llm" override the base value (None removes the key).
+    # "llm" entries are appended when llm_name is not already present in the base.
+    _patch_path = os.path.join(get_project_base_directory(), "conf", "llm_factories.patch.json")
+    if os.path.exists(_patch_path):
+        try:
+            with open(_patch_path, "r") as _f:
+                _patch_entries = json.load(_f).get("factory_llm_infos", [])
+            _base_map = {p["name"]: p for p in FACTORY_LLM_INFOS}
+            for _entry in _patch_entries:
+                _name = _entry["name"]
+                if _name in _base_map:
+                    for _k, _v in _entry.items():
+                        if _k in ("name", "llm"):
+                            continue
+                        if _v is None:
+                            _base_map[_name].pop(_k, None)
+                        else:
+                            _base_map[_name][_k] = _v
+                    if "llm" in _entry:
+                        _existing = {m["llm_name"] for m in _base_map[_name].get("llm", [])}
+                        _base_map[_name].setdefault("llm", []).extend(
+                            m for m in _entry["llm"] if m["llm_name"] not in _existing
+                        )
+                else:
+                    _base_map[_name] = _entry
+            FACTORY_LLM_INFOS = list(_base_map.values())
+        except Exception:
+            pass
+
     global API_KEY
     API_KEY = llm_settings.get("api_key")
 
