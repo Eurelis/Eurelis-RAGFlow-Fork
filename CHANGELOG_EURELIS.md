@@ -4,6 +4,31 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.0-eurelis.1] - 2026-06-14
+
+Basé sur RAGFlow `v0.26.0`.
+
+### Added
+- Moteur de masquage PII basé sur Presidio (`rag/llm/pii_masking.py`) — détection et anonymisation des données personnelles dans les requêtes LLM, avec suffixe `::pii` sur le nom du modèle pour activation
+- Gestion des équipes (group work) — API, UI admin et i18n pour la création et la gestion des équipes utilisateurs
+- Interface d'administration des équipes (`feat(eurelis/admin)`)
+- Séparation des surcharges LLM Eurelis dans `conf/llm_factories.patch.json` (Gemini, Bedrock, rangs des providers)
+- Documentation Eurelis : guidelines, commandes Claude, procédures fork
+- Suppression des blobs uploadés en chat lors de la suppression d'une session
+- Remplacement du branding RAGFlow par l'identité Eurelis
+
+### Fixed
+- Correction des cas limites du moteur PII masking (streaming, placeholders cross-messages)
+- Fallback i18n des templates d'agents, typo `hyphens-auto`, dépendance `useMemo`
+- Mirror GitHub pour `graspologic` (fix build — Gitee inaccessible)
+- Remplacement du moteur de substitution bash par Python dans `docker/entrypoint.sh` (substitution `${VAR:-default}` plus fiable)
+
+### Changed
+- Exclusion des rapports de sync-upstream du tracking git
+- Règle MD060 désactivée dans la config markdownlint
+
+---
+
 ## [v0.25.6-eurelis.2] - 2026-06-10
 
 Basé sur RAGFlow `v0.25.6`.
