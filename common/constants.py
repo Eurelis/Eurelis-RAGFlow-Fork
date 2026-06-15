@@ -159,6 +159,7 @@ class FileSource(StrEnum):
     OUTLOOK = "outlook"
     SALESFORCE = "salesforce"
     AZURE_BLOB = "azure_blob"
+    SITEMAP = "sitemap"
 
 
 class PipelineTaskType(StrEnum):
