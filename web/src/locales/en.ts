@@ -1204,6 +1204,10 @@ Example: Virtual Hosted Style`,
       log: 'Log',
       rssDescription:
         'Connect to a public RSS or Atom feed and sync feed entries into your knowledge base.',
+      sitemapDescription:
+        'Crawl and sync web pages listed in a sitemap.xml into your knowledge base.',
+      sitemapFollowPdfLinks: 'Scan for PDF',
+      sitemapRestrictPdfToDomain: 'Restrict PDF to domain',
       confluenceDescription:
         'Integrate your Confluence workspace to search documentation.',
       s3Description:
