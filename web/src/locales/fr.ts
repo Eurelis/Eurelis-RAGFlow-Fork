@@ -1449,6 +1449,10 @@ Exemple : Virtual Hosted Style`,
       log: 'Journal',
       rssDescription:
         'Connectez-vous à un flux RSS ou Atom public et synchronisez les entrées dans votre base de connaissances.',
+      sitemapDescription:
+        'Indexez et synchronisez les pages web référencées dans un fichier sitemap.xml dans votre base de connaissances.',
+      sitemapFollowPdfLinks: 'Scanner les PDF',
+      sitemapRestrictPdfToDomain: 'Restreindre les PDF au domaine',
       confluenceDescription:
         'Intégrez votre espace Confluence pour rechercher dans la documentation.',
       s3Description:

@@ -62,6 +62,7 @@ from .rss_connector import RSSConnector
 from .salesforce_connector import SalesforceConnector
 from .seafile_connector import SeaFileConnector
 from .sharepoint_connector import SharePointConnector
+from .sitemap_connector import SitemapConnector
 from .slack_connector import SlackConnector
 from .teams_connector import TeamsConnector
 from .webdav_connector import WebDAVConnector
@@ -120,6 +121,7 @@ def build_connector_for_source(source: str, config: dict[str, Any]) -> Any:
 __all__ = [
     "BlobStorageConnector",
     "RSSConnector",
+    "SitemapConnector",
     "SlackConnector",
     "GmailConnector",
     "NotionConnector",

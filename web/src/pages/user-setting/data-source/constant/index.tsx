@@ -17,8 +17,8 @@
 import { FormFieldType } from '@/components/dynamic-form';
 import { IconFontFill } from '@/components/icon-font';
 import SvgIcon from '@/components/svg-icon';
-import { TFunction } from 'i18next';
-import { Mail, Rss } from 'lucide-react';
+import { t, TFunction } from 'i18next';
+import { Globe, Mail, Rss } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import BoxTokenField from '../component/box-token-field';
@@ -60,6 +60,7 @@ export enum DataSourceKey {
   BIGQUERY = 'bigquery',
   REST_API = 'rest_api',
   RSS = 'rss',
+  SITEMAP = 'sitemap',
   ONEDRIVE = 'onedrive',
   OUTLOOK = 'outlook',
   SALESFORCE = 'salesforce',
@@ -147,6 +148,9 @@ export const DataSourceFeatureVisibilityMap: Partial<
   [DataSourceKey.RSS]: {
     syncDeletedFiles: true,
   },
+  [DataSourceKey.SITEMAP]: {
+    syncDeletedFiles: true,
+  },
   [DataSourceKey.MOODLE]: {
     syncDeletedFiles: true,
   },
@@ -199,6 +203,11 @@ export const generateDataSourceInfo = (t: TFunction) => {
       name: 'RSS',
       description: t(`setting.${DataSourceKey.RSS}Description`),
       icon: <Rss className="text-text-primary" size={22} />,
+    },
+    [DataSourceKey.SITEMAP]: {
+      name: 'Sitemap',
+      description: t(`setting.${DataSourceKey.SITEMAP}Description`),
+      icon: <Globe className="text-text-primary" size={22} />,
     },
     [DataSourceKey.GOOGLE_CLOUD_STORAGE]: {
       name: 'Google Cloud Storage',
@@ -765,6 +774,54 @@ const generateDataSourceFormFields = (t: TFunction) => ({
           label: t('setting.dataSourceFieldBatchSize'),
         }),
       },
+    },
+  ],
+  [DataSourceKey.SITEMAP]: [
+    {
+      label: 'Sitemap URL',
+      name: 'config.sitemap_url',
+      type: FormFieldType.Text,
+      required: true,
+      placeholder: 'https://example.com/sitemap.xml',
+    },
+    {
+      label: 'Batch Size',
+      name: 'config.batch_size',
+      type: FormFieldType.Number,
+      required: false,
+      validation: {
+        min: 1,
+        message: 'Batch Size must be at least 1',
+      },
+    },
+    {
+      label: 'User Agent',
+      name: 'config.user_agent',
+      type: FormFieldType.Text,
+      required: false,
+      placeholder: 'RAGFlow-SitemapConnector/1.0',
+    },
+    {
+      label: 'URL Filter (regex)',
+      name: 'config.url_filter',
+      type: FormFieldType.Text,
+      required: false,
+      placeholder: '/blog/.*',
+    },
+    {
+      label: t('setting.sitemapFollowPdfLinks'),
+      name: 'config.follow_pdf_links',
+      type: FormFieldType.Checkbox,
+      required: false,
+      defaultValue: false,
+    },
+    {
+      label: t('setting.sitemapRestrictPdfToDomain'),
+      name: 'config.restrict_pdf_to_domain',
+      type: FormFieldType.Checkbox,
+      required: false,
+      defaultValue: true,
+      shouldRender: (values: any) => values?.config?.follow_pdf_links === true,
     },
   ],
   [DataSourceKey.GOOGLE_CLOUD_STORAGE]: [
@@ -1981,6 +2038,18 @@ export const DataSourceFormDefaultValues = {
     config: {
       feed_url: '',
       batch_size: 2,
+    },
+  },
+  [DataSourceKey.SITEMAP]: {
+    name: '',
+    source: DataSourceKey.SITEMAP,
+    config: {
+      sitemap_url: '',
+      batch_size: 10,
+      user_agent: 'RAGFlow-SitemapConnector/1.0',
+      url_filter: '',
+      follow_pdf_links: false,
+      restrict_pdf_to_domain: true,
     },
   },
   [DataSourceKey.S3]: {
