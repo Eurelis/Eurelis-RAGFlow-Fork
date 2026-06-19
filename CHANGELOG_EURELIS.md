@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.0-eurelis.2] - 2026-06-19
+
+Basé sur RAGFlow `v0.26.0`.
+
+### Added
+- **SitemapConnector** — connecteur d'ingestion de pages web via `sitemap.xml` (sitemaps standard et index récursifs, polling incrémental via `<lastmod>`, conversion HTML→Markdown, protection SSRF, filtre URL regex, suivi de liens PDF)
+
+---
+
 ## [v0.26.0-eurelis.2-exp.1] - 2026-06-15 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.26.0` — branche `eurelis/feature/sitemap-connector`.
