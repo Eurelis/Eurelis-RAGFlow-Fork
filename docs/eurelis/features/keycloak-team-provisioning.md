@@ -1,8 +1,15 @@
 # Feature : Provisionnement automatique des équipes via Keycloak
 
-**Branche** : à définir (`eurelis/feature/keycloak-team-provisioning`)  
+**Branche** : `eurelis/feature/keycloak-team-provisioning`  
 **Date** : 2026-06-17  
-**Statut** : Spécification — non implémenté
+**Statut** : Partiellement implémenté
+
+---
+
+## Suivi d'implémentation
+
+- [x] **Option A** — Équipes par défaut (config statique) — `eurelis/feature/keycloak-team-provisioning`
+- [ ] **Option B** — Mapping Keycloak groups → équipes RAGFlow
 
 ---
 
