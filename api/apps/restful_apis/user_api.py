@@ -56,7 +56,7 @@ from api.utils.web_utils import (
     captcha_key,
 )
 from common import settings
-from api.apps.auth.eurelis_provisioning import assign_default_teams
+from api.apps.auth.auto_team_provisioning import assign_default_teams
 
 
 @manager.route("/auth/login", methods=["POST"])  # noqa: F821
