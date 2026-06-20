@@ -56,6 +56,7 @@ from api.utils.web_utils import (
     captcha_key,
 )
 from common import settings
+from api.apps.auth.eurelis_provisioning import assign_default_teams
 
 
 @manager.route("/auth/login", methods=["POST"])  # noqa: F821
@@ -246,6 +247,8 @@ async def oauth_callback(channel):
                     raise Exception(f"Failed to register {user_info.email}")
                 if len(users) > 1:
                     raise Exception(f"Same email: {user_info.email} exists!")
+
+                assign_default_teams(user_id, channel_config)
 
                 # Try to log in
                 user = users[0]
