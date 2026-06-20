@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.2] - 2026-06-20
+
+Basé sur RAGFlow `v0.26.1`.
+
+### Added
+- Provisionnement automatique des équipes à la première connexion OIDC (Option A) :
+  les utilisateurs créés via Keycloak sont assignés aux équipes configurées dans
+  `default_teams` (liste d'emails d'owners) sans passer par le flux d'invitation.
+  Implémenté dans `api/apps/auth/auto_team_provisioning.py`.
+
+---
+
 ## [v0.26.1-eurelis.1] - 2026-06-20
 
 Basé sur RAGFlow `v0.26.1`.
