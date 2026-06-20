@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.1] - 2026-06-20
+
+Basé sur RAGFlow `v0.26.1`.
+
+### Changed
+- Rebase sur RAGFlow `v0.26.1` — intégration de 109 commits upstream (chat channels, PaddleOCR async, Go agent canvas, fix SSRF Markdown, fix OOM PDF)
+
+---
+
 ## [v0.26.0-eurelis.2] - 2026-06-19
 
 Basé sur RAGFlow `v0.26.0`.
