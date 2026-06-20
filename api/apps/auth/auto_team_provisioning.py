@@ -1,7 +1,11 @@
 import logging
+from datetime import datetime
 
-from admin.server.services import TenantMgr
-from api.db.services import UserService
+from api.db import UserTenantRole
+from api.db.services.user_service import UserService, UserTenantService
+from common.constants import StatusEnum
+from common.misc_utils import get_uuid
+from common.time_utils import current_timestamp, datetime_format
 
 _logger = logging.getLogger(__name__)
 
@@ -24,14 +28,27 @@ def assign_default_teams(user_id: str, oauth_config: dict) -> None:
 
 def _safe_assign(tenant_id: str, user_id: str) -> None:
     try:
-        TenantMgr.add_member(tenant_id, user_id, role="normal")
-    except ValueError as exc:
-        _logger.debug(
-            "Skipping team assignment for user %s in tenant %s: %s",
-            user_id, tenant_id, exc,
+        existing = UserTenantService.filter_by_tenant_and_user_id(tenant_id, user_id)
+        if existing and existing.status == StatusEnum.VALID.value:
+            _logger.debug(
+                "User %s is already a member of tenant %s, skipping", user_id, tenant_id
+            )
+            return
+        now = current_timestamp()
+        UserTenantService.save(
+            id=get_uuid(),
+            user_id=user_id,
+            tenant_id=tenant_id,
+            role=UserTenantRole.NORMAL.value,
+            invited_by=tenant_id,
+            status=StatusEnum.VALID.value,
+            create_time=now,
+            create_date=datetime_format(datetime.now()),
+            update_time=now,
+            update_date=datetime_format(datetime.now()),
         )
+        _logger.info("Assigned user %s to tenant %s", user_id, tenant_id)
     except Exception:
         _logger.warning(
-            "Failed to assign user %s to tenant %s",
-            user_id, tenant_id, exc_info=True,
+            "Failed to assign user %s to tenant %s", user_id, tenant_id, exc_info=True
         )
