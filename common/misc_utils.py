@@ -16,6 +16,7 @@
 
 import asyncio
 import base64
+import contextvars
 import functools
 import hashlib
 import logging
@@ -250,8 +251,12 @@ def _thread_pool_executor():
 
 
 async def thread_pool_exec(func, *args, **kwargs):
+    # Python 3.13 changed ThreadPoolExecutor to use its own WorkerContext,
+    # so asyncio ContextVars no longer propagate automatically into threads.
+    # Explicitly copy the context and wrap with ctx.run(), matching asyncio.to_thread().
     loop = asyncio.get_running_loop()
+    ctx = contextvars.copy_context()
     if kwargs:
-        func = functools.partial(func, *args, **kwargs)
-        return await loop.run_in_executor(_thread_pool_executor(), func)
-    return await loop.run_in_executor(_thread_pool_executor(), func, *args)
+        inner = functools.partial(func, *args, **kwargs)
+        return await loop.run_in_executor(_thread_pool_executor(), ctx.run, inner)
+    return await loop.run_in_executor(_thread_pool_executor(), ctx.run, func, *args)
