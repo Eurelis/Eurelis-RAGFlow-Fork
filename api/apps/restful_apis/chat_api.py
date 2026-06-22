@@ -32,6 +32,8 @@ from api.db.joint_services.tenant_model_service import (
 )
 from api.db.services.chunk_feedback_service import ChunkFeedbackService
 from api.db.services.conversation_service import ConversationService, structure_answer
+from api.db.services.usage_log_service import UsageLogService
+from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from api.db.services.file_service import FileService
 from api.db.services.dialog_service import DialogService, async_chat, gen_mindmap
 from api.db.services.knowledgebase_service import KnowledgebaseService
@@ -1281,6 +1283,7 @@ async def session_completion(chat_id_in_arg=""):
         async def stream():
             """Yield SSE-formatted chunks from the async chat generator."""
             nonlocal dia, msg, req, conv
+            last_usage = {}
             try:
                 if legacy:
                     # v0.23.0-style streaming: emit accumulated answer text and
@@ -1319,21 +1322,42 @@ async def session_completion(chat_id_in_arg=""):
                         payload = _sanitize_json_floats({"code": 0, "message": "", "data": legacy_chunk})
                         yield "data:" + json.dumps(payload, ensure_ascii=False) + "\n\n"
                     if final_answer is not None:
+                        last_usage = final_answer.get("usage", {})
                         final_chunk = {**final_answer, "answer": final_answer.get("answer") or legacy_answer}
                         final_chunk.pop("start_to_think", None)
                         final_chunk.pop("end_to_think", None)
                         payload = _sanitize_json_floats({"code": 0, "message": "", "data": final_chunk})
                         yield "data:" + json.dumps(payload, ensure_ascii=False) + "\n\n"
                 else:
+                    last_ans = None
                     async for ans in async_chat(dia, msg, True, session_id=session_id, **req):
                         ans = _format_answer(ans)
+                        last_ans = ans
                         payload = _sanitize_json_floats({"code": 0, "message": "", "data": ans})
                         yield "data:" + json.dumps(payload, ensure_ascii=False) + "\n\n"
+                    last_usage = (last_ans or {}).get("usage", {})
                 if conv is not None:
                     await thread_pool_exec(ConversationService.update_by_id, conv.id, conv.to_dict())
             except Exception as ex:
                 logging.exception(ex)
                 yield "data:" + json.dumps({"code": 500, "message": str(ex), "data": {"answer": "**ERROR**: " + str(ex), "reference": []}}, ensure_ascii=False) + "\n\n"
+            finally:
+                if conv is not None and last_usage:
+                    await thread_pool_exec(
+                        UsageLogService.log,
+                        user_id=conv.user_id or "",
+                        resource_id=conv.dialog_id,
+                        object_id=conv.id,
+                        source="chat",
+                        token_type="llm",
+                        tokens=last_usage.get("total_tokens", 0),
+                        duration=last_usage.get("duration_ms", 0.0),
+                        model=last_usage.get("model", ""),
+                        provider=last_usage.get("provider", ""),
+                    )
+                    await eurelis_usage_log.log_embedding_from_usage(
+                        last_usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+                    )
             yield "data:" + json.dumps({"code": 0, "message": "", "data": True}, ensure_ascii=False) + "\n\n"
 
         if stream_mode:
@@ -1349,6 +1373,22 @@ async def session_completion(chat_id_in_arg=""):
             answer = _format_answer(ans)
             if conv is not None:
                 await thread_pool_exec(ConversationService.update_by_id, conv.id, conv.to_dict())
+                usage = (answer or {}).get("usage", {})
+                await thread_pool_exec(
+                    UsageLogService.log,
+                    user_id=conv.user_id or "",
+                    resource_id=conv.dialog_id,
+                    object_id=conv.id,
+                    source="chat",
+                    token_type="llm",
+                    tokens=usage.get("total_tokens", 0),
+                    duration=usage.get("duration_ms", 0.0),
+                    model=usage.get("model", ""),
+                    provider=usage.get("provider", ""),
+                )
+                await eurelis_usage_log.log_embedding_from_usage(
+                    usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+                )
             break
         return get_json_result(data=_sanitize_json_floats(answer))
     except Exception as ex:

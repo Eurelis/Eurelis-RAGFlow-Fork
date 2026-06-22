@@ -298,6 +298,39 @@ canvas.Compile → cc.Workflow.Invoke → answer extraction
 - uv package manager
 - 16GB+ RAM, 50GB+ disk space
 
+## Eurelis Fork — Conventions
+
+This repository is a fork of upstream RAGFlow. When creating new files that are **specific to the Eurelis fork** (i.e. not destined for the upstream), add a two-line header comment immediately before the first import:
+
+**Python:**
+```python
+# Eurelis — <one-line description of the file's purpose>.
+# Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+```
+
+**TypeScript / TSX:**
+```typescript
+// Eurelis — <one-line description of the file's purpose>.
+// Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+```
+
+This applies to **new files only** — never add this header to existing upstream files, even when modifying them.
+
+### Admin server architecture
+
+The admin API (`/api/v1/admin/...`) runs as a **separate Flask process** on port 9381, defined in `admin/server/admin_server.py`. It is **distinct from the Quart API server** (`api/ragflow_server.py`). New admin routes must be added to the admin Flask server, not to `api/apps/restful_apis/`.
+
+### Upstream footprint minimisation
+
+When adding Eurelis features, prefer creating new files over modifying upstream files. When upstream files must be modified, keep the diff minimal:
+
+- **Frontend API URLs** → `web/src/utils/eurelis-api.ts` (not `web/src/utils/api.ts`)
+- **Frontend services** → dedicated `web/src/services/<feature>-service.ts` importing `{ request }` from `admin-service.ts`
+- **Translations** → `web/src/locales/eurelis/en.ts` and `web/src/locales/eurelis/fr.ts` (merged over the upstream locale files at runtime — never add Eurelis keys to upstream locale files)
+- **Admin routes** → `admin/server/<feature>_routes.py` registered in `admin_server.py`
+
+---
+
 1. Think before acting. Read existing files before writing code.
 2. Be concise in output but thorough in reasoning.
 3. Prefer editing over rewriting whole files.

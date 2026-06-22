@@ -36,6 +36,7 @@ from rag.flow.pipeline import Pipeline
 
 from api.db.services.canvas_service import UserCanvasService
 from api.db.services.document_service import DocumentService
+from api.db.services.usage_log_service import UsageLogService
 from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.pipeline_operation_log_service import PipelineOperationLogService
 from api.db.joint_services.tenant_model_service import get_model_config_from_provider_instance
@@ -177,6 +178,17 @@ class DataflowService:
             else:
                 DocumentService.increment_chunk_num(
                     doc_id, task_dataset_id, embedding_token_consumption, len(chunks), task_time_cost
+                )
+                _ok_doc, _ing_doc = DocumentService.get_by_id(doc_id)
+                _embd_parts = str(ctx.embd_id).split("@") if ctx.embd_id else []
+                UsageLogService.log_ingestion(
+                    user_id=_ing_doc.created_by if _ok_doc and _ing_doc else ctx.tenant_id,
+                    kb_id=str(task_dataset_id),
+                    doc_id=str(doc_id),
+                    tokens=embedding_token_consumption,
+                    duration_ms=round(task_time_cost * 1000, 1),
+                    model=_embd_parts[0] if _embd_parts else "",
+                    provider=_embd_parts[-1] if len(_embd_parts) > 1 else "",
                 )
 
             logging.info(
