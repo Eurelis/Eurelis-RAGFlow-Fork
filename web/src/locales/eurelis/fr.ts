@@ -1,3 +1,6 @@
+// Eurelis — traductions françaises spécifiques au fork Eurelis (interface admin).
+// Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+
 export default {
   header: {
     teams: 'Équipes',

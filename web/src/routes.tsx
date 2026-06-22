@@ -409,16 +409,16 @@ const routeConfigOptions = [
         Component: () => import('@/pages/admin/layouts/authorized-layout'),
         children: [
           {
-            path: Routes.AdminUserMembers,
-            Component: () => import('@/pages/admin/user-team'),
-          },
-          {
-            path: Routes.AdminUserTeam,
-            Component: () => import('@/pages/admin/user-own-team'),
-          },
-          {
             Component: () => import('@/pages/admin/layouts/navigation-layout'),
             children: [
+              {
+                path: Routes.AdminUserMembers,
+                Component: () => import('@/pages/admin/user-team'),
+              },
+              {
+                path: Routes.AdminUserTeam,
+                Component: () => import('@/pages/admin/user-own-team'),
+              },
               {
                 path: Routes.AdminServices,
                 Component: () => import('@/pages/admin/service-status'),
