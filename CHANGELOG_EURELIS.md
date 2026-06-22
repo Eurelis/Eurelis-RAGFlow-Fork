@@ -4,6 +4,29 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.3-exp.1] - 2026-06-22 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
+
+### Added
+- **Statistiques de consommation de tokens** — table append-only `usage_log` avec dashboards admin et utilisateur. Modèle orthogonal : `source` (flux : `chat` · `search` · `agent` · `ingestion`) × `token_type` (`llm` · `embedding`).
+  - Logging câblé sur le chat, le widget chatbot, la recherche IA (`async_ask`), le retrieval d'agent, le retrieval SDK dataset et l'ingestion de documents (tokens *embedding* **et** *LLM*), centralisé dans `api/db/services/eurelis_usage_log.py`.
+  - APIs `/api/v1/usage-stats/me/*` (serveur Quart) et `/api/v1/admin/stats/*` (serveur admin Flask) : filtres `source`/`type`, séries temporelles (`by_source`/`by_type`), breakdowns (`group_by=source|type|model|dialog`), `available_sources`/`available_types`.
+  - Frontend : dashboard admin, détail par utilisateur et page utilisateur — presets de période, filtres multi-select source/type avec pastilles de couleur, barres empilées par flux, « Top modèles » colorés par nature (`token_type`), filtres de recherche sur les tableaux ressources et utilisateurs.
+
+### Fixed
+- Propagation des `ContextVars` asyncio dans le thread pool (`thread_pool_exec`) sous Python 3.13 (`ThreadPoolExecutor` WorkerContext).
+- Dérivation du type `image2text` depuis les tags du factory quand `model_type` l'omet.
+
+### Notes
+- ⚠ **Migration manuelle requise** avant de démarrer le serveur sur une base existante (la colonne n'est pas ajoutée par `migrate_db()`) :
+  ```sql
+  ALTER TABLE usage_log ADD COLUMN token_type VARCHAR(16) NOT NULL DEFAULT 'llm';
+  CREATE INDEX usage_log_token_type ON usage_log (token_type);
+  ```
+
+---
+
 ## [v0.26.1-eurelis.2] - 2026-06-20
 
 Basé sur RAGFlow `v0.26.1`.
