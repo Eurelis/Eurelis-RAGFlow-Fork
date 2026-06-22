@@ -36,6 +36,7 @@ from rag.flow.pipeline import Pipeline
 
 from api.db.services.canvas_service import UserCanvasService
 from api.db.services.document_service import DocumentService
+from api.db.services.usage_log_service import UsageLogService
 from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.pipeline_operation_log_service import PipelineOperationLogService
 from api.db.joint_services.tenant_model_service import resolve_model_config, get_model_config_by_id
@@ -179,6 +180,21 @@ class DataflowService:
                     DocumentService.increment_chunk_num(doc_id, task_dataset_id, embedding_token_consumption, len(chunks), task_time_cost)
                 except Exception:
                     logging.exception("increment_chunk_num failed for doc %s", doc_id)
+                # --- Eurelis usage-stats : journalisation ingestion (non critique) ---
+                try:
+                    _ok_doc, _ing_doc = DocumentService.get_by_id(doc_id)
+                    _embd_parts = str(ctx.embd_id).split("@") if ctx.embd_id else []
+                    UsageLogService.log_ingestion(
+                        user_id=_ing_doc.created_by if _ok_doc and _ing_doc else ctx.tenant_id,
+                        kb_id=str(task_dataset_id),
+                        doc_id=str(doc_id),
+                        tokens=embedding_token_consumption,
+                        duration_ms=round(task_time_cost * 1000, 1),
+                        model=_embd_parts[0] if _embd_parts else "",
+                        provider=_embd_parts[-1] if len(_embd_parts) > 1 else "",
+                    )
+                except Exception:
+                    logging.exception("UsageLogService.log_ingestion failed for doc %s", doc_id)
 
             self._progress(prog=1.0, msg="Indexing done ({:.2f}s). Task done ({:.2f}s)".format(time_cost, task_time_cost))
 

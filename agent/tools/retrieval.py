@@ -26,6 +26,7 @@ from common.metadata_utils import apply_meta_data_filter
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.llm_service import LLMBundle
 from api.db.services.memory_service import MemoryService
+from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from api.db.joint_services import memory_message_service
 from api.db.joint_services.tenant_model_service import get_tenant_default_model_by_type, resolve_model_config
 from common import settings
@@ -229,6 +230,19 @@ class Retrieval(ToolBase, ABC):
                 ck["content"] = ck["content_with_weight"]
                 del ck["content_with_weight"]
                 kbinfos["chunks"].insert(0, ck)
+
+        # Eurelis — log query embedding tokens, attributed to the agent's runtime user.
+        try:
+            _qe_user_id = self._canvas.get_variable_value("sys.user_id") or ""
+        except Exception:
+            _qe_user_id = ""
+        await eurelis_usage_log.log_embedding_from_bundle(
+            embd_mdl,
+            source="agent",
+            user_id=_qe_user_id,
+            resource_id=getattr(self._canvas, "_id", "") or "",
+            object_id=getattr(self._canvas, "task_id", "") or "",
+        )
 
         for ck in kbinfos["chunks"]:
             if "vector" in ck:

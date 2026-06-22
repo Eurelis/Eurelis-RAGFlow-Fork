@@ -74,6 +74,7 @@ import numpy as np
 from peewee import DoesNotExist
 from common.constants import LLMType, ParserType, PipelineTaskType
 from api.db.services.document_service import DocumentService
+from api.db.services.usage_log_service import UsageLogService
 from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.llm_service import LLMBundle
 from api.db.services.task_service import TaskService, has_canceled, CANVAS_DEBUG_DOC_ID, GRAPH_RAPTOR_FAKE_DOC_ID
@@ -941,6 +942,18 @@ async def run_dataflow(task: dict):
         ret = None
     set_progress(task_id, prog=1.0, msg="Indexing done ({:.2f}s). Task done ({:.2f}s)".format(time_cost, task_time_cost))
     get_recording_context().save_func_return_value("DocumentService.increment_chunk_num", ret)
+    _ok_doc, _ingestion_doc = DocumentService.get_by_id(doc_id)
+    _embd_id_str = locals().get("embedding_id") or task.get("embd_id", "")
+    _embd_parts = str(_embd_id_str).split("@") if _embd_id_str else []
+    UsageLogService.log_ingestion(
+        user_id=_ingestion_doc.created_by if _ok_doc and _ingestion_doc else task.get("tenant_id", ""),
+        kb_id=str(task_dataset_id),
+        doc_id=str(doc_id),
+        tokens=embedding_token_consumption,
+        duration_ms=round(task_time_cost * 1000, 1),
+        model=_embd_parts[0] if _embd_parts else "",
+        provider=_embd_parts[-1] if len(_embd_parts) > 1 else "",
+    )
     logging.info("[Done], chunks({}), token({}), elapsed:{:.2f}".format(len(chunks), embedding_token_consumption, task_time_cost))
     get_recording_context().record("dataflow_chunks", chunks)
     ret = PipelineOperationLogService.create(document_id=doc_id, pipeline_id=dataflow_id, task_type=PipelineTaskType.PARSE, dsl=str(pipeline))
@@ -1666,6 +1679,17 @@ async def do_handle_task(task):
 
         ret = DocumentService.increment_chunk_num(task_doc_id, task_dataset_id, token_count, chunk_count, 0)
         get_recording_context().save_func_return_value("DocumentService.increment_chunk_num", ret)
+        _ok_doc2, _ingestion_doc2 = DocumentService.get_by_id(task_doc_id)
+        _embd_parts2 = str(task_embedding_id).split("@") if task_embedding_id else []
+        UsageLogService.log_ingestion(
+            user_id=_ingestion_doc2.created_by if _ok_doc2 and _ingestion_doc2 else task.get("tenant_id", ""),
+            kb_id=str(task_dataset_id),
+            doc_id=str(task_doc_id),
+            tokens=token_count,
+            duration_ms=round((timer() - task_start_ts) * 1000, 1),
+            model=_embd_parts2[0] if _embd_parts2 else "",
+            provider=_embd_parts2[-1] if len(_embd_parts2) > 1 else "",
+        )
 
         # Table parser: push metadata/both column values to document-level metadata for UI / chat filters
         if task.get("parser_id", "").lower() == "table":
