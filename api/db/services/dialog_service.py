@@ -35,6 +35,7 @@ from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.langfuse_service import TenantLangfuseService
 from api.db.services.llm_service import LLMBundle
+from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from common.metadata_utils import apply_meta_data_filter
 from api.utils.reference_metadata_utils import (
     enrich_chunks_with_document_metadata,
@@ -321,25 +322,63 @@ async def async_chat_solo(dialog, messages, stream=True, session_id=None):
         msg[-1]["content"] += attachments
     if "chat" in llm_types and image_attachments:
         convert_last_user_msg_to_multimodal(msg, image_attachments, factory)
+    prompt_tk = sum(num_tokens_from_string(m.get("content", "")) for m in msg if isinstance(m.get("content"), str))
     if stream:
         if "chat" in llm_types:
             stream_iter = chat_mdl.async_chat_streamly_delta(prompt_config.get("system", ""), msg, dialog.llm_setting)
         else:
             stream_iter = chat_mdl.async_chat_streamly_delta(prompt_config.get("system", ""), msg, dialog.llm_setting, images=image_files)
+        stream_start_ts = timer()
+        full_answer = []
         async for kind, value, state in _stream_with_think_delta(stream_iter):
             if kind == "marker":
                 flags = {"start_to_think": True} if value == "<think>" else {"end_to_think": True}
                 yield {"answer": "", "reference": {}, "audio_binary": None, "prompt": "", "created_at": time.time(), "final": False, **flags}
                 continue
+            full_answer.append(value)
             yield {"answer": value, "reference": {}, "audio_binary": tts(tts_mdl, value), "prompt": "", "created_at": time.time(), "final": False}
+        tk_num = num_tokens_from_string("".join(full_answer))
+        duration_ms = round((timer() - stream_start_ts) * 1000, 1)
+        yield {
+            "answer": "".join(full_answer),
+            "reference": {},
+            "audio_binary": None,
+            "prompt": "",
+            "created_at": time.time(),
+            "usage": {
+                "prompt_tokens": prompt_tk,
+                "completion_tokens": tk_num,
+                "total_tokens": prompt_tk + tk_num,
+                "duration_ms": duration_ms,
+                "model": chat_mdl.model_config.get("llm_name", ""),
+                "provider": chat_mdl.model_config.get("llm_factory", ""),
+            },
+        }
     else:
+        call_start_ts = timer()
         if "chat" in llm_types:
             answer = await chat_mdl.async_chat(prompt_config.get("system", ""), msg, dialog.llm_setting)
         else:
             answer = await chat_mdl.async_chat(prompt_config.get("system", ""), msg, dialog.llm_setting, images=image_files)
+        duration_ms = round((timer() - call_start_ts) * 1000, 1)
+        tk_num = num_tokens_from_string(answer)
         user_content = msg[-1].get("content", "[content not available]")
         logging.debug("User: {}|Assistant: {}".format(user_content, answer))
-        yield {"answer": answer, "reference": {}, "audio_binary": tts(tts_mdl, answer), "prompt": "", "created_at": time.time()}
+        yield {
+            "answer": answer,
+            "reference": {},
+            "audio_binary": tts(tts_mdl, answer),
+            "prompt": "",
+            "created_at": time.time(),
+            "usage": {
+                "prompt_tokens": prompt_tk,
+                "completion_tokens": tk_num,
+                "total_tokens": prompt_tk + tk_num,
+                "duration_ms": duration_ms,
+                "model": chat_mdl.model_config.get("llm_name", ""),
+                "provider": chat_mdl.model_config.get("llm_factory", ""),
+            },
+        }
 
 
 def get_models(dialog, trace_context=None, langfuse_session_id=None):
@@ -761,7 +800,20 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
     retrieval_ts = timer()
     if not knowledges and prompt_config.get("empty_response"):
         empty_res = prompt_config["empty_response"]
-        yield {"answer": empty_res, "reference": kbinfos, "prompt": "\n\n### Query:\n%s" % " ".join(questions), "audio_binary": tts(tts_mdl, empty_res), "final": True}
+        yield {
+            "answer": empty_res,
+            "reference": kbinfos,
+            "prompt": "\n\n### Query:\n%s" % " ".join(questions),
+            "audio_binary": tts(tts_mdl, empty_res),
+            "final": True,
+            "usage": {
+                "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "duration_ms": 0,
+                "model": chat_mdl.model_config.get("llm_name", ""), "provider": chat_mdl.model_config.get("llm_factory", ""),
+                "embedding_tokens": embd_mdl.used_tokens if embd_mdl else 0,
+                "embedding_model": embd_mdl.model_config.get("llm_name", "") if embd_mdl else "",
+                "embedding_provider": embd_mdl.model_config.get("llm_factory", "") if embd_mdl else "",
+            },
+        }
         return
 
     kwargs["knowledge"] = "\n------\n" + "\n\n------\n\n".join(knowledges)
@@ -868,7 +920,23 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
             )
             langfuse_generation.end()
 
-        return {"answer": think + answer, "reference": refs, "prompt": re.sub(r"\n", "  \n", prompt), "created_at": time.time()}
+        return {
+            "answer": think + answer,
+            "reference": refs,
+            "prompt": re.sub(r"\n", "  \n", prompt),
+            "created_at": time.time(),
+            "usage": {
+                "prompt_tokens": used_token_count,
+                "completion_tokens": tk_num,
+                "total_tokens": used_token_count + tk_num,
+                "duration_ms": round(total_time_cost, 1),
+                "model": chat_mdl.model_config.get("llm_name", ""),
+                "provider": chat_mdl.model_config.get("llm_factory", ""),
+                "embedding_tokens": embd_mdl.used_tokens if embd_mdl else 0,
+                "embedding_model": embd_mdl.model_config.get("llm_name", "") if embd_mdl else "",
+                "embedding_provider": embd_mdl.model_config.get("llm_factory", "") if embd_mdl else "",
+            },
+        }
 
     if langfuse_tracer:
         try:
@@ -1711,6 +1779,7 @@ async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_conf
         refs["chunks"] = chunks_format(refs)
         return {"answer": answer, "reference": refs}
 
+    ask_start_ts = timer()  # Eurelis — time the LLM synthesis for usage_log
     stream_iter = chat_mdl.async_chat_streamly_delta(sys_prompt, msg, {"temperature": 0.1})
     last_state = None
     async for kind, value, state in _stream_with_think_delta(stream_iter):
@@ -1724,6 +1793,17 @@ async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_conf
     final = await decorate_answer(_extract_visible_answer(full_answer))
     final["final"] = True
     final["answer"] = ""
+    if search_id:  # Eurelis — log search usage (query embedding + LLM synthesis)
+        await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id)
+        await eurelis_usage_log.log_search_completion(
+            user_id=tenant_id,
+            resource_id=search_id,
+            prompt_text=sys_prompt + question,
+            completion_text=full_answer,
+            model=chat_mdl.model_config.get("llm_name", ""),
+            provider=chat_mdl.model_config.get("llm_factory", ""),
+            duration_ms=round((timer() - ask_start_ts) * 1000, 1),
+        )
     yield final
 
 

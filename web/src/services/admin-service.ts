@@ -357,3 +357,5 @@ export const listUserTenants = (userId: string) =>
   request.get<ResponseData<AdminService.UserTenantMembership[]>>(
     adminListUserTenants(userId),
   );
+
+export { request };
