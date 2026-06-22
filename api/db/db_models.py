@@ -1522,6 +1522,23 @@ class API4Conversation(DataBaseModel):
         db_table = "api_4_conversation"
 
 
+class UsageLog(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    user_id = CharField(max_length=255, null=False, index=True)
+    resource_id = CharField(max_length=32, null=False, index=True)
+    object_id = CharField(max_length=32, null=False, index=True)
+    source = CharField(max_length=16, null=False, default="chat", index=True)
+    # Eurelis — nature du token : "llm" | "embedding" (orthogonal à `source`/flux).
+    token_type = CharField(max_length=16, null=False, default="llm", index=True)
+    tokens = IntegerField(default=0)
+    duration = FloatField(default=0.0)
+    model = CharField(max_length=128, null=False, default="", index=True)
+    provider = CharField(max_length=64, null=False, default="", index=True)
+
+    class Meta:
+        db_table = "usage_log"
+
+
 class UserCanvas(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
     avatar = TextField(null=True, help_text="avatar base64 string")

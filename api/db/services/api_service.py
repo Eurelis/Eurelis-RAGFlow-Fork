@@ -17,7 +17,7 @@ from datetime import datetime
 
 import peewee
 
-from api.db.db_models import DB, API4Conversation, APIToken, Dialog
+from api.db.db_models import DB, API4Conversation, APIToken, Dialog, UserCanvas
 from api.db.services.common_service import CommonService
 from api.utils.json_encode import json_dumps
 from common.time_utils import current_timestamp, datetime_format
@@ -106,30 +106,48 @@ class API4ConversationService(CommonService):
 
     @classmethod
     @DB.connection_context()
-    def append_message(cls, id, conversation):
-        cls.update_by_id(id, conversation)
-        return cls.model.update(round=cls.model.round + 1).where(cls.model.id == id).execute()
+    def append_message(cls, id, conversation, tokens: int = 0, duration: float = 0.0):
+        with DB.atomic():
+            cls.update_by_id(id, conversation)
+            return (
+                cls.model.update(
+                    round=cls.model.round + 1,
+                    tokens=cls.model.tokens + tokens,
+                    duration=cls.model.duration + duration,
+                )
+                .where(cls.model.id == id)
+                .execute()
+            )
 
     @classmethod
     @DB.connection_context()
     def stats(cls, tenant_id, from_date, to_date, source=None):
         if len(to_date) == 10:
             to_date += " 23:59:59"
-        return (
-            cls.model.select(
-                cls.model.create_date.truncate("day").alias("dt"),
-                peewee.fn.COUNT(cls.model.id).alias("pv"),
-                peewee.fn.COUNT(cls.model.user_id.distinct()).alias("uv"),
-                peewee.fn.SUM(cls.model.tokens).alias("tokens"),
-                peewee.fn.SUM(cls.model.duration).alias("duration"),
-                peewee.fn.AVG(cls.model.round).alias("round"),
-                peewee.fn.SUM(cls.model.thumb_up).alias("thumb_up"),
-            )
-            .join(Dialog, on=((cls.model.dialog_id == Dialog.id) & (Dialog.tenant_id == tenant_id)))
-            .where(cls.model.create_date >= from_date, cls.model.create_date <= to_date, cls.model.source == source)
-            .group_by(cls.model.create_date.truncate("day"))
-            .dicts()
+        base = cls.model.select(
+            cls.model.create_date.truncate("day").alias("dt"),
+            peewee.fn.COUNT(cls.model.id).alias("pv"),
+            peewee.fn.COUNT(cls.model.user_id.distinct()).alias("uv"),
+            peewee.fn.SUM(cls.model.tokens).alias("tokens"),
+            peewee.fn.SUM(cls.model.duration).alias("duration"),
+            peewee.fn.AVG(cls.model.round).alias("round"),
+            peewee.fn.SUM(cls.model.thumb_up).alias("thumb_up")
         )
+        if source == "agent":
+            query = base.join(
+                UserCanvas,
+                on=((cls.model.dialog_id == UserCanvas.id) & (UserCanvas.user_id == tenant_id))
+            )
+        else:
+            query = base.join(
+                Dialog,
+                on=((cls.model.dialog_id == Dialog.id) & (Dialog.tenant_id == tenant_id))
+            )
+        return query.where(
+            cls.model.create_date >= from_date,
+            cls.model.create_date <= to_date,
+            cls.model.source == source
+        ).group_by(cls.model.create_date.truncate("day")).dicts()
 
     @classmethod
     @DB.connection_context()

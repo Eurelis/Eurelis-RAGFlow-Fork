@@ -23,6 +23,8 @@ from api.db.db_models import Conversation, DB
 from api.db.services.api_service import API4ConversationService
 from api.db.services.common_service import CommonService
 from api.db.services.dialog_service import DialogService, async_chat, rag_agent
+from api.db.services.usage_log_service import UsageLogService
+from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from common.misc_utils import get_uuid
 import json
 
@@ -361,10 +363,34 @@ async def async_iframe_completion(dialog_id, question, session_id=None, stream=T
 
     if stream:
         try:
+            last_ans = None
             async for ans in rag_agent(dia, msg, True, session_id=session_id, **kwargs):
                 ans = structure_answer(conv, ans, message_id, session_id)
-                yield "data:" + json.dumps({"code": 0, "message": "", "data": ans}, ensure_ascii=False) + "\n\n"
-            API4ConversationService.append_message(conv.id, conv.to_dict())
+                last_ans = ans
+                yield "data:" + json.dumps({"code": 0, "message": "", "data": ans},
+                                           ensure_ascii=False) + "\n\n"
+            usage = (last_ans or {}).get("usage", {})
+            if not usage:
+                logger.warning("Missing usage in streaming completion for session_id=%s message_id=%s", session_id, message_id)
+            API4ConversationService.append_message(
+                conv.id, conv.to_dict(),
+                tokens=usage.get("total_tokens", 0),
+                duration=usage.get("duration_ms", 0.0),
+            )
+            UsageLogService.log(
+                user_id=conv.user_id or "",
+                resource_id=conv.dialog_id,
+                object_id=conv.id,
+                source="chat",
+                token_type="llm",
+                tokens=usage.get("total_tokens", 0),
+                duration=usage.get("duration_ms", 0.0),
+                model=usage.get("model", ""),
+                provider=usage.get("provider", ""),
+            )
+            await eurelis_usage_log.log_embedding_from_usage(
+                usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+            )
         except Exception as e:
             yield "data:" + json.dumps({"code": 500, "message": str(e), "data": {"answer": "**ERROR**: " + str(e), "reference": []}}, ensure_ascii=False) + "\n\n"
         yield "data:" + json.dumps({"code": 0, "message": "", "data": True}, ensure_ascii=False) + "\n\n"
@@ -373,6 +399,27 @@ async def async_iframe_completion(dialog_id, question, session_id=None, stream=T
         answer = None
         async for ans in rag_agent(dia, msg, False, session_id=session_id, **kwargs):
             answer = structure_answer(conv, ans, message_id, session_id)
-            API4ConversationService.append_message(conv.id, conv.to_dict())
+            usage = answer.get("usage", {})
+            if not usage:
+                logger.warning("Missing usage in non-stream completion for session_id=%s message_id=%s", session_id, message_id)
+            API4ConversationService.append_message(
+                conv.id, conv.to_dict(),
+                tokens=usage.get("total_tokens", 0),
+                duration=usage.get("duration_ms", 0.0),
+            )
+            UsageLogService.log(
+                user_id=conv.user_id or "",
+                resource_id=conv.dialog_id,
+                object_id=conv.id,
+                source="chat",
+                token_type="llm",
+                tokens=usage.get("total_tokens", 0),
+                duration=usage.get("duration_ms", 0.0),
+                model=usage.get("model", ""),
+                provider=usage.get("provider", ""),
+            )
+            await eurelis_usage_log.log_embedding_from_usage(
+                usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+            )
             break
         yield answer

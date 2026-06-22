@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { Routes } from '@/routes';
 import { TFunction } from 'i18next';
 import {
+  LucideBarChart2,
   LucideBox,
   LucideLogOut,
   LucideMessagesSquare,
@@ -76,6 +77,11 @@ const menuItems = (t: TFunction) => [
     icon: <LucideUnplug className="size-[1em]" />,
     label: t('setting.api'),
     key: Routes.Api,
+  },
+  {
+    icon: <LucideBarChart2 className="size-[1em]" />,
+    label: t('setting.usageStats'),
+    key: Routes.UserStats,
   },
 ];
 

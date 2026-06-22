@@ -40,6 +40,7 @@ from api.apps.services.canvas_replica_service import CanvasReplicaService
 from api.db import CanvasCategory
 from api.db.db_models import Task
 from api.db.services.api_service import API4ConversationService
+from api.db.services.usage_log_service import UsageLogService
 from api.db.services.canvas_service import (
     CanvasTemplateService,
     UserCanvasService,
@@ -303,6 +304,16 @@ async def _run_workflow_session(
         workflow_conv["dsl"] = json.loads(str(canvas))
         workflow_conv["source"] = workflow_conv.get("source") or "workflow"
         await thread_pool_exec(API4ConversationService.append_message, session_id, workflow_conv)
+        await thread_pool_exec(
+            UsageLogService.log,
+            user_id=workflow_conv.get("user_id", ""),
+            resource_id=agent_id,
+            object_id=session_id,
+            source="agent",
+            token_type="llm",
+            tokens=0,
+            duration=0.0,
+        )
         await commit_runtime_replica()
 
     if stream:
