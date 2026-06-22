@@ -28,6 +28,7 @@ from api.db.db_models import LLM
 from api.db.services.common_service import CommonService
 from api.db.services.tenant_llm_service import LLM4Tenant
 from common.token_utils import num_tokens_from_string, record_run_token_usage, langfuse_run_attrs
+from api.db.services.ingestion_token_counter import add_ingestion_llm_tokens
 
 
 class LLMService(CommonService):
@@ -37,6 +38,7 @@ class LLMService(CommonService):
 class LLMBundle(LLM4Tenant):
     def __init__(self, tenant_id: str, model_config: dict, lang="Chinese", **kwargs):
         super().__init__(tenant_id, model_config, lang, **kwargs)
+        self.used_tokens: int = 0  # accumulated embedding tokens for this request lifecycle
 
     def _start_langfuse_observation(self, **kwargs):
         # Correlating attributes (session_id/user_id) let Langfuse group all of a
@@ -141,6 +143,7 @@ class LLMBundle(LLM4Tenant):
             logging.debug("LLMBundle.encode query: {}, emd len: {}, used_tokens: {}. Builtin model don't need to update token usage".format(texts, len(embeddings), used_tokens))
         else:
             logging.info("LLMBundle.encode used_tokens: %d", used_tokens)
+            self.used_tokens += used_tokens
 
         if self.langfuse:
             generation.update(usage_details={"total_tokens": used_tokens})
@@ -168,6 +171,7 @@ class LLMBundle(LLM4Tenant):
             logging.info("LLMBundle.encode_queries query: {}, emd len: {}, used_tokens: {}. Builtin model don't need to update token usage".format(query, len(emd), used_tokens))
         else:
             logging.info("LLMBundle.encode_queries used_tokens: %d", used_tokens)
+            self.used_tokens += used_tokens
 
         if self.langfuse:
             generation.update(usage_details={"total_tokens": used_tokens})
@@ -196,6 +200,7 @@ class LLMBundle(LLM4Tenant):
 
         txt, used_tokens = self.mdl.describe(image)
         logging.info("LLMBundle.describe used_tokens: %d", used_tokens)
+        add_ingestion_llm_tokens(used_tokens, self.model_config.get("llm_name", ""), self.model_config.get("llm_factory", ""))
 
         if self.langfuse:
             generation.update(output={"output": txt}, usage_details={"total_tokens": used_tokens})
@@ -211,6 +216,7 @@ class LLMBundle(LLM4Tenant):
 
         txt, used_tokens = self.mdl.describe_with_prompt(image, prompt)
         logging.info("LLMBundle.describe_with_prompt used_tokens: %d", used_tokens)
+        add_ingestion_llm_tokens(used_tokens, self.model_config.get("llm_name", ""), self.model_config.get("llm_factory", ""))
 
         if self.langfuse:
             generation.update(output={"output": txt}, usage_details={"total_tokens": used_tokens})
@@ -224,6 +230,7 @@ class LLMBundle(LLM4Tenant):
 
         txt, used_tokens = self.mdl.transcription(audio)
         logging.info("LLMBundle.transcription used_tokens: %d", used_tokens)
+        add_ingestion_llm_tokens(used_tokens, self.model_config.get("llm_name", ""), self.model_config.get("llm_factory", ""))
 
         if self.langfuse:
             generation.update(output={"output": txt}, usage_details={"total_tokens": used_tokens})
@@ -443,6 +450,7 @@ class LLMBundle(LLM4Tenant):
 
         if used_tokens:
             logging.info("LLMBundle.async_chat used_tokens: %d", used_tokens)
+            add_ingestion_llm_tokens(used_tokens, self.model_config.get("llm_name", ""), self.model_config.get("llm_factory", ""))
 
         usage_details = self._report_usage(used_tokens)
 

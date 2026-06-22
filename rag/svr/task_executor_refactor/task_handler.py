@@ -29,6 +29,8 @@ from timeit import default_timer as timer
 from typing import Callable, Dict, List, Optional
 
 from api.db.services.document_service import DocumentService
+from api.db.services.usage_log_service import UsageLogService
+from api.db.services.ingestion_token_counter import start_ingestion_llm_tracking, stop_ingestion_llm_tracking
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.joint_services.memory_message_service import handle_save_to_memory_task
 from api.db.joint_services.tenant_model_service import (
@@ -423,6 +425,7 @@ class TaskHandler:
                 f"Can not find file <{ctx.name}> from minio. Could you try it again."
             )
 
+        start_ingestion_llm_tracking()
         chunks = await chunk_service.build_chunks(binary)
         ctx.recording_context.record("chunks", chunks)
         chunk_ids = [c.get("id") for c in chunks if isinstance(c, dict) and "id" in c]
@@ -497,10 +500,34 @@ class TaskHandler:
             return
 
         # Update document stats
+        _llm_by_model = stop_ingestion_llm_tracking()
         if ctx.write_interceptor:
             ctx.write_interceptor.intercept("DocumentService.increment_chunk_num")
         else:
             DocumentService.increment_chunk_num(task_doc_id, task_dataset_id, token_count, chunk_count, 0)
+            _ok_doc, _ing_doc = DocumentService.get_by_id(task_doc_id)
+            _embd_parts = str(ctx.embd_id).split("@") if ctx.embd_id else []
+            _user_id = _ing_doc.created_by if _ok_doc and _ing_doc else task_tenant_id
+            UsageLogService.log_ingestion(
+                user_id=_user_id,
+                kb_id=str(task_dataset_id),
+                doc_id=str(task_doc_id),
+                tokens=token_count,
+                duration_ms=round((timer() - task_start_ts) * 1000, 1),
+                model=embedding_model.model_config.get("llm_name", "") if embedding_model else "",
+                provider=embedding_model.model_config.get("llm_factory", "") if embedding_model else "",
+            )
+            for (_model, _provider), _llm_tokens in _llm_by_model.items():
+                UsageLogService.log_ingestion(
+                    user_id=_user_id,
+                    kb_id=str(task_dataset_id),
+                    doc_id=str(task_doc_id),
+                    tokens=_llm_tokens,
+                    duration_ms=round((timer() - task_start_ts) * 1000, 1),
+                    model=_model,
+                    provider=_provider,
+                    token_type="llm",
+                )
 
         task_time_cost = timer() - task_start_ts
         ctx.recording_context.record("task_status", "completed")

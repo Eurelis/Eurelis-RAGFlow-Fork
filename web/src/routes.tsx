@@ -75,8 +75,11 @@ export enum Routes {
   AdminWhitelist = `${Admin}/whitelist`,
   AdminRoles = `${Admin}/roles`,
   AdminMonitoring = `${Admin}/monitoring`,
+  AdminStats = `${Admin}/stats`,
+  AdminStatsUserDetail = `${Admin}/stats/users/:userEmail`,
   AdminUserMembers = `${Admin}/users/:id/members`,
   AdminUserTeam = `${Admin}/users/:id/team`,
+  UserStats = '/stats',
 }
 
 const defaultRouteFallback = (
@@ -301,6 +304,10 @@ const routeConfigOptions = [
             path: `${Routes.UserSetting}${Routes.ChatChannel}`,
             Component: () => import('@/pages/user-setting/chat-channel'),
           },
+          {
+            path: `${Routes.UserSetting}${Routes.UserStats}`,
+            Component: () => import('@/pages/user-setting/stats'),
+          },
         ],
       },
       {
@@ -393,6 +400,14 @@ const routeConfigOptions = [
               {
                 path: Routes.AdminSandboxSettings,
                 Component: () => import('@/pages/admin/sandbox-settings'),
+              },
+              {
+                path: Routes.AdminStats,
+                Component: () => import('@/pages/admin/stats'),
+              },
+              {
+                path: Routes.AdminStatsUserDetail,
+                Component: () => import('@/pages/admin/stats-user-detail'),
               },
               ...(IS_ENTERPRISE
                 ? [
