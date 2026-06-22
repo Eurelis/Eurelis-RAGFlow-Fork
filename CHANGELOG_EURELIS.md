@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.3-exp.2] - 2026-06-22 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`. Correctif de démarrage par-dessus `exp.1` (image `exp.1` non démarrable).
+
+### Fixed
+- **Démarrage cassé (`ImportError: update_request_with_filtered_beta`)** — `crawl4ai 0.8.9` (sur pypi.org) tire `unclecode-litellm`, un fork de litellm qui s'installe dans le même namespace `litellm/` et écrase le `litellm==1.82.5` pinné, faisant crasher le `task_executor` au boot. `unclecode-litellm` est retiré du `uv.lock` (le build le consomme via `uv sync --frozen`). `pyproject.toml` reste aligné sur l'upstream — son garde-fou `exclude-dependencies` est un champ uv invalide (no-op). Procédure de régénération du lock documentée dans le commit du fix.
+
+---
+
 ## [v0.26.1-eurelis.3-exp.1] - 2026-06-22 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
