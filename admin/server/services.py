@@ -86,7 +86,7 @@ class UserMgr:
     @staticmethod
     def create_user(username, password, role="user") -> dict:
         # Validate the email address
-        if not re.match(r"^[\w\._-]+@([\w_-]+\.)+[\w-]{2,}$", username):
+        if not re.match(r"^[\w\.+_-]+@([\w_-]+\.)+[\w-]{2,}$", username):
             raise AdminException(f"Invalid email address: {username}!")
         # Check if the email address is already used
         if UserService.query(email=username):
