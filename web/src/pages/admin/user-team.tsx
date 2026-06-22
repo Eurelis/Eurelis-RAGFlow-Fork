@@ -1,3 +1,6 @@
+// Eurelis — page admin de gestion des membres d'une équipe.
+// Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
