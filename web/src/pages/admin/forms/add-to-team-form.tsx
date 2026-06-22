@@ -1,3 +1,6 @@
+// Eurelis — formulaire d'ajout d'un utilisateur à une équipe (interface admin).
+// Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useId, useMemo } from 'react';
