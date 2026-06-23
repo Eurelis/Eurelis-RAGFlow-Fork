@@ -568,9 +568,15 @@ async def list_chats():
                 start = (page_number - 1) * items_per_page
                 chats = chats[start : start + items_per_page]
         else:
+            # Include team-shared chats from tenants the user has joined, not just
+            # their own — otherwise permission='team' dialogs never show in the list.
+            joined = await thread_pool_exec(
+                TenantService.get_joined_tenants_by_user_id, current_user.id
+            )
+            joined_tenant_ids = [t["tenant_id"] for t in joined]
             chats, total = await thread_pool_exec(
                 DialogService.get_by_tenant_ids,
-                [],
+                joined_tenant_ids,
                 current_user.id,
                 page_number,
                 items_per_page,
