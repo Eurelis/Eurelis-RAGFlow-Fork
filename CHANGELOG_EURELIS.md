@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.3-exp.3] - 2026-06-23 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
+
+### Changed
+- **Détail de session restreint aux tokens LLM** — `stats_for_session()` filtre les tours sur `token_type` (défaut `llm`). Les totaux et l'histogramme par tour de l'endpoint `/usage-stats/me/session/{id}` reflètent désormais l'usage LLM uniquement, en excluant les embeddings (et autres natures non-LLM).
+
+---
+
 ## [v0.26.1-eurelis.3-exp.2] - 2026-06-22 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`. Correctif de démarrage par-dessus `exp.1` (image `exp.1` non démarrable).
