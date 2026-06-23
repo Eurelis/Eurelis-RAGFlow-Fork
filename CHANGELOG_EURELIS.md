@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.3-exp.4] - 2026-06-23 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
+
+### Fixed
+- **Chats partagés en équipe absents de la liste** — l'endpoint de listing des chats passait `joined_tenant_ids=[]`, donc la clause `(tenant_id ∈ joined ET permission='team')` était toujours vide : seuls les chats propres de l'utilisateur étaient renvoyés. Les chats `permission='team'` des équipes rejointes n'apparaissaient jamais dans la sidebar (accessibles uniquement par lien direct). `joined_tenant_ids` est désormais calculé via `TenantService.get_joined_tenants_by_user_id` et transmis — les membres voient bien les chats partagés avec leur équipe.
+
+---
+
 ## [v0.26.1-eurelis.3-exp.3] - 2026-06-23 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
