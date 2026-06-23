@@ -786,23 +786,28 @@ class UsageLogService(CommonService):
         cls,
         user_id: str,
         session_id: str,
+        token_type: str | list[str] | None = "llm",
     ) -> dict | None:
         """Per-turn breakdown for a single session, scoped to user_id for security.
+
+        Restricted to ``token_type`` consumption (default ``"llm"``) so the
+        per-turn totals/histogram reflect LLM usage only and exclude embedding
+        (and other non-LLM) token consumption. Pass ``None`` to include all types.
 
         Returns None if the session doesn't exist or doesn't belong to user_id.
         """
         from api.db.db_models import Dialog, UserCanvas
 
-        rows = list(
+        q = (
             cls.model
             .select()
             .where(
                 cls.model.user_id == user_id,
                 cls.model.object_id == session_id,
             )
-            .order_by(cls.model.create_date)
-            .dicts()
         )
+        q = _filter_type(q, token_type, cls.model.token_type)
+        rows = list(q.order_by(cls.model.create_date).dicts())
 
         if not rows:
             return None
