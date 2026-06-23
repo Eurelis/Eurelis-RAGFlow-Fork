@@ -251,9 +251,10 @@ def _thread_pool_executor():
 
 
 async def thread_pool_exec(func, *args, **kwargs):
-    # Python 3.13 changed ThreadPoolExecutor to use its own WorkerContext,
-    # so asyncio ContextVars no longer propagate automatically into threads.
-    # Explicitly copy the context and wrap with ctx.run(), matching asyncio.to_thread().
+    # loop.run_in_executor() submits the callable without propagating the caller's
+    # contextvars (unlike asyncio.to_thread, which copies the context). Copy the
+    # current context and run the callable inside it so ContextVars set by the
+    # caller (e.g. tracing / per-request state) are visible in the worker thread.
     loop = asyncio.get_running_loop()
     ctx = contextvars.copy_context()
     if kwargs:
