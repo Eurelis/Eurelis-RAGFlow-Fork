@@ -2,6 +2,7 @@
 
 > **Branche :** `eurelis/feature/admin-model-supervision` (depuis `eurelis/main`)
 > **Statut global :** 📋 Spécifié — implémentation non démarrée
+> **Nature :** fonctionnalité **locale Eurelis** — jamais poussée upstream. Contrainte : **empreinte minimale sur le code upstream** (cf. section dédiée).
 
 ## TODO (vue d'ensemble)
 
@@ -187,19 +188,48 @@ Appartenance aux équipes. Table interrogée par l'admin (`TenantMgr`) pour le c
 
 ---
 
+## Contrainte : empreinte minimale sur l'upstream
+
+Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstream modifié devient un point de friction à chaque rebase de synchronisation. **Principe : tout le code dans des fichiers Eurelis dédiés ; les fichiers upstream ne reçoivent que le minimum d'insertions, clairement délimitées.**
+
+**Stratégie backend — blueprint Eurelis isolé.** L'admin enregistre un blueprint unique via `app.register_blueprint(admin_bp)` (`admin/server/admin_server.py:53`). On crée un **second blueprint Eurelis** dans un nouveau fichier, avec le même `url_prefix="/api/v1/admin"`, et on l'enregistre par **une seule ligne** ajoutée à `admin_server.py`.
+
+| Type | Fichier | Action |
+|------|---------|--------|
+| 🆕 Nouveau (Eurelis) | `admin/server/eurelis_model_supervision.py` | Blueprint + handlers + classe `TenantModelMgr` (service) |
+| ✏️ Upstream (1 ligne) | `admin/server/admin_server.py` | `import` + `register_blueprint(...)` du blueprint Eurelis |
+| ♻️ Réutilisé (0 edit) | `api/apps/services/models_api_service.py`, `provider_api_service.py` | appelés tels quels |
+
+> Aucune modification de `admin/server/routes.py` ni `services.py`.
+
+**Stratégie frontend.** Le gros (page) est un fichier neuf ; les points de contact upstream sont additifs et minimes (1 route, 1 entrée de menu, qq lignes de service). i18n dans `locales/eurelis/` (déjà Eurelis).
+
+| Type | Fichier | Action |
+|------|---------|--------|
+| 🆕 Nouveau (Eurelis) | `web/src/pages/admin/model-supervision.tsx` | la page |
+| ✏️ Upstream (additif) | `web/src/utils/api.ts` | + endpoints (bloc délimité) |
+| ✏️ Upstream (additif) | `web/src/services/admin-service.ts`, `admin.service.d.ts` | + fonctions/types |
+| ✏️ Upstream (1 route) | `web/src/routes.tsx` | + `AdminModelSupervision` |
+| ✏️ Upstream (1 item) | `navigation-layout.tsx` | + entrée de menu |
+| ♻️ Eurelis | `web/src/locales/eurelis/{en,fr}.ts` | + libellés |
+
+**Règles transverses :** en-têtes de commentaires Eurelis sur les nouveaux fichiers ; chaque insertion dans un fichier upstream encadrée d'un commentaire repère (ex. `// --- Eurelis: model supervision ---`) pour faciliter la relecture et les rebases.
+
+---
+
 ## Plan d'implémentation
 
 ### Backend
 
-**`admin/server/services.py`** — nouvelle classe `TenantModelMgr` (calquée sur `TenantMgr`), opérant sur le système `tenant_model_*` :
+**`admin/server/eurelis_model_supervision.py`** (nouveau) — classe `TenantModelMgr` + handlers du blueprint Eurelis, opérant sur le système `tenant_model_*` :
 
 | Méthode                             | Rôle                                                                                                                                                                                                                                                                                                    |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `list_tenant_models(tenant_id)`     | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                                                                                                                                                     |
 | `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + `base_url`/`max_tokens` + flag « défaut ».                                                                                                                                                                    |
-| `copy_models(source_id, target_id)` | Copie la chaîne **Provider → Instance (api_key) → Model** via les services `provider_api_service` (`add_provider`, `create_provider_instance`, `add_model_to_instance`) en **overwrite**. Copie aussi les défauts du `Tenant` source (si le modèle existe chez la cible). Groups : optionnel (Phase 2). |
+| `copy_models(source_id, target_id)` | Copie la chaîne **Provider → Instance (api_key) → Model** via les services `provider_api_service` (`add_provider`, `create_provider_instance`, `add_model_to_instance`) en **overwrite**. Copie aussi les défauts du `Tenant` source (si le modèle existe chez la cible). Groups : hors périmètre V1. |
 
-**`admin/server/routes.py`** — routes `@login_required @check_admin_auth` :
+**Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré par 1 ligne dans `admin/server/admin_server.py` :
 
 - `GET  /tenants/<id>/models`
 - `GET  /tenants/models/compare?tenant_ids=a,b,c`
@@ -237,6 +267,8 @@ Appartenance aux équipes. Table interrogée par l'admin (`TenantMgr`) pour le c
 - [x] Rédiger la note d'implémentation
 
 ### Phase 1 — Backend : lecture & comparaison
+- [ ] Créer `admin/server/eurelis_model_supervision.py` (blueprint Eurelis + `TenantModelMgr`)
+- [ ] Enregistrer le blueprint (1 ligne dans `admin_server.py`)
 - [ ] `TenantModelMgr.list_tenant_models()` (réutilise `list_tenant_added_models`/`list_tenant_default_models`) + masquage `api_key`
 - [ ] `TenantModelMgr.compare_tenants()` (matrice provider/instance/model)
 - [ ] Routes `GET /tenants/<id>/models` et `GET /tenants/models/compare`
@@ -278,8 +310,9 @@ Appartenance aux équipes. Table interrogée par l'admin (`TenantMgr`) pour le c
 | Résolution / helpers (`split_model_name`…)            | `api/db/joint_services/tenant_model_service.py`                                                              |
 | Services CRUD bas niveau                              | `api/db/services/tenant_model_{provider,instance,group,group_mapping}_service.py`, `tenant_model_service.py` |
 | Migration legacy → nouveau (référence)                | `tools/scripts/mysql_migration.py`                                                                           |
-| Pattern cross-tenant admin à dupliquer                | `admin/server/services.py` (`TenantMgr`)                                                                     |
-| Routes admin                                          | `admin/server/routes.py`                                                                                     |
+| Pattern cross-tenant admin (référence, **non modifié**) | `admin/server/services.py` (`TenantMgr`), `admin/server/routes.py`                                         |
+| Code backend Eurelis (**nouveau**)                    | `admin/server/eurelis_model_supervision.py`                                                                  |
+| Enregistrement blueprint (**1 ligne upstream**)       | `admin/server/admin_server.py` (~ligne 53)                                                                   |
 | Service frontend admin                                | `web/src/services/admin-service.ts`                                                                          |
 | Endpoints frontend                                    | `web/src/utils/api.ts`                                                                                       |
 | Pages admin existantes (référence UI)                 | `web/src/pages/admin/users.tsx`, `user-team.tsx`                                                             |
