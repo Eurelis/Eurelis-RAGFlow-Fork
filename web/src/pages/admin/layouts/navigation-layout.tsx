@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import {
   LucideBarChart2,
+  LucideLayers,
   LucideMonitor,
   LucideServerCrash,
   LucideSquareUserRound,
@@ -56,6 +57,12 @@ const AdminNavigationLayout = () => {
         path: Routes.AdminStats,
         name: t('admin.usageStats'),
         icon: <LucideBarChart2 className="size-[1em]" />,
+      },
+      {
+        // Eurelis: model supervision
+        path: Routes.AdminModelSupervision,
+        name: t('admin.modelSupervision'),
+        icon: <LucideLayers className="size-[1em]" />,
       },
       ...(IS_ENTERPRISE
         ? [
