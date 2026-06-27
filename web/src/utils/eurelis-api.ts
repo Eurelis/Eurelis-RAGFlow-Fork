@@ -17,6 +17,12 @@ const eurelisApi = {
   userStatsMeBreakdown: `${restAPIv1}/usage-stats/me/breakdown`,
   userStatsMeTimeseries: `${restAPIv1}/usage-stats/me/timeseries`,
   userStatsMeSources: `${restAPIv1}/usage-stats/me/sources`,
+  adminTenantModels: (tenantId: string) =>
+    `${restAPIv1}/admin/tenants/${tenantId}/models`,
+  adminCompareTenantModels: `${restAPIv1}/admin/tenants/models/compare`,
+  adminCopyModelInstance: `${restAPIv1}/admin/tenants/models/instances/copy`,
+  adminDeleteModelInstance: `${restAPIv1}/admin/tenants/models/instances/delete`,
+  adminCopyModelDefaults: `${restAPIv1}/admin/tenants/models/defaults/copy`,
 };
 
 export default eurelisApi;

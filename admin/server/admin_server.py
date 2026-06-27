@@ -29,6 +29,7 @@ from flask_login import LoginManager
 from werkzeug.serving import run_simple
 from routes import admin_bp
 from stats_routes import eurelis_stats_bp
+from admin_model_supervision import admin_model_supervision_bp
 from common.log_utils import init_root_logger
 from common.constants import SERVICE_CONF
 from common.config_utils import show_configs
@@ -55,6 +56,7 @@ if __name__ == "__main__":
     app = Flask(__name__)
     app.register_blueprint(admin_bp)
     app.register_blueprint(eurelis_stats_bp)
+    app.register_blueprint(admin_model_supervision_bp)
     app.config["SESSION_PERMANENT"] = False
     app.config["SESSION_TYPE"] = "filesystem"
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 1024 * 1024 * 1024))
