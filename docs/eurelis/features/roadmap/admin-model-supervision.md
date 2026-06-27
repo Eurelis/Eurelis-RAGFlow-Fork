@@ -10,7 +10,7 @@
 
 - [x] **Phase 0 — Préparation** : branche, analyse, stratégie, spec ✅
 - [ ] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET
-- [ ] **Phase 2 — Backend copie** : `copy_models()` (chaîne Provider→Instance→Model + défauts `Tenant`) + route POST
+- [ ] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`) + route POST
 - [ ] **Phase 3 — Frontend service & types** : endpoints, service, types
 - [ ] **Phase 4 — Frontend page** : `model-supervision.tsx` (comparatif + copie) + route + nav + i18n
 - [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
@@ -71,7 +71,15 @@ L'historique upstream montre **deux générations** de configuration de modèles
 | Secrets            | `api_key` par ligne                                                             | `api_key` centralisée sur l'**instance**                                                                          |
 | Migration          | source                                                                          | **backfillé** depuis `tenant_llm` (`tools/scripts/mysql_migration.py`, one-shot)                                  |
 
-**Décision : la supervision cible le système `tenant_model_*`.** `tenant_llm` est **legacy et hors périmètre** (peut être vide/périmé sur un déploiement récent ; conservé pour rétrocompat SDK).
+**Décision : la supervision cible le système `tenant_model_*`.** `tenant_llm` est **obsolète et hors périmètre** :
+- ❌ **non lu** pour la résolution de modèle (c'est `tenant_model_*` via `get_model_config_from_provider_instance`) ni par `list_tenant_added_models` ;
+- ❌ **non mis à jour** pour l'usage : `increase_usage`/`increase_usage_by_id` n'ont **aucun appelant** (code mort) → les `used_tokens` (1M+ sur Synerga) sont **historiques/figés**, pas une source de conso fiable ;
+- ⚠️ encore **écrit** par les vieux endpoints `/v1/llm/*` (`llm_app.py`), non appelés par l'UI moderne ;
+- ⚠️ encore **lu à un seul endroit résiduel** : `tenant_utils.ensure_tenant_model_id_for_params` (via `chat_api.py`) pour remplir les colonnes vestigiales `tenant_*_id` du chat — colonnes que la résolution n'utilise pas.
+
+Il reste 136 lignes sur Synerga, mais c'est du **résidu pré-migration**, sans rôle fonctionnel.
+
+> **Validé sur Synerga Sandbox** — voir la section [Validation base de données](#validation-base-de-données-synerga-sandbox) pour le détail des constats.
 
 ### Modèle de données (système cible)
 
@@ -147,11 +155,14 @@ Un **modèle concret** rattaché à une instance.
 | `status`                      | Char(32)        | `active` / `inactive` / `unsupported`                                    |
 | `extra`                       | Char(1024) JSON | `is_tools`, `max_tokens`…                                                |
 
+> ⚠️ **Vide sur Synerga (0 ligne).** Les modèles **ne sont pas matérialisés par tenant** : `list_tenant_added_models()` énumère les modèles depuis le **catalogue global `FACTORY_LLM_INFOS`** (filtré aux factories des providers du tenant). `tenant_model` ne sert qu'à *surcharger* (statut/extra) un modèle du catalogue, s'il existe.
+> → **Conséquence pour la copie : pas de couche `Model` à copier.** Copier `Provider` + `Instance` (+ défauts `Tenant`) suffit ; ne copier des `tenant_model` que s'il en existe chez la source.
+
 #### `TenantModelGroup` (`ligne 1439`) & `TenantModelGroupMapping` (`ligne 1448`)
 
 Couche de **routing/load-balancing** : un groupe agrège plusieurs modèles derrière un point logique avec une `strategy` (`weighted`) ; le mapping liste les membres pondérés (`weight`). PK composite `(group_id, provider_id, instance_id, model_id)`.
 
-> **Hors périmètre V1 (confirmé).** Ces deux tables sont **vides** sur l'instance locale — la couche routing n'est pas exploitée sur nos déploiements. La copie ne traite donc **que** la chaîne `Provider → Instance → Model`. À reconsidérer seulement si des groupes apparaissent un jour.
+> **Hors périmètre V1 (confirmé).** Ces deux tables sont **vides** (instance locale **et** Synerga) — la couche routing n'est pas exploitée. La copie ne traite donc que `Provider` + `Instance` (+ défauts). À reconsidérer seulement si des groupes apparaissent un jour.
 >
 > **Vérification code (le routing n'est pas câblé) :**
 > 1. `TenantModelGroupService` / `TenantModelGroupMappingService` ne sont **importés/appelés nulle part** hors de leur propre définition (grep vide sur `api/`, `rag/`, `agent/`, `admin/`) → CRUD orphelins.
@@ -169,10 +180,38 @@ Appartenance aux équipes. Table interrogée par l'admin (`TenantMgr`) pour le c
 
 #### Implications pour la feature
 
-1. **Cibler `tenant_model_*`** : c'est ce que l'UI peuple et ce que la résolution runtime consomme.
-2. **La copie traite une chaîne**, pas une ligne : `Provider` → `Instance` (+ `api_key`) → `Model`(s), + défauts du `Tenant`.
+1. **Cibler `tenant_model_*`** (provider/instance) : c'est ce que l'UI peuple et ce que la résolution runtime consomme.
+2. **La copie traite `Provider` + `Instance` (+ `api_key`) + défauts du `Tenant`** — la couche `Model` est vide en pratique (modèles issus du catalogue), à copier seulement si présente.
 3. **Secrets centralisés** sur `TenantModelInstance.api_key` → plus propre à copier (1 clé par instance).
 4. **Pas de FK** : requêtes cross-tenant = simples filtres `WHERE tenant_id = …` (au niveau provider).
+
+### Validation base de données (Synerga Sandbox)
+
+Vérifié le **2026-06-27** sur la base `rag_flow` (`docker-mysql-1`, serveur `frstr-slc-ragflow01`, RAGFlow `v0.26.1-eurelis.3-exp.4`).
+
+**Volumétrie des tables (global) :**
+
+| Table | Lignes | Note |
+|---|---:|---|
+| `tenant_llm` | 136 | **obsolète** : résidu pré-migration, `used_tokens` figés (tracking mort), non lu pour la résolution |
+| `tenant_model_provider` | 23 | système cible |
+| `tenant_model_instance` | 23 | porte les `api_key` |
+| `tenant_model` | **0** | modèles servis par le catalogue `FACTORY_LLM_INFOS` |
+| `tenant_model_group` / `…_mapping` | **0** | routing non utilisé |
+
+**Cas `v.lambert@eurelis.com`** (admin, `tenant_id 9d066918…`) — *gère ses connexions* :
+- 2 providers / 2 instances : **Bedrock** (`api_key` = payload JSON, 181 c) et **Gemini** (clé simple, 39 c), instance `default`, `active`.
+- 10 lignes `tenant_llm` (Bedrock + Gemini, chat & embedding) avec `used_tokens` réels.
+- Défaut chat : `eu.amazon.nova-2-lite-v1:0@default@Bedrock` (format 3 parties).
+- Chats partagés `permission=team` actifs : `SynerBot`, `UC1 - Agent Assistant documentaire interne`, `DEMO - Facturation Electronique`.
+
+**Cas `test_user_a@eurelis.com`** (`tenant_id 0f5ceace…`) — *consomme les chats partagés* :
+- **0** `tenant_llm`, **0** provider, **0** instance, **0** dialog propre.
+- Défauts `Tenant` pré-remplis (`…@Bedrock`, format 2 parties) mais **non résolvables** chez lui (pas de provider Bedrock).
+- → Sa config modèle effective est celle de **v.lambert** (propriétaire des chats `team`). Confirme que la config est portée par le tenant propriétaire et qu'un pur consommateur n'a aucune config locale.
+
+**Hypothèses confirmées :** système cible `tenant_model_*`, `api_key` sur l'instance, défauts `model@[instance@]provider`, groupes vides.
+**Hypothèses corrigées :** `tenant_llm` **n'est pas vide mais obsolète** (résidu pré-migration ; non lu pour la résolution, `increase_usage` sans appelant → `used_tokens` figés) · `tenant_model` **est vide** → pas de couche `Model` à copier.
 
 ### Services réutilisables (système cible)
 
@@ -227,7 +266,7 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `list_tenant_models(tenant_id)`     | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                                                                                                                                                     |
 | `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + `base_url`/`max_tokens` + flag « défaut ».                                                                                                                                                                    |
-| `copy_models(source_id, target_id)` | Copie la chaîne **Provider → Instance (api_key) → Model** via les services `provider_api_service` (`add_provider`, `create_provider_instance`, `add_model_to_instance`) en **overwrite**. Copie aussi les défauts du `Tenant` source (si le modèle existe chez la cible). Groups : hors périmètre V1. |
+| `copy_models(source_id, target_id)` | Copie **Provider + Instance (api_key)** via `provider_api_service` (`add_provider`, `create_provider_instance`) en **overwrite** + défauts du `Tenant` source. `tenant_model` : copié **seulement s'il en existe** chez la source (vide sur Synerga → no-op). Groups : hors périmètre V1. |
 
 **Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré par 1 ligne dans `admin/server/admin_server.py` :
 
@@ -251,7 +290,8 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - **Cibler le bon système** : `tenant_model_*` (pas `tenant_llm`, legacy/hors périmètre).
 - **Secrets** : `api_key` (sur `TenantModelInstance`) jamais renvoyée en clair au frontend (comparaison sur présence/empreinte). La copie reste backend.
 - **Factories complexes** : `api_key` JSON (Bedrock, VolcEngine, Azure-OpenAI, OpenRouter…) copiée telle quelle, sans réinterprétation.
-- **Copie = chaîne, pas une ligne** : créer le `Provider` cible s'il manque, puis l'`Instance` (avec `api_key`), puis les `Model`(s). Réutiliser `provider_api_service` plutôt que des inserts bruts (validation cohérente).
+- **Copie = Provider + Instance (+ défauts), pas une ligne plate** : créer le `Provider` cible s'il manque, puis l'`Instance` (avec `api_key`). La couche `Model` (`tenant_model`) est **vide sur Synerga** (modèles issus du catalogue) → ne la copier que si elle existe. Réutiliser `provider_api_service` plutôt que des inserts bruts.
+- **Consommateur de chats partagés** : un utilisateur qui n'utilise que des chats `team` d'un autre tenant n'a **aucune** config modèle propre (cf. `test_user_a`) — la résolution se fait contre le tenant **propriétaire** du chat. La supervision doit donc afficher « 0 config » sans la traiter comme une anomalie.
 - **Unicité provider** `(tenant_id, provider_name)` + instance par `(provider_id, instance_name)` : overwrite = mettre à jour l'existant.
 - **Défauts du `Tenant`** : ne copier un défaut (`model@instance@provider`) que si la chaîne correspondante existe chez la cible après copie.
 - **Groups de routing** : hors périmètre V1 (tables `tenant_model_group*` vides sur l'instance locale).
@@ -276,7 +316,7 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - [ ] Test manuel via `curl` (auth superuser)
 
 ### Phase 2 — Backend : copie
-- [ ] `TenantModelMgr.copy_models()` — chaîne Provider→Instance→Model en overwrite (via `provider_api_service`)
+- [ ] `TenantModelMgr.copy_models()` — Provider + Instance (api_key) en overwrite (via `provider_api_service`) ; `tenant_model` seulement si présent
 - [ ] Copie des défauts du `Tenant` (si chaîne présente chez la cible)
 - [x] Groups de routing : **hors périmètre V1** (tables vides sur l'instance locale)
 - [ ] Route `POST /tenants/<dst>/models/copy`
