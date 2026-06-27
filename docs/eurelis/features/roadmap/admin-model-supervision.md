@@ -10,9 +10,9 @@
 
 - [x] **Phase 0 — Préparation** : branche, analyse, stratégie, spec ✅
 - [x] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET (validé base locale + HTTP)
-- [x] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`, overwrite idempotent) + route POST (validé : test_b/test_c rendus résolubles)
+- [x] **Phase 2 — Backend copie (granulaire)** : `copy_instance` / `delete_instance` / `copy_defaults` (vers liste de cibles, overwrite) + 3 routes POST (validé sur test_c)
 - [x] **Phase 3 — Frontend service & types** : endpoints `eurelis-api.ts` + service dédié `admin-model-supervision-service.ts` (tsc OK)
-- [x] **Phase 4 — Frontend page** : `model-supervision.tsx` (matrice comparative + copie multi-cible) + route + nav + i18n (tsc & eslint OK)
+- [x] **Phase 4 — Frontend page** : `model-supervision.tsx` (matrice + actions granulaires : copier/supprimer une instance, copier les défauts — vers liste de cibles) + route + nav + i18n (tsc & eslint OK)
 - [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
 
 **Cible confirmée :** système `tenant_model_*` (legacy `tenant_llm` hors périmètre) · **Routing/Groups :** hors périmètre V1 (non câblé).
@@ -35,8 +35,8 @@ Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de 
 
 | Décision                                              | Choix retenu                                |
 |-------------------------------------------------------|---------------------------------------------|
-| Périmètre V1                                          | **Comparer + copier** (complet)             |
-| Conflit sur copie (modèle déjà présent chez la cible) | **Écraser (overwrite)**                     |
+| Périmètre V1                                          | Comparer + **opérations granulaires** : copier une instance, supprimer une instance, copier les défauts (chacune vers une liste de cibles) |
+| Conflit sur copie (instance déjà présente chez la cible) | **Écraser (overwrite)**, apparié par nom d'instance |
 | Copie des clés API (secrets)                          | **Oui** — copie complète incluant `api_key` |
 
 > Conséquence sécurité : la copie reste une opération **backend** (les `api_key` ne transitent pas en clair vers le frontend). L'affichage/comparaison masque les clés (`sk-…1234`).
@@ -317,23 +317,29 @@ Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurel
 | Méthode                             | Rôle                                                                                                                                                                                                                                                                                                    |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `list_tenant_models(tenant_id)`     | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                                                                                                                                                     |
-| `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + `base_url`/`max_tokens` + flag « défaut ».                                                                                                                                                                    |
-| `copy_models(source_id, target_id)` | Copie **Provider + Instance (api_key)** via `provider_api_service` (`add_provider`, `create_provider_instance`) en **overwrite** + défauts du `Tenant` source. `tenant_model` : copié **seulement s'il en existe** chez la source (vide sur Synerga → no-op). Groups : hors périmètre V1. |
+| `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + flag « défaut » (`raw_defaults` + `resolvable`).                                                                                                                                                              |
+| `copy_instance(source, provider, instance, targets[])` | Copie **un** `Provider/Instance` (api_key + `tenant_model` si présent) d'un tenant source vers une liste de cibles, en **overwrite** (apparie par nom d'instance). |
+| `delete_instance(provider, instance, targets[])`       | Supprime **un** `Provider/Instance` (et ses `tenant_model`) d'une liste de cibles ; retire aussi le provider s'il n'a plus d'instance. |
+| `copy_defaults(source, targets[])`                     | Copie les **modèles par défaut** du `Tenant` source (`llm_id`, `embd_id`…) vers une liste de cibles, en **overwrite**. |
 
-**Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré par 1 ligne dans `admin/server/admin_server.py` :
+> **Évolution V1** : la copie globale `copy_models` initiale a été **remplacée** par ces 3 opérations granulaires (copier une instance / supprimer une instance / copier les défauts), chacune vers une **liste de cibles**.
+
+**Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré dans `admin/server/admin_server.py` (pattern `eurelis_stats_bp`) :
 
 - `GET  /tenants/<id>/models`
 - `GET  /tenants/models/compare?tenant_ids=a,b,c`
-- `POST /tenants/<dst>/models/copy` — body `{ "source_tenant_id": "..." }`
+- `POST /tenants/models/instances/copy` — `{ source_tenant_id, provider_name, instance_name, target_tenant_ids[] }`
+- `POST /tenants/models/instances/delete` — `{ provider_name, instance_name, target_tenant_ids[] }`
+- `POST /tenants/models/defaults/copy` — `{ source_tenant_id, target_tenant_ids[] }`
 
 ### Frontend
 
-- ✅ `web/src/utils/eurelis-api.ts` : endpoints `adminTenantModels`, `adminCompareTenantModels`, `adminCopyTenantModels`.
-- ✅ `web/src/services/admin-model-supervision-service.ts` (nouveau, importe `{ request }` de `admin-service.ts`) : `getTenantModels`, `compareTenantModels`, `copyTenantModels` + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…).
-- `web/src/pages/admin/model-supervision.tsx` : sélection multi-tenants → tableau comparatif (colonnes = tenants, lignes = modèles, code couleur présence/écart) → bouton « Copier vers… » + dialog de confirmation overwrite.
-- `web/src/routes.tsx` : route `AdminModelSupervision` (`/admin/model-supervision`).
-- `layouts/navigation-layout.tsx` : entrée de menu.
-- `locales/eurelis/{en,fr}.ts` : libellés.
+- ✅ `web/src/utils/eurelis-api.ts` : endpoints `adminTenantModels`, `adminCompareTenantModels`, `adminCopyModelInstance`, `adminDeleteModelInstance`, `adminCopyModelDefaults`.
+- ✅ `web/src/services/admin-model-supervision-service.ts` (nouveau, importe `{ request }` de `admin-service.ts`) : `getTenantModels`, `compareTenantModels`, `copyModelInstance`, `deleteModelInstance`, `copyModelDefaults` + types.
+- ✅ `web/src/pages/admin/model-supervision.tsx` : picker multi-tenants → matrice ; **actions par ligne d'instance** (Copier / Supprimer vers une liste de cibles) + action **« Copier les défauts vers… »** ; dialog générique (source + cibles cochables + avertissement).
+- ✅ `web/src/routes.tsx` : route `AdminModelSupervision` (`/admin/model-supervision`).
+- ✅ `layouts/navigation-layout.tsx` : entrée de menu (au-dessus de « Statistiques »).
+- ✅ `locales/eurelis/{en,fr}.ts` : libellés (namespace `modelSupervision`).
 
 ---
 

@@ -10,7 +10,13 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { LucideCheck, LucideCopy, LucidePlus, LucideX } from 'lucide-react';
+import {
+  LucideCheck,
+  LucideCopy,
+  LucidePlus,
+  LucideTrash2,
+  LucideX,
+} from 'lucide-react';
 
 import Spotlight from '@/components/spotlight';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +49,9 @@ import {
 import {
   type CompareResult,
   compareTenantModels,
-  copyTenantModels,
+  copyModelDefaults,
+  copyModelInstance,
+  deleteModelInstance,
 } from '@/services/admin-model-supervision-service';
 import { listTenants } from '@/services/admin-service';
 
@@ -55,14 +63,25 @@ const ModelSupervisionKeys = {
 
 const EMPTY = '—';
 
+type ActionKind = 'copyInstance' | 'deleteInstance' | 'copyDefaults';
+
+interface ActionState {
+  kind: ActionKind;
+  providerName?: string;
+  instanceName?: string;
+  presentTenantIds: string[];
+}
+
 function ModelSupervisionPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pickerFilter, setPickerFilter] = useState('');
-  const [copySource, setCopySource] = useState<string | null>(null);
-  const [copyTargets, setCopyTargets] = useState<Set<string>>(new Set());
+  const [modelFilter, setModelFilter] = useState('');
+  const [action, setAction] = useState<ActionState | null>(null);
+  const [actionSource, setActionSource] = useState<string>('');
+  const [actionTargets, setActionTargets] = useState<Set<string>>(new Set());
 
   const { data: tenantsResp } = useQuery({
     queryKey: ModelSupervisionKeys.tenants(),
@@ -86,32 +105,71 @@ function ModelSupervisionPage() {
     return (id: string) => m.get(id) ?? id;
   }, [allTenants]);
 
-  const copyMutation = useMutation({
-    mutationFn: async ({
-      source,
-      targets,
-    }: {
+  const invalidateCompare = () =>
+    queryClient.invalidateQueries({
+      queryKey: ['admin/modelSupervision/compare'],
+    });
+
+  const closeAction = () => {
+    setAction(null);
+    setActionSource('');
+    setActionTargets(new Set());
+  };
+
+  const copyInstanceMut = useMutation({
+    mutationFn: (v: {
       source: string;
+      provider: string;
+      instance: string;
       targets: string[];
-    }) => {
-      for (const target of targets) {
-        await copyTenantModels(target, source);
-      }
-    },
+    }) => copyModelInstance(v.source, v.provider, v.instance, v.targets),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['admin/modelSupervision/compare'],
-      });
-      setCopySource(null);
-      setCopyTargets(new Set());
+      invalidateCompare();
+      closeAction();
     },
   });
 
-  const toggleTenant = (id: string) => {
+  const deleteInstanceMut = useMutation({
+    mutationFn: (v: {
+      provider: string;
+      instance: string;
+      targets: string[];
+    }) => deleteModelInstance(v.provider, v.instance, v.targets),
+    onSuccess: () => {
+      invalidateCompare();
+      closeAction();
+    },
+  });
+
+  const copyDefaultsMut = useMutation({
+    mutationFn: (v: { source: string; targets: string[] }) =>
+      copyModelDefaults(v.source, v.targets),
+    onSuccess: () => {
+      invalidateCompare();
+      closeAction();
+    },
+  });
+
+  const isPending =
+    copyInstanceMut.isPending ||
+    deleteInstanceMut.isPending ||
+    copyDefaultsMut.isPending;
+
+  const toggleTenant = (id: string) =>
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
-  };
+
+  const toggleTarget = (id: string) =>
+    setActionTargets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
 
   const filteredTenants = allTenants.filter((x) =>
     x.owner_email.toLowerCase().includes(pickerFilter.toLowerCase()),
@@ -119,25 +177,106 @@ function ModelSupervisionPage() {
 
   const columns = compare?.tenants ?? [];
 
-  const openCopyDialog = (sourceId: string) => {
-    setCopySource(sourceId);
-    setCopyTargets(new Set());
+  const filteredModels = (compare?.models ?? []).filter((row) =>
+    `${row.provider_name}/${row.instance_name}/${row.model_name}`
+      .toLowerCase()
+      .includes(modelFilter.toLowerCase()),
+  );
+
+  // --- Action dialog openers ---
+  const openCopyInstance = (
+    providerName: string,
+    instanceName: string,
+    present: string[],
+  ) => {
+    setAction({
+      kind: 'copyInstance',
+      providerName,
+      instanceName,
+      presentTenantIds: present,
+    });
+    setActionSource(present[0] ?? '');
+    setActionTargets(new Set());
+  };
+  const openDeleteInstance = (
+    providerName: string,
+    instanceName: string,
+    present: string[],
+  ) => {
+    setAction({
+      kind: 'deleteInstance',
+      providerName,
+      instanceName,
+      presentTenantIds: present,
+    });
+    setActionSource('');
+    setActionTargets(new Set());
+  };
+  const openCopyDefaults = () => {
+    const present = columns.map((c) => c.tenant_id);
+    setAction({ kind: 'copyDefaults', presentTenantIds: present });
+    setActionSource(present[0] ?? '');
+    setActionTargets(new Set());
   };
 
-  const copyCandidates = allTenants.filter((x) => x.tenant_id !== copySource);
+  // --- Dialog derived data ---
+  const sourceCandidates =
+    action?.kind === 'copyDefaults'
+      ? columns.map((c) => c.tenant_id)
+      : (action?.presentTenantIds ?? []);
+
+  const targetCandidates = (() => {
+    if (!action) return [];
+    if (action.kind === 'deleteInstance') return action.presentTenantIds;
+    return allTenants
+      .map((x) => x.tenant_id)
+      .filter((id) => id !== actionSource);
+  })();
+
+  const canSubmit = (() => {
+    if (!action) return false;
+    if (action.kind === 'deleteInstance') return actionTargets.size > 0;
+    return Boolean(actionSource) && actionTargets.size > 0;
+  })();
+
+  const submitAction = () => {
+    if (!action) return;
+    const targets = [...actionTargets].filter((id) => id !== actionSource);
+    if (action.kind === 'copyInstance') {
+      copyInstanceMut.mutate({
+        source: actionSource,
+        provider: action.providerName!,
+        instance: action.instanceName!,
+        targets,
+      });
+    } else if (action.kind === 'deleteInstance') {
+      deleteInstanceMut.mutate({
+        provider: action.providerName!,
+        instance: action.instanceName!,
+        targets: [...actionTargets],
+      });
+    } else {
+      copyDefaultsMut.mutate({ source: actionSource, targets });
+    }
+  };
+
+  const dialogTitle = action
+    ? action.kind === 'copyInstance'
+      ? t('modelSupervision.copyInstanceTitle')
+      : action.kind === 'deleteInstance'
+        ? t('modelSupervision.deleteInstanceTitle')
+        : t('modelSupervision.copyDefaultsTitle')
+    : '';
+  const isDelete = action?.kind === 'deleteInstance';
 
   return (
-    <section className="p-6">
+    <section className="h-full overflow-x-hidden overflow-y-auto p-6">
       <Spotlight />
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">
-            {t('modelSupervision.title')}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {t('modelSupervision.subtitle')}
-          </p>
-        </div>
+      <div className="mb-4">
+        <h1 className="text-xl font-semibold">{t('modelSupervision.title')}</h1>
+        <p className="text-sm text-muted-foreground">
+          {t('modelSupervision.subtitle')}
+        </p>
       </div>
 
       {/* Tenant picker */}
@@ -194,28 +333,6 @@ function ModelSupervisionPage() {
 
       {selectedIds.length > 0 && compare && (
         <div className={isFetching ? 'opacity-60' : ''}>
-          {/* Column actions */}
-          <div
-            className="mb-4 grid gap-2"
-            style={{
-              gridTemplateColumns: `220px repeat(${columns.length}, minmax(180px, 1fr))`,
-            }}
-          >
-            <div />
-            {columns.map((col) => (
-              <Button
-                key={col.tenant_id}
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => openCopyDialog(col.tenant_id)}
-              >
-                <LucideCopy className="size-3" />
-                {t('modelSupervision.copyTo')}
-              </Button>
-            ))}
-          </div>
-
           {/* Providers & instances */}
           <Card className="mb-4">
             <CardHeader>
@@ -233,41 +350,85 @@ function ModelSupervisionPage() {
                         {col.owner_email}
                       </TableHead>
                     ))}
+                    <TableHead className="text-right">
+                      {t('modelSupervision.actions')}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {compare.instances.map((row) => (
-                    <TableRow key={`${row.provider_name}/${row.instance_name}`}>
-                      <TableCell className="font-medium">
-                        {row.provider_name} / {row.instance_name}
-                      </TableCell>
-                      {columns.map((col) => {
-                        const cell = row.by_tenant[col.tenant_id];
-                        return (
-                          <TableCell key={col.tenant_id}>
-                            {cell ? (
-                              <span className="flex items-center gap-1">
-                                <LucideCheck className="size-4 text-green-600" />
-                                {cell.has_api_key ? (
-                                  <code className="text-xs">
-                                    {cell.api_key_hint}
-                                  </code>
-                                ) : (
-                                  <Badge variant="destructive">
-                                    {t('modelSupervision.noApiKey')}
-                                  </Badge>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">
-                                {EMPTY}
-                              </span>
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
+                  {compare.instances.map((row) => {
+                    const present = columns
+                      .map((c) => c.tenant_id)
+                      .filter((id) => row.by_tenant[id]);
+                    return (
+                      <TableRow
+                        key={`${row.provider_name}/${row.instance_name}`}
+                      >
+                        <TableCell className="font-medium">
+                          {row.provider_name} / {row.instance_name}
+                        </TableCell>
+                        {columns.map((col) => {
+                          const cell = row.by_tenant[col.tenant_id];
+                          return (
+                            <TableCell key={col.tenant_id}>
+                              {cell ? (
+                                <span className="flex items-center gap-1">
+                                  <LucideCheck className="size-4 text-green-600" />
+                                  {cell.has_api_key ? (
+                                    <code className="text-xs">
+                                      {cell.api_key_hint}
+                                    </code>
+                                  ) : (
+                                    <Badge variant="destructive">
+                                      {t('modelSupervision.noApiKey')}
+                                    </Badge>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  {EMPTY}
+                                </span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1"
+                              onClick={() =>
+                                openCopyInstance(
+                                  row.provider_name,
+                                  row.instance_name,
+                                  present,
+                                )
+                              }
+                            >
+                              <LucideCopy className="size-3" />
+                              {t('modelSupervision.copy')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-destructive"
+                              onClick={() =>
+                                openDeleteInstance(
+                                  row.provider_name,
+                                  row.instance_name,
+                                  present,
+                                )
+                              }
+                            >
+                              <LucideTrash2 className="size-3" />
+                              {t('modelSupervision.delete')}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -275,8 +436,17 @@ function ModelSupervisionPage() {
 
           {/* Default models */}
           <Card className="mb-4">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('modelSupervision.defaultModels')}</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={openCopyDefaults}
+              >
+                <LucideCopy className="size-3" />
+                {t('modelSupervision.copyDefaultsTo')}
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
@@ -326,10 +496,14 @@ function ModelSupervisionPage() {
 
           {/* Added models (catalog) */}
           <Card>
-            <CardHeader>
-              <CardTitle>
-                {t('modelSupervision.addedModels')} ({compare.models.length})
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>{t('modelSupervision.addedModels')}</CardTitle>
+              <Input
+                value={modelFilter}
+                onChange={(e) => setModelFilter(e.target.value)}
+                placeholder={t('modelSupervision.filterModel')}
+                className="w-64"
+              />
             </CardHeader>
             <CardContent>
               <Table>
@@ -344,7 +518,7 @@ function ModelSupervisionPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {compare.models.map((row) => (
+                  {filteredModels.map((row) => (
                     <TableRow
                       key={`${row.provider_name}/${row.instance_name}/${row.model_name}`}
                     >
@@ -382,70 +556,88 @@ function ModelSupervisionPage() {
         </div>
       )}
 
-      {/* Copy dialog */}
+      {/* Action dialog (copy instance / delete instance / copy defaults) */}
       <Dialog
-        open={copySource !== null}
-        onOpenChange={(open) => !open && setCopySource(null)}
+        open={action !== null}
+        onOpenChange={(open) => !open && closeAction()}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('modelSupervision.copyDialogTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('modelSupervision.copyFrom', {
-                email: copySource ? emailOf(copySource) : '',
-              })}
-            </DialogDescription>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            {action?.providerName && (
+              <DialogDescription>
+                {action.providerName} / {action.instanceName}
+              </DialogDescription>
+            )}
           </DialogHeader>
 
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-            {t('modelSupervision.copyWarning')}
+          {/* Source selector (copy operations only) */}
+          {action && !isDelete && (
+            <div>
+              <p className="mb-1 text-sm font-medium">
+                {t('modelSupervision.source')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {sourceCandidates.map((id) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant={actionSource === id ? 'default' : 'outline'}
+                    onClick={() => setActionSource(id)}
+                  >
+                    {emailOf(id)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div
+            className={
+              isDelete
+                ? 'rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive'
+                : 'rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm'
+            }
+          >
+            {isDelete
+              ? t('modelSupervision.deleteWarning')
+              : t('modelSupervision.copyWarning')}
           </div>
 
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-60 overflow-y-auto">
             <p className="mb-1 text-sm font-medium">
               {t('modelSupervision.targets')}
             </p>
-            {copyCandidates.map((x) => (
+            {targetCandidates.map((id) => (
               <label
-                key={x.tenant_id}
+                key={id}
                 className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted"
               >
                 <Checkbox
-                  checked={copyTargets.has(x.tenant_id)}
-                  onCheckedChange={() =>
-                    setCopyTargets((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(x.tenant_id)) {
-                        next.delete(x.tenant_id);
-                      } else {
-                        next.add(x.tenant_id);
-                      }
-                      return next;
-                    })
-                  }
+                  checked={actionTargets.has(id)}
+                  onCheckedChange={() => toggleTarget(id)}
                 />
-                <span className="truncate text-sm">{x.owner_email}</span>
+                <span className="truncate text-sm">{emailOf(id)}</span>
               </label>
             ))}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCopySource(null)}>
+            <Button variant="outline" onClick={closeAction}>
               {t('modelSupervision.cancel')}
             </Button>
             <Button
-              disabled={copyTargets.size === 0 || copyMutation.isPending}
-              onClick={() =>
-                copySource &&
-                copyMutation.mutate({
-                  source: copySource,
-                  targets: [...copyTargets],
-                })
-              }
+              variant={isDelete ? 'destructive' : 'default'}
+              disabled={!canSubmit || isPending}
+              onClick={submitAction}
             >
-              {copyMutation.isPending
-                ? t('modelSupervision.copying')
-                : t('modelSupervision.copy')}
+              {isDelete
+                ? isPending
+                  ? t('modelSupervision.deleting')
+                  : t('modelSupervision.delete')
+                : isPending
+                  ? t('modelSupervision.copying')
+                  : t('modelSupervision.copy')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -20,8 +20,9 @@ const eurelisApi = {
   adminTenantModels: (tenantId: string) =>
     `${restAPIv1}/admin/tenants/${tenantId}/models`,
   adminCompareTenantModels: `${restAPIv1}/admin/tenants/models/compare`,
-  adminCopyTenantModels: (targetId: string) =>
-    `${restAPIv1}/admin/tenants/${targetId}/models/copy`,
+  adminCopyModelInstance: `${restAPIv1}/admin/tenants/models/instances/copy`,
+  adminDeleteModelInstance: `${restAPIv1}/admin/tenants/models/instances/delete`,
+  adminCopyModelDefaults: `${restAPIv1}/admin/tenants/models/defaults/copy`,
 };
 
 export default eurelisApi;

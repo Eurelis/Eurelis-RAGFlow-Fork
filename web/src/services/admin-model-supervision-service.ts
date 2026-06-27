@@ -10,8 +10,13 @@ type ResponseData<D = NonNullable<unknown>> = {
   data: D;
 };
 
-const { adminTenantModels, adminCompareTenantModels, adminCopyTenantModels } =
-  eurelisApi;
+const {
+  adminTenantModels,
+  adminCompareTenantModels,
+  adminCopyModelInstance,
+  adminDeleteModelInstance,
+  adminCopyModelDefaults,
+} = eurelisApi;
 
 // --- Shapes returned by the admin backend (admin_model_supervision.py) ---
 
@@ -95,12 +100,19 @@ export interface CompareResult {
   defaults: CompareDefaultRow[];
 }
 
-export interface CopySummary {
-  providers_added: number;
-  providers_existing: number;
-  instances_added: number;
-  instances_overwritten: number;
-  models_copied: number;
+export interface CopyInstanceSummary {
+  added: number;
+  overwritten: number;
+  skipped: number;
+}
+
+export interface DeleteInstanceSummary {
+  deleted: number;
+  not_found: number;
+}
+
+export interface CopyDefaultsSummary {
+  targets: number;
   defaults_copied: { model_type: string; value: string }[];
 }
 
@@ -114,7 +126,35 @@ export const compareTenantModels = (tenantIds: string[]) =>
     params: { tenant_ids: tenantIds.join(',') },
   });
 
-export const copyTenantModels = (targetId: string, sourceTenantId: string) =>
-  request.post<ResponseData<CopySummary>>(adminCopyTenantModels(targetId), {
+export const copyModelInstance = (
+  sourceTenantId: string,
+  providerName: string,
+  instanceName: string,
+  targetTenantIds: string[],
+) =>
+  request.post<ResponseData<CopyInstanceSummary>>(adminCopyModelInstance, {
     source_tenant_id: sourceTenantId,
+    provider_name: providerName,
+    instance_name: instanceName,
+    target_tenant_ids: targetTenantIds,
+  });
+
+export const deleteModelInstance = (
+  providerName: string,
+  instanceName: string,
+  targetTenantIds: string[],
+) =>
+  request.post<ResponseData<DeleteInstanceSummary>>(adminDeleteModelInstance, {
+    provider_name: providerName,
+    instance_name: instanceName,
+    target_tenant_ids: targetTenantIds,
+  });
+
+export const copyModelDefaults = (
+  sourceTenantId: string,
+  targetTenantIds: string[],
+) =>
+  request.post<ResponseData<CopyDefaultsSummary>>(adminCopyModelDefaults, {
+    source_tenant_id: sourceTenantId,
+    target_tenant_ids: targetTenantIds,
   });

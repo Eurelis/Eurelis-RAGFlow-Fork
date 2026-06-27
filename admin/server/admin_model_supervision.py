@@ -177,92 +177,128 @@ class TenantModelMgr:
         }
 
     @staticmethod
-    def copy_models(source_id: str, target_id: str) -> dict:
-        """Copy the full model configuration from one tenant to another (overwrite).
+    def _ensure_provider(target_id: str, provider_name: str):
+        """Return the target provider, creating it if missing (insert() returns a
+        row count, not the object → re-fetch)."""
+        tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, provider_name)
+        if not tp:
+            TenantModelProviderService.insert(tenant_id=target_id, provider_name=provider_name)
+            tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, provider_name)
+        return tp
 
-        Copies the chain Provider -> Instance (api_key included) and the Tenant
-        default model strings. `tenant_model` rows are copied only when present
-        on the source (empty in practice → no-op). Routing groups are ignored.
-        """
-        if source_id == target_id:
-            raise ValueError("Source and target tenants must differ")
-        se, source_tenant = TenantService.get_by_id(source_id)
-        if not se:
-            raise ValueError(f"Source tenant not found: {source_id}")
-        te, _ = TenantService.get_by_id(target_id)
-        if not te:
-            raise ValueError(f"Target tenant not found: {target_id}")
-
-        summary = {
-            "providers_added": 0, "providers_existing": 0,
-            "instances_added": 0, "instances_overwritten": 0,
-            "models_copied": 0, "defaults_copied": [],
-        }
-
-        src_providers = TenantModelProviderService.get_by_tenant_id(source_id)
-        src_instances = (
-            TenantModelInstanceService.get_by_provider_ids([p.id for p in src_providers])
-            if src_providers else []
+    @staticmethod
+    def _copy_instance_to(source_instance, provider_name: str, target_id: str) -> str:
+        """Upsert one provider/instance (api_key + tenant_model) onto a target.
+        Returns 'added' or 'overwritten'."""
+        tp = TenantModelMgr._ensure_provider(target_id, provider_name)
+        existing = TenantModelInstanceService.get_by_provider_id_and_instance_name(
+            tp.id, source_instance.instance_name
         )
-        instances_by_provider: dict[str, list] = {}
-        for inst in src_instances:
-            instances_by_provider.setdefault(inst.provider_id, []).append(inst)
+        if existing:
+            TenantModelInstanceService.update_by_id(
+                existing.id,
+                {"api_key": source_instance.api_key, "extra": source_instance.extra, "status": source_instance.status},
+            )
+            target_instance_id = existing.id
+            outcome = "overwritten"
+        else:
+            TenantModelInstanceService.create_instance(
+                tp.id, source_instance.instance_name, source_instance.api_key, source_instance.extra
+            )
+            created = TenantModelInstanceService.get_by_provider_id_and_instance_name(
+                tp.id, source_instance.instance_name
+            )
+            target_instance_id = created.id if created else None
+            outcome = "added"
 
-        for sp in src_providers:
-            tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, sp.provider_name)
-            if tp:
-                summary["providers_existing"] += 1
-            else:
-                # insert() returns save()'s row count, not the object → re-fetch.
-                TenantModelProviderService.insert(tenant_id=target_id, provider_name=sp.provider_name)
-                tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, sp.provider_name)
-                summary["providers_added"] += 1
-
-            for si in instances_by_provider.get(sp.id, []):
-                existing = TenantModelInstanceService.get_by_provider_id_and_instance_name(tp.id, si.instance_name)
-                if existing:
-                    TenantModelInstanceService.update_by_id(
-                        existing.id, {"api_key": si.api_key, "extra": si.extra, "status": si.status}
-                    )
-                    target_instance_id = existing.id
-                    summary["instances_overwritten"] += 1
+        # tenant_model rows (usually none — overwrite if present)
+        if target_instance_id:
+            for sm in TenantModelService.get_models_by_instance_id(source_instance.id):
+                existing_models = TenantModelService.get_by_provider_id_and_instance_id_and_model_type_and_model_name(
+                    tp.id, target_instance_id, sm.model_type, sm.model_name
+                )
+                if existing_models:
+                    TenantModelService.update_by_id(existing_models[0].id, {"status": sm.status, "extra": sm.extra})
                 else:
-                    TenantModelInstanceService.create_instance(
-                        tp.id, si.instance_name, si.api_key, si.extra
+                    TenantModelService.insert(
+                        provider_id=tp.id, instance_id=target_instance_id,
+                        model_name=sm.model_name, model_type=sm.model_type,
+                        status=sm.status, extra=sm.extra,
                     )
-                    created = TenantModelInstanceService.get_by_provider_id_and_instance_name(tp.id, si.instance_name)
-                    target_instance_id = created.id if created else None
-                    summary["instances_added"] += 1
+        return outcome
 
-                # tenant_model rows (usually none — overwrite if present)
-                if target_instance_id:
-                    for sm in TenantModelService.get_models_by_instance_id(si.id):
-                        existing_models = TenantModelService.get_by_provider_id_and_instance_id_and_model_type_and_model_name(
-                            tp.id, target_instance_id, sm.model_type, sm.model_name
-                        )
-                        if existing_models:
-                            TenantModelService.update_by_id(
-                                existing_models[0].id, {"status": sm.status, "extra": sm.extra}
-                            )
-                        else:
-                            TenantModelService.insert(
-                                provider_id=tp.id, instance_id=target_instance_id,
-                                model_name=sm.model_name, model_type=sm.model_type,
-                                status=sm.status, extra=sm.extra,
-                            )
-                        summary["models_copied"] += 1
+    @staticmethod
+    def _resolve_source_instance(source_tenant_id: str, provider_name: str, instance_name: str):
+        sp = TenantModelProviderService.get_by_tenant_id_and_provider_name(source_tenant_id, provider_name)
+        if not sp:
+            raise ValueError(f"Provider '{provider_name}' not found for source tenant")
+        si = TenantModelInstanceService.get_by_provider_id_and_instance_name(sp.id, instance_name)
+        if not si:
+            raise ValueError(f"Instance '{instance_name}' not found for source tenant")
+        return si
 
-        # Copy Tenant default model strings (the chain now exists on target).
+    @staticmethod
+    def copy_instance(source_tenant_id: str, provider_name: str, instance_name: str, target_tenant_ids: list[str]) -> dict:
+        """Copy one provider/instance (api_key incl.) from a source tenant to targets (overwrite)."""
+        si = TenantModelMgr._resolve_source_instance(source_tenant_id, provider_name, instance_name)
+        summary = {"added": 0, "overwritten": 0, "skipped": 0}
+        for tid in target_tenant_ids:
+            if tid == source_tenant_id:
+                summary["skipped"] += 1
+                continue
+            te, _ = TenantService.get_by_id(tid)
+            if not te:
+                summary["skipped"] += 1
+                continue
+            outcome = TenantModelMgr._copy_instance_to(si, provider_name, tid)
+            summary[outcome] += 1
+        return summary
+
+    @staticmethod
+    def delete_instance(provider_name: str, instance_name: str, target_tenant_ids: list[str]) -> dict:
+        """Delete one provider/instance from each target tenant (and its tenant_model
+        rows; the provider is removed too if it has no instance left)."""
+        summary = {"deleted": 0, "not_found": 0}
+        for tid in target_tenant_ids:
+            tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(tid, provider_name)
+            if not tp:
+                summary["not_found"] += 1
+                continue
+            inst = TenantModelInstanceService.get_by_provider_id_and_instance_name(tp.id, instance_name)
+            if not inst:
+                summary["not_found"] += 1
+                continue
+            for m in TenantModelService.get_models_by_instance_id(inst.id):
+                TenantModelService.delete_by_id(m.id)
+            TenantModelInstanceService.delete_by_provider_id_and_instance_name(tp.id, instance_name)
+            summary["deleted"] += 1
+            if not TenantModelInstanceService.get_all_by_provider_id(tp.id):
+                TenantModelProviderService.delete_by_tenant_id_and_provider_name(tid, provider_name)
+        return summary
+
+    @staticmethod
+    def copy_defaults(source_tenant_id: str, target_tenant_ids: list[str]) -> dict:
+        """Copy the Tenant default model strings (llm_id, embd_id, …) to targets (overwrite)."""
+        se, source_tenant = TenantService.get_by_id(source_tenant_id)
+        if not se:
+            raise ValueError(f"Source tenant not found: {source_tenant_id}")
         updates = {}
-        for _mtype, field in MODEL_TYPE_TO_FIELD.items():
+        copied = []
+        for mtype, field in MODEL_TYPE_TO_FIELD.items():
             value = getattr(source_tenant, field, None)
             if value:
                 updates[field] = value
-                summary["defaults_copied"].append({"model_type": _mtype, "value": value})
-        if updates:
-            TenantService.update_by_id(target_id, updates)
-
-        return summary
+                copied.append({"model_type": mtype, "value": value})
+        applied = 0
+        for tid in target_tenant_ids:
+            if tid == source_tenant_id or not updates:
+                continue
+            te, _ = TenantService.get_by_id(tid)
+            if not te:
+                continue
+            TenantService.update_by_id(tid, dict(updates))
+            applied += 1
+        return {"targets": applied, "defaults_copied": copied}
 
 
 @admin_model_supervision_bp.route("/tenants/<tenant_id>/models", methods=["GET"])
@@ -295,17 +331,73 @@ def compare_tenant_models():
         return error_response(str(e), 500)
 
 
-@admin_model_supervision_bp.route("/tenants/<target_id>/models/copy", methods=["POST"])
+def _targets(data: dict) -> list[str]:
+    raw = data.get("target_tenant_ids") or []
+    return [t.strip() for t in raw if isinstance(t, str) and t.strip()]
+
+
+@admin_model_supervision_bp.route("/tenants/models/instances/copy", methods=["POST"])
 @login_required
 @check_admin_auth
-def copy_tenant_models(target_id: str):
-    """Copy a tenant's model configuration onto another (overwrite). Body: {source_tenant_id}."""
+def copy_instance():
+    """Copy one provider/instance to targets.
+    Body: {source_tenant_id, provider_name, instance_name, target_tenant_ids[]}."""
     try:
         data = request.get_json(silent=True) or {}
         source_id = (data.get("source_tenant_id") or "").strip()
-        if not source_id:
-            return error_response("source_tenant_id is required", 400)
-        return success_response(TenantModelMgr.copy_models(source_id, target_id))
+        provider_name = (data.get("provider_name") or "").strip()
+        instance_name = (data.get("instance_name") or "").strip()
+        targets = _targets(data)
+        if not (source_id and provider_name and instance_name and targets):
+            return error_response(
+                "source_tenant_id, provider_name, instance_name and target_tenant_ids are required", 400
+            )
+        return success_response(
+            TenantModelMgr.copy_instance(source_id, provider_name, instance_name, targets)
+        )
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_model_supervision_bp.route("/tenants/models/instances/delete", methods=["POST"])
+@login_required
+@check_admin_auth
+def delete_instance():
+    """Delete one provider/instance from targets.
+    Body: {provider_name, instance_name, target_tenant_ids[]}."""
+    try:
+        data = request.get_json(silent=True) or {}
+        provider_name = (data.get("provider_name") or "").strip()
+        instance_name = (data.get("instance_name") or "").strip()
+        targets = _targets(data)
+        if not (provider_name and instance_name and targets):
+            return error_response(
+                "provider_name, instance_name and target_tenant_ids are required", 400
+            )
+        return success_response(
+            TenantModelMgr.delete_instance(provider_name, instance_name, targets)
+        )
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_model_supervision_bp.route("/tenants/models/defaults/copy", methods=["POST"])
+@login_required
+@check_admin_auth
+def copy_defaults():
+    """Copy the default models of a source tenant to targets.
+    Body: {source_tenant_id, target_tenant_ids[]}."""
+    try:
+        data = request.get_json(silent=True) or {}
+        source_id = (data.get("source_tenant_id") or "").strip()
+        targets = _targets(data)
+        if not (source_id and targets):
+            return error_response("source_tenant_id and target_tenant_ids are required", 400)
+        return success_response(TenantModelMgr.copy_defaults(source_id, targets))
     except ValueError as e:
         return error_response(str(e), 400)
     except Exception as e:
