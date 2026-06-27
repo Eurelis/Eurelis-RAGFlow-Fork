@@ -1,7 +1,7 @@
 # Note d'implémentation : Supervision admin des modèles par tenant
 
 > **Branche :** `eurelis/feature/admin-model-supervision` (depuis `eurelis/main`)
-> **Statut global :** 📋 Spécifié — implémentation non démarrée
+> **Statut global :** 🛠️ Backend (Phases 1-2) + frontend (Phases 3-4) implémentés ; reste la validation UI navigateur + finalisation (Phase 5)
 > **Nature :** fonctionnalité **locale Eurelis** — jamais poussée upstream. Contrainte : **empreinte minimale sur le code upstream** (cf. section dédiée).
 
 ## TODO (vue d'ensemble)
@@ -9,10 +9,10 @@
 > Suivi détaillé : section [Plan de suivi](#plan-de-suivi).
 
 - [x] **Phase 0 — Préparation** : branche, analyse, stratégie, spec ✅
-- [ ] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET
-- [ ] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`) + route POST
-- [ ] **Phase 3 — Frontend service & types** : endpoints, service, types
-- [ ] **Phase 4 — Frontend page** : `model-supervision.tsx` (comparatif + copie) + route + nav + i18n
+- [x] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET (validé base locale + HTTP)
+- [x] **Phase 2 — Backend copie (granulaire)** : `copy_instance` / `delete_instance` / `copy_defaults` (vers liste de cibles, overwrite) + 3 routes POST (validé sur test_c)
+- [x] **Phase 3 — Frontend service & types** : endpoints `eurelis-api.ts` + service dédié `admin-model-supervision-service.ts` (tsc OK)
+- [x] **Phase 4 — Frontend page** : `model-supervision.tsx` (matrice + actions granulaires : copier/supprimer une instance, copier les défauts — vers liste de cibles) + route + nav + i18n (tsc & eslint OK)
 - [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
 
 **Cible confirmée :** système `tenant_model_*` (legacy `tenant_llm` hors périmètre) · **Routing/Groups :** hors périmètre V1 (non câblé).
@@ -35,8 +35,8 @@ Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de 
 
 | Décision                                              | Choix retenu                                |
 |-------------------------------------------------------|---------------------------------------------|
-| Périmètre V1                                          | **Comparer + copier** (complet)             |
-| Conflit sur copie (modèle déjà présent chez la cible) | **Écraser (overwrite)**                     |
+| Périmètre V1                                          | Comparer + **opérations granulaires** : copier une instance, supprimer une instance, copier les défauts (chacune vers une liste de cibles) |
+| Conflit sur copie (instance déjà présente chez la cible) | **Écraser (overwrite)**, apparié par nom d'instance |
 | Copie des clés API (secrets)                          | **Oui** — copie complète incluant `api_key` |
 
 > Conséquence sécurité : la copie reste une opération **backend** (les `api_key` ne transitent pas en clair vers le frontend). L'affichage/comparaison masque les clés (`sk-…1234`).
@@ -285,7 +285,7 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 | Type | Fichier | Action |
 |------|---------|--------|
-| 🆕 Nouveau (Eurelis) | `admin/server/eurelis_model_supervision.py` | Blueprint + handlers + classe `TenantModelMgr` (service) |
+| 🆕 Nouveau (Eurelis) | `admin/server/admin_model_supervision.py` | Blueprint + handlers + classe `TenantModelMgr` (service) |
 | ✏️ Upstream (1 ligne) | `admin/server/admin_server.py` | `import` + `register_blueprint(...)` du blueprint Eurelis |
 | ♻️ Réutilisé (0 edit) | `api/apps/services/models_api_service.py`, `provider_api_service.py` | appelés tels quels |
 
@@ -293,11 +293,13 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 **Stratégie frontend.** Le gros (page) est un fichier neuf ; les points de contact upstream sont additifs et minimes (1 route, 1 entrée de menu, qq lignes de service). i18n dans `locales/eurelis/` (déjà Eurelis).
 
+Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurelis-api.ts`, service Eurelis dédié important `{ request }` de `admin-service.ts`. **`api.ts`/`admin.service.d.ts` non touchés.**
+
 | Type | Fichier | Action |
 |------|---------|--------|
+| ♻️ Eurelis (fait) | `web/src/utils/eurelis-api.ts` | + 3 endpoints `adminTenantModels` / `adminCompareTenantModels` / `adminCopyTenantModels` |
+| 🆕 Nouveau (Eurelis, fait) | `web/src/services/admin-model-supervision-service.ts` | fonctions + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…) |
 | 🆕 Nouveau (Eurelis) | `web/src/pages/admin/model-supervision.tsx` | la page |
-| ✏️ Upstream (additif) | `web/src/utils/api.ts` | + endpoints (bloc délimité) |
-| ✏️ Upstream (additif) | `web/src/services/admin-service.ts`, `admin.service.d.ts` | + fonctions/types |
 | ✏️ Upstream (1 route) | `web/src/routes.tsx` | + `AdminModelSupervision` |
 | ✏️ Upstream (1 item) | `navigation-layout.tsx` | + entrée de menu |
 | ♻️ Eurelis | `web/src/locales/eurelis/{en,fr}.ts` | + libellés |
@@ -310,28 +312,34 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 ### Backend
 
-**`admin/server/eurelis_model_supervision.py`** (nouveau) — classe `TenantModelMgr` + handlers du blueprint Eurelis, opérant sur le système `tenant_model_*` :
+**`admin/server/admin_model_supervision.py`** (nouveau) — classe `TenantModelMgr` + handlers du blueprint Eurelis, opérant sur le système `tenant_model_*` :
 
 | Méthode                             | Rôle                                                                                                                                                                                                                                                                                                    |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `list_tenant_models(tenant_id)`     | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                                                                                                                                                     |
-| `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + `base_url`/`max_tokens` + flag « défaut ».                                                                                                                                                                    |
-| `copy_models(source_id, target_id)` | Copie **Provider + Instance (api_key)** via `provider_api_service` (`add_provider`, `create_provider_instance`) en **overwrite** + défauts du `Tenant` source. `tenant_model` : copié **seulement s'il en existe** chez la source (vide sur Synerga → no-op). Groups : hors périmètre V1. |
+| `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + flag « défaut » (`raw_defaults` + `resolvable`).                                                                                                                                                              |
+| `copy_instance(source, provider, instance, targets[])` | Copie **un** `Provider/Instance` (api_key + `tenant_model` si présent) d'un tenant source vers une liste de cibles, en **overwrite** (apparie par nom d'instance). |
+| `delete_instance(provider, instance, targets[])`       | Supprime **un** `Provider/Instance` (et ses `tenant_model`) d'une liste de cibles ; retire aussi le provider s'il n'a plus d'instance. |
+| `copy_defaults(source, targets[])`                     | Copie les **modèles par défaut** du `Tenant` source (`llm_id`, `embd_id`…) vers une liste de cibles, en **overwrite**. |
 
-**Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré par 1 ligne dans `admin/server/admin_server.py` :
+> **Évolution V1** : la copie globale `copy_models` initiale a été **remplacée** par ces 3 opérations granulaires (copier une instance / supprimer une instance / copier les défauts), chacune vers une **liste de cibles**.
+
+**Blueprint Eurelis** (même fichier, `url_prefix="/api/v1/admin"`, routes `@login_required @check_admin_auth`) — enregistré dans `admin/server/admin_server.py` (pattern `eurelis_stats_bp`) :
 
 - `GET  /tenants/<id>/models`
 - `GET  /tenants/models/compare?tenant_ids=a,b,c`
-- `POST /tenants/<dst>/models/copy` — body `{ "source_tenant_id": "..." }`
+- `POST /tenants/models/instances/copy` — `{ source_tenant_id, provider_name, instance_name, target_tenant_ids[] }`
+- `POST /tenants/models/instances/delete` — `{ provider_name, instance_name, target_tenant_ids[] }`
+- `POST /tenants/models/defaults/copy` — `{ source_tenant_id, target_tenant_ids[] }`
 
 ### Frontend
 
-- `web/src/utils/api.ts` : endpoints `adminListTenantModels`, `adminCompareTenantModels`, `adminCopyTenantModels`.
-- `web/src/services/admin-service.ts` + `admin.service.d.ts` : fonctions + types (`TenantModelConfig`, `ModelComparisonRow`).
-- `web/src/pages/admin/model-supervision.tsx` : sélection multi-tenants → tableau comparatif (colonnes = tenants, lignes = modèles, code couleur présence/écart) → bouton « Copier vers… » + dialog de confirmation overwrite.
-- `web/src/routes.tsx` : route `AdminModelSupervision` (`/admin/model-supervision`).
-- `layouts/navigation-layout.tsx` : entrée de menu.
-- `locales/eurelis/{en,fr}.ts` : libellés.
+- ✅ `web/src/utils/eurelis-api.ts` : endpoints `adminTenantModels`, `adminCompareTenantModels`, `adminCopyModelInstance`, `adminDeleteModelInstance`, `adminCopyModelDefaults`.
+- ✅ `web/src/services/admin-model-supervision-service.ts` (nouveau, importe `{ request }` de `admin-service.ts`) : `getTenantModels`, `compareTenantModels`, `copyModelInstance`, `deleteModelInstance`, `copyModelDefaults` + types.
+- ✅ `web/src/pages/admin/model-supervision.tsx` : picker multi-tenants → matrice ; **actions par ligne d'instance** (Copier / Supprimer vers une liste de cibles) + action **« Copier les défauts vers… »** ; dialog générique (source + cibles cochables + avertissement).
+- ✅ `web/src/routes.tsx` : route `AdminModelSupervision` (`/admin/model-supervision`).
+- ✅ `layouts/navigation-layout.tsx` : entrée de menu (au-dessus de « Statistiques »).
+- ✅ `locales/eurelis/{en,fr}.ts` : libellés (namespace `modelSupervision`).
 
 ---
 
@@ -358,31 +366,34 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - [x] Définir la stratégie + geler les décisions
 - [x] Rédiger la note d'implémentation
 
-### Phase 1 — Backend : lecture & comparaison
-- [ ] Créer `admin/server/eurelis_model_supervision.py` (blueprint Eurelis + `TenantModelMgr`)
-- [ ] Enregistrer le blueprint (1 ligne dans `admin_server.py`)
-- [ ] `TenantModelMgr.list_tenant_models()` (réutilise `list_tenant_added_models`/`list_tenant_default_models`) + masquage `api_key`
-- [ ] `TenantModelMgr.compare_tenants()` (matrice provider/instance/model)
-- [ ] Routes `GET /tenants/<id>/models` et `GET /tenants/models/compare`
-- [ ] Vérifier signatures réelles (`models_api_service`, `success_response`/`error_response`)
-- [ ] Test manuel via `curl` (auth superuser)
+### Phase 1 — Backend : lecture & comparaison ✅
+- [x] Créer `admin/server/admin_model_supervision.py` (blueprint Eurelis + `TenantModelMgr`)
+- [x] Enregistrer le blueprint (`admin_server.py` : import + `register_blueprint`, calqué sur `eurelis_stats_bp`)
+- [x] `TenantModelMgr.list_tenant_models()` — instances (api_key **masquée** `sk-p…rOAA`), `added_models`, `default_models` (résolus) **et `raw_defaults`** (bruts du `Tenant` + flag `resolvable` → détecte les défauts **pendants**)
+- [x] `TenantModelMgr.compare_tenants()` — matrices `instances` / `models` / `defaults` par tenant
+- [x] Routes `GET /tenants/<id>/models` et `GET /tenants/models/compare?tenant_ids=a,b,c`
+- [x] Signatures vérifiées (`list_tenant_added_models` ne renvoie **pas** d'`api_key` ; instances via `TenantModelProviderService`/`TenantModelInstanceService`)
+- [x] Validé sur base locale : admin (OpenAI/Admin, clé masquée) vs test_c (0 config, défaut `gpt-4o-mini@OpenAI` **non résoluble**)
+- [x] Test HTTP réel (serveur admin 9381) : `GET …/models` → 200 (clé masquée), `GET …/models/compare` → 200 (test_c `resolvable:false`), sans token → 401
 
 ### Phase 2 — Backend : copie
-- [ ] `TenantModelMgr.copy_models()` — Provider + Instance (api_key) en overwrite (via `provider_api_service`) ; `tenant_model` seulement si présent
-- [ ] Copie des défauts du `Tenant` (si chaîne présente chez la cible)
-- [x] Groups de routing : **hors périmètre V1** (tables vides sur l'instance locale)
-- [ ] Route `POST /tenants/<dst>/models/copy`
-- [ ] Test manuel copie + vérification factories JSON / instances multiples
+- [x] `TenantModelMgr.copy_models()` — Provider + Instance (api_key) en **overwrite** via services bas niveau (synchrone, pas de re-validation) ; `tenant_model` seulement si présent
+- [x] Copie des défauts du `Tenant` (chaîne `model@instance@provider` copiée — résoluble car provider/instance créés)
+- [x] Groups de routing : **hors périmètre V1** (tables vides en local + Synerga)
+- [x] Route `POST /tenants/<dst>/models/copy` (body `{source_tenant_id}`)
+- [x] Validé : copie admin → test_b/test_c (défauts pendants → `resolvable:true`) ; **idempotent** (2e/3e passage = overwrite, aucun doublon) ; correctif `insert()` (retourne un int, pas l'objet) → re-fetch provider
 
-### Phase 3 — Frontend : service & types
-- [ ] Endpoints dans `utils/api.ts`
-- [ ] Fonctions dans `admin-service.ts` + types `admin.service.d.ts`
+### Phase 3 — Frontend : service & types ✅
+- [x] Endpoints dans `eurelis-api.ts` (3 URLs)
+- [x] Service dédié `admin-model-supervision-service.ts` + types (`TenantModelConfig`, `CompareResult`, `CopySummary`) — `tsc --noEmit` OK
 
-### Phase 4 — Frontend : page de supervision
-- [ ] Page `model-supervision.tsx` (sélection multi-tenants + tableau comparatif)
-- [ ] Action « Copier vers… » + dialog de confirmation overwrite
-- [ ] Route `AdminModelSupervision` + entrée de menu
-- [ ] Libellés i18n `en`/`fr`
+### Phase 4 — Frontend : page de supervision ✅
+- [x] Page `model-supervision.tsx` : picker multi-tenants (Popover+Checkbox) → matrice 3 sections (instances clé masquée / défauts avec badge « pendant » / modèles ajoutés)
+- [x] Action « Copier la config vers… » par colonne → dialog cibles multiples + avertissement overwrite/secrets → `copyTenantModels` (boucle) + invalidation React Query
+- [x] Route `AdminModelSupervision` (`routes.tsx`) + entrée de menu (`navigation-layout.tsx`, icône `LucideLayers`)
+- [x] Libellés i18n `eurelis/{en,fr}` (namespace `modelSupervision` + `admin.modelSupervision`)
+- [x] `tsc --noEmit` + `eslint` OK
+- [ ] Validation rendu navigateur (`/admin/model-supervision`)
 
 ### Phase 5 — Finalisation
 - [ ] Tests de bout en bout (comparaison + copie réelle entre 2 tenants)
@@ -403,7 +414,7 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 | Services CRUD bas niveau                              | `api/db/services/tenant_model_{provider,instance,group,group_mapping}_service.py`, `tenant_model_service.py` |
 | Migration legacy → nouveau (référence)                | `tools/scripts/mysql_migration.py`                                                                           |
 | Pattern cross-tenant admin (référence, **non modifié**) | `admin/server/services.py` (`TenantMgr`), `admin/server/routes.py`                                         |
-| Code backend Eurelis (**nouveau**)                    | `admin/server/eurelis_model_supervision.py`                                                                  |
+| Code backend Eurelis (**nouveau**)                    | `admin/server/admin_model_supervision.py`                                                                  |
 | Enregistrement blueprint (**1 ligne upstream**)       | `admin/server/admin_server.py` (~ligne 53)                                                                   |
 | Service frontend admin                                | `web/src/services/admin-service.ts`                                                                          |
 | Endpoints frontend                                    | `web/src/utils/api.ts`                                                                                       |
