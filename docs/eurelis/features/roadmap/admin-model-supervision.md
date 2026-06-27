@@ -11,7 +11,7 @@
 - [x] **Phase 0 — Préparation** : branche, analyse, stratégie, spec ✅
 - [x] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET (validé base locale + HTTP)
 - [x] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`, overwrite idempotent) + route POST (validé : test_b/test_c rendus résolubles)
-- [ ] **Phase 3 — Frontend service & types** : endpoints, service, types
+- [x] **Phase 3 — Frontend service & types** : endpoints `eurelis-api.ts` + service dédié `admin-model-supervision-service.ts` (tsc OK)
 - [ ] **Phase 4 — Frontend page** : `model-supervision.tsx` (comparatif + copie) + route + nav + i18n
 - [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
 
@@ -293,11 +293,13 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 **Stratégie frontend.** Le gros (page) est un fichier neuf ; les points de contact upstream sont additifs et minimes (1 route, 1 entrée de menu, qq lignes de service). i18n dans `locales/eurelis/` (déjà Eurelis).
 
+Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurelis-api.ts`, service Eurelis dédié important `{ request }` de `admin-service.ts`. **`api.ts`/`admin.service.d.ts` non touchés.**
+
 | Type | Fichier | Action |
 |------|---------|--------|
+| ♻️ Eurelis (fait) | `web/src/utils/eurelis-api.ts` | + 3 endpoints `adminTenantModels` / `adminCompareTenantModels` / `adminCopyTenantModels` |
+| 🆕 Nouveau (Eurelis, fait) | `web/src/services/admin-model-supervision-service.ts` | fonctions + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…) |
 | 🆕 Nouveau (Eurelis) | `web/src/pages/admin/model-supervision.tsx` | la page |
-| ✏️ Upstream (additif) | `web/src/utils/api.ts` | + endpoints (bloc délimité) |
-| ✏️ Upstream (additif) | `web/src/services/admin-service.ts`, `admin.service.d.ts` | + fonctions/types |
 | ✏️ Upstream (1 route) | `web/src/routes.tsx` | + `AdminModelSupervision` |
 | ✏️ Upstream (1 item) | `navigation-layout.tsx` | + entrée de menu |
 | ♻️ Eurelis | `web/src/locales/eurelis/{en,fr}.ts` | + libellés |
@@ -326,8 +328,8 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 ### Frontend
 
-- `web/src/utils/api.ts` : endpoints `adminListTenantModels`, `adminCompareTenantModels`, `adminCopyTenantModels`.
-- `web/src/services/admin-service.ts` + `admin.service.d.ts` : fonctions + types (`TenantModelConfig`, `ModelComparisonRow`).
+- ✅ `web/src/utils/eurelis-api.ts` : endpoints `adminTenantModels`, `adminCompareTenantModels`, `adminCopyTenantModels`.
+- ✅ `web/src/services/admin-model-supervision-service.ts` (nouveau, importe `{ request }` de `admin-service.ts`) : `getTenantModels`, `compareTenantModels`, `copyTenantModels` + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…).
 - `web/src/pages/admin/model-supervision.tsx` : sélection multi-tenants → tableau comparatif (colonnes = tenants, lignes = modèles, code couleur présence/écart) → bouton « Copier vers… » + dialog de confirmation overwrite.
 - `web/src/routes.tsx` : route `AdminModelSupervision` (`/admin/model-supervision`).
 - `layouts/navigation-layout.tsx` : entrée de menu.
@@ -375,9 +377,9 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - [x] Route `POST /tenants/<dst>/models/copy` (body `{source_tenant_id}`)
 - [x] Validé : copie admin → test_b/test_c (défauts pendants → `resolvable:true`) ; **idempotent** (2e/3e passage = overwrite, aucun doublon) ; correctif `insert()` (retourne un int, pas l'objet) → re-fetch provider
 
-### Phase 3 — Frontend : service & types
-- [ ] Endpoints dans `utils/api.ts`
-- [ ] Fonctions dans `admin-service.ts` + types `admin.service.d.ts`
+### Phase 3 — Frontend : service & types ✅
+- [x] Endpoints dans `eurelis-api.ts` (3 URLs)
+- [x] Service dédié `admin-model-supervision-service.ts` + types (`TenantModelConfig`, `CompareResult`, `CopySummary`) — `tsc --noEmit` OK
 
 ### Phase 4 — Frontend : page de supervision
 - [ ] Page `model-supervision.tsx` (sélection multi-tenants + tableau comparatif)
