@@ -96,6 +96,7 @@ export enum Routes {
   AdminMonitoring = `${Admin}/monitoring`,
   AdminStats = `${Admin}/stats`,
   AdminStatsUserDetail = `${Admin}/stats/users/:userEmail`,
+  AdminModelSupervision = `${Admin}/model-supervision`, // Eurelis: model supervision
   AdminUserMembers = `${Admin}/users/:id/members`,
   AdminUserTeam = `${Admin}/users/:id/team`,
   UserStats = '/stats',
@@ -441,6 +442,11 @@ const routeConfigOptions = [
               {
                 path: Routes.AdminStats,
                 Component: () => import('@/pages/admin/stats'),
+              },
+              // Eurelis: model supervision
+              {
+                path: Routes.AdminModelSupervision,
+                Component: () => import('@/pages/admin/model-supervision'),
               },
               {
                 path: Routes.AdminStatsUserDetail,
