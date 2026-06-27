@@ -39,6 +39,7 @@ export default {
   },
   admin: {
     usageStats: 'Statistiques',
+    modelSupervision: 'Supervision des modèles',
     teams: 'Équipes',
     owner: 'Propriétaire',
     memberCount: 'Membres',
@@ -60,5 +61,30 @@ export default {
     validateInvite: 'Valider',
     addedDate: "Date d'ajout",
     noTeams: 'Aucune équipe',
+  },
+  modelSupervision: {
+    title: 'Supervision des modèles',
+    subtitle: 'Comparer et copier la configuration des modèles entre tenants.',
+    addTenant: 'Ajouter un tenant',
+    filterTenant: 'Filtrer un tenant…',
+    selectTenantsHint:
+      'Sélectionnez des tenants pour comparer leur configuration de modèles.',
+    providersInstances: 'Fournisseurs & instances',
+    providerInstance: 'Fournisseur / instance',
+    defaultModels: 'Modèles par défaut',
+    addedModels: 'Modèles ajoutés',
+    model: 'Modèle',
+    type: 'Type',
+    noApiKey: 'Clé API manquante',
+    dangling: 'Pendant',
+    copyTo: 'Copier la config vers…',
+    copyDialogTitle: 'Copier la configuration des modèles',
+    copyFrom: 'Source : {{email}}',
+    copyWarning:
+      'Écrase la configuration de la/des cible(s) et copie les clés API.',
+    targets: 'Cibles',
+    cancel: 'Annuler',
+    copy: 'Copier',
+    copying: 'Copie en cours…',
   },
 };

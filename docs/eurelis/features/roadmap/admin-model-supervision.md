@@ -1,7 +1,7 @@
 # Note d'implémentation : Supervision admin des modèles par tenant
 
 > **Branche :** `eurelis/feature/admin-model-supervision` (depuis `eurelis/main`)
-> **Statut global :** 🛠️ Backend en place — Phases 1 & 2 (lecture, comparaison, copie) implémentées et validées ; frontend à venir
+> **Statut global :** 🛠️ Backend (Phases 1-2) + frontend (Phases 3-4) implémentés ; reste la validation UI navigateur + finalisation (Phase 5)
 > **Nature :** fonctionnalité **locale Eurelis** — jamais poussée upstream. Contrainte : **empreinte minimale sur le code upstream** (cf. section dédiée).
 
 ## TODO (vue d'ensemble)
@@ -12,7 +12,7 @@
 - [x] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET (validé base locale + HTTP)
 - [x] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`, overwrite idempotent) + route POST (validé : test_b/test_c rendus résolubles)
 - [x] **Phase 3 — Frontend service & types** : endpoints `eurelis-api.ts` + service dédié `admin-model-supervision-service.ts` (tsc OK)
-- [ ] **Phase 4 — Frontend page** : `model-supervision.tsx` (comparatif + copie) + route + nav + i18n
+- [x] **Phase 4 — Frontend page** : `model-supervision.tsx` (matrice comparative + copie multi-cible) + route + nav + i18n (tsc & eslint OK)
 - [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
 
 **Cible confirmée :** système `tenant_model_*` (legacy `tenant_llm` hors périmètre) · **Routing/Groups :** hors périmètre V1 (non câblé).
@@ -381,11 +381,13 @@ Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurel
 - [x] Endpoints dans `eurelis-api.ts` (3 URLs)
 - [x] Service dédié `admin-model-supervision-service.ts` + types (`TenantModelConfig`, `CompareResult`, `CopySummary`) — `tsc --noEmit` OK
 
-### Phase 4 — Frontend : page de supervision
-- [ ] Page `model-supervision.tsx` (sélection multi-tenants + tableau comparatif)
-- [ ] Action « Copier vers… » + dialog de confirmation overwrite
-- [ ] Route `AdminModelSupervision` + entrée de menu
-- [ ] Libellés i18n `en`/`fr`
+### Phase 4 — Frontend : page de supervision ✅
+- [x] Page `model-supervision.tsx` : picker multi-tenants (Popover+Checkbox) → matrice 3 sections (instances clé masquée / défauts avec badge « pendant » / modèles ajoutés)
+- [x] Action « Copier la config vers… » par colonne → dialog cibles multiples + avertissement overwrite/secrets → `copyTenantModels` (boucle) + invalidation React Query
+- [x] Route `AdminModelSupervision` (`routes.tsx`) + entrée de menu (`navigation-layout.tsx`, icône `LucideLayers`)
+- [x] Libellés i18n `eurelis/{en,fr}` (namespace `modelSupervision` + `admin.modelSupervision`)
+- [x] `tsc --noEmit` + `eslint` OK
+- [ ] Validation rendu navigateur (`/admin/model-supervision`)
 
 ### Phase 5 — Finalisation
 - [ ] Tests de bout en bout (comparaison + copie réelle entre 2 tenants)
