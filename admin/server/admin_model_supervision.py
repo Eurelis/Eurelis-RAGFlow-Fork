@@ -13,6 +13,7 @@ from api.db.db_models import User
 from api.db.services.user_service import TenantService
 from api.db.services.tenant_model_provider_service import TenantModelProviderService
 from api.db.services.tenant_model_instance_service import TenantModelInstanceService
+from api.db.services.tenant_model_service import TenantModelService
 from api.apps.services.models_api_service import (
     list_tenant_added_models,
     list_tenant_default_models,
@@ -23,8 +24,8 @@ from api.apps.services.models_api_service import (
 # Reverse map: resolved default model_type (e.g. "speech2text") -> tenant field key ("asr").
 _RESOLVED_TYPE_TO_KEY = {v: k for k, v in MODEL_TAG_TO_TYPE.items()}
 
-eurelis_model_supervision_bp = Blueprint(
-    "eurelis_model_supervision", __name__, url_prefix="/api/v1/admin"
+admin_model_supervision_bp = Blueprint(
+    "admin_model_supervision", __name__, url_prefix="/api/v1/admin"
 )
 
 
@@ -175,8 +176,96 @@ class TenantModelMgr:
             "defaults": sorted(defaults.values(), key=lambda r: r["model_type"]),
         }
 
+    @staticmethod
+    def copy_models(source_id: str, target_id: str) -> dict:
+        """Copy the full model configuration from one tenant to another (overwrite).
 
-@eurelis_model_supervision_bp.route("/tenants/<tenant_id>/models", methods=["GET"])
+        Copies the chain Provider -> Instance (api_key included) and the Tenant
+        default model strings. `tenant_model` rows are copied only when present
+        on the source (empty in practice → no-op). Routing groups are ignored.
+        """
+        if source_id == target_id:
+            raise ValueError("Source and target tenants must differ")
+        se, source_tenant = TenantService.get_by_id(source_id)
+        if not se:
+            raise ValueError(f"Source tenant not found: {source_id}")
+        te, _ = TenantService.get_by_id(target_id)
+        if not te:
+            raise ValueError(f"Target tenant not found: {target_id}")
+
+        summary = {
+            "providers_added": 0, "providers_existing": 0,
+            "instances_added": 0, "instances_overwritten": 0,
+            "models_copied": 0, "defaults_copied": [],
+        }
+
+        src_providers = TenantModelProviderService.get_by_tenant_id(source_id)
+        src_instances = (
+            TenantModelInstanceService.get_by_provider_ids([p.id for p in src_providers])
+            if src_providers else []
+        )
+        instances_by_provider: dict[str, list] = {}
+        for inst in src_instances:
+            instances_by_provider.setdefault(inst.provider_id, []).append(inst)
+
+        for sp in src_providers:
+            tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, sp.provider_name)
+            if tp:
+                summary["providers_existing"] += 1
+            else:
+                # insert() returns save()'s row count, not the object → re-fetch.
+                TenantModelProviderService.insert(tenant_id=target_id, provider_name=sp.provider_name)
+                tp = TenantModelProviderService.get_by_tenant_id_and_provider_name(target_id, sp.provider_name)
+                summary["providers_added"] += 1
+
+            for si in instances_by_provider.get(sp.id, []):
+                existing = TenantModelInstanceService.get_by_provider_id_and_instance_name(tp.id, si.instance_name)
+                if existing:
+                    TenantModelInstanceService.update_by_id(
+                        existing.id, {"api_key": si.api_key, "extra": si.extra, "status": si.status}
+                    )
+                    target_instance_id = existing.id
+                    summary["instances_overwritten"] += 1
+                else:
+                    TenantModelInstanceService.create_instance(
+                        tp.id, si.instance_name, si.api_key, si.extra
+                    )
+                    created = TenantModelInstanceService.get_by_provider_id_and_instance_name(tp.id, si.instance_name)
+                    target_instance_id = created.id if created else None
+                    summary["instances_added"] += 1
+
+                # tenant_model rows (usually none — overwrite if present)
+                if target_instance_id:
+                    for sm in TenantModelService.get_models_by_instance_id(si.id):
+                        existing_models = TenantModelService.get_by_provider_id_and_instance_id_and_model_type_and_model_name(
+                            tp.id, target_instance_id, sm.model_type, sm.model_name
+                        )
+                        if existing_models:
+                            TenantModelService.update_by_id(
+                                existing_models[0].id, {"status": sm.status, "extra": sm.extra}
+                            )
+                        else:
+                            TenantModelService.insert(
+                                provider_id=tp.id, instance_id=target_instance_id,
+                                model_name=sm.model_name, model_type=sm.model_type,
+                                status=sm.status, extra=sm.extra,
+                            )
+                        summary["models_copied"] += 1
+
+        # Copy Tenant default model strings (the chain now exists on target).
+        updates = {}
+        for _mtype, field in MODEL_TYPE_TO_FIELD.items():
+            value = getattr(source_tenant, field, None)
+            if value:
+                updates[field] = value
+                summary["defaults_copied"].append({"model_type": _mtype, "value": value})
+        if updates:
+            TenantService.update_by_id(target_id, updates)
+
+        return summary
+
+
+@admin_model_supervision_bp.route("/tenants/<tenant_id>/models", methods=["GET"])
 @login_required
 @check_admin_auth
 def list_tenant_models(tenant_id: str):
@@ -189,7 +278,7 @@ def list_tenant_models(tenant_id: str):
         return error_response(str(e), 500)
 
 
-@eurelis_model_supervision_bp.route("/tenants/models/compare", methods=["GET"])
+@admin_model_supervision_bp.route("/tenants/models/compare", methods=["GET"])
 @login_required
 @check_admin_auth
 def compare_tenant_models():
@@ -202,5 +291,22 @@ def compare_tenant_models():
         return success_response(TenantModelMgr.compare_tenants(tenant_ids))
     except ValueError as e:
         return error_response(str(e), 404)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_model_supervision_bp.route("/tenants/<target_id>/models/copy", methods=["POST"])
+@login_required
+@check_admin_auth
+def copy_tenant_models(target_id: str):
+    """Copy a tenant's model configuration onto another (overwrite). Body: {source_tenant_id}."""
+    try:
+        data = request.get_json(silent=True) or {}
+        source_id = (data.get("source_tenant_id") or "").strip()
+        if not source_id:
+            return error_response("source_tenant_id is required", 400)
+        return success_response(TenantModelMgr.copy_models(source_id, target_id))
+    except ValueError as e:
+        return error_response(str(e), 400)
     except Exception as e:
         return error_response(str(e), 500)
