@@ -9,7 +9,7 @@
 > Suivi détaillé : section [Plan de suivi](#plan-de-suivi).
 
 - [x] **Phase 0 — Préparation** : branche, analyse, stratégie, spec ✅
-- [ ] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET
+- [x] **Phase 1 — Backend lecture & comparaison** : `TenantModelMgr.list_tenant_models()` + `compare_tenants()` + routes GET (validé sur base locale ; reste le test HTTP curl)
 - [ ] **Phase 2 — Backend copie** : `copy_models()` (Provider + Instance + défauts `Tenant`) + route POST
 - [ ] **Phase 3 — Frontend service & types** : endpoints, service, types
 - [ ] **Phase 4 — Frontend page** : `model-supervision.tsx` (comparatif + copie) + route + nav + i18n
@@ -358,14 +358,15 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - [x] Définir la stratégie + geler les décisions
 - [x] Rédiger la note d'implémentation
 
-### Phase 1 — Backend : lecture & comparaison
-- [ ] Créer `admin/server/eurelis_model_supervision.py` (blueprint Eurelis + `TenantModelMgr`)
-- [ ] Enregistrer le blueprint (1 ligne dans `admin_server.py`)
-- [ ] `TenantModelMgr.list_tenant_models()` (réutilise `list_tenant_added_models`/`list_tenant_default_models`) + masquage `api_key`
-- [ ] `TenantModelMgr.compare_tenants()` (matrice provider/instance/model)
-- [ ] Routes `GET /tenants/<id>/models` et `GET /tenants/models/compare`
-- [ ] Vérifier signatures réelles (`models_api_service`, `success_response`/`error_response`)
-- [ ] Test manuel via `curl` (auth superuser)
+### Phase 1 — Backend : lecture & comparaison ✅
+- [x] Créer `admin/server/eurelis_model_supervision.py` (blueprint Eurelis + `TenantModelMgr`)
+- [x] Enregistrer le blueprint (`admin_server.py` : import + `register_blueprint`, calqué sur `eurelis_stats_bp`)
+- [x] `TenantModelMgr.list_tenant_models()` — instances (api_key **masquée** `sk-p…rOAA`), `added_models`, `default_models` (résolus) **et `raw_defaults`** (bruts du `Tenant` + flag `resolvable` → détecte les défauts **pendants**)
+- [x] `TenantModelMgr.compare_tenants()` — matrices `instances` / `models` / `defaults` par tenant
+- [x] Routes `GET /tenants/<id>/models` et `GET /tenants/models/compare?tenant_ids=a,b,c`
+- [x] Signatures vérifiées (`list_tenant_added_models` ne renvoie **pas** d'`api_key` ; instances via `TenantModelProviderService`/`TenantModelInstanceService`)
+- [x] Validé sur base locale : admin (OpenAI/Admin, clé masquée) vs test_c (0 config, défaut `gpt-4o-mini@OpenAI` **non résoluble**)
+- [x] Test HTTP réel (serveur admin 9381) : `GET …/models` → 200 (clé masquée), `GET …/models/compare` → 200 (test_c `resolvable:false`), sans token → 401
 
 ### Phase 2 — Backend : copie
 - [ ] `TenantModelMgr.copy_models()` — Provider + Instance (api_key) en overwrite (via `provider_api_service`) ; `tenant_model` seulement si présent
