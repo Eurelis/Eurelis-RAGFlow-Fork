@@ -213,6 +213,56 @@ Vérifié le **2026-06-27** sur la base `rag_flow` (`docker-mysql-1`, serveur `f
 **Hypothèses confirmées :** système cible `tenant_model_*`, `api_key` sur l'instance, défauts `model@[instance@]provider`, groupes vides.
 **Hypothèses corrigées :** `tenant_llm` **n'est pas vide mais obsolète** (résidu pré-migration ; non lu pour la résolution, `increase_usage` sans appelant → `used_tokens` figés) · `tenant_model` **est vide** → pas de couche `Model` à copier.
 
+#### Contre-validation sur fresh install local
+
+Pour lever le doute « Synerga = résidu de migration », vérifié sur un **install neuf** (code courant `usage-stats`, base `rag_flow` locale) en isolant chaque action :
+
+| Étape | Constat |
+|---|---|
+| **Init (état zéro)** | 1 seul compte `admin@ragflow.io` ; **toutes** les tables modèles à **0** (y compris `tenant_llm`). Défaut `embd_id = bge-m3@xxxx` issu de `user_default_llm`. |
+| **Config provider OpenAI + clé (UI moderne)** | écrit **uniquement** `tenant_model_provider` (1) + `tenant_model_instance` (1, `api_key` + `extra.base_url`). **`tenant_llm` reste à 0**, `tenant_model` à 0. |
+| **2ᵉ user créé sans config** | 0 provider / 0 `tenant_llm` / colonnes `tenant_*_id` NULL ; défaut `embd_id = bge-m3@xxxx` (2 parties) **pendant** → reproduit le cas `test_user_a`. |
+| **Chat créé + 1 message** | `llm_id` admin = `gpt-5.5@Admin@OpenAI` (3 parties) ; après usage : `tenant_llm` toujours **0 / 0 token**, `tenant_model` 0, **aucun compteur d'usage** sur l'instance. |
+| **Chat `team` d'admin utilisé par v.lambert (sans config)** | ✅ fonctionne. Le `dialog` est `permission=team`, `tenant_id=admin` ; v.lambert est `role=normal` dans l'équipe admin et garde **0 config**. La résolution se fait contre le **tenant propriétaire** (`dialog_service.py:360` → `get_model_config_from_provider_instance(dialog.tenant_id, …)`), pas l'utilisateur courant. |
+
+**Conclusions renforcées :**
+1. **`tenant_llm` n'est jamais écrit par le code moderne** (0 sur install neuf, même après config) → obsolète confirmé, pas un simple résidu Synerga.
+2. **`tenant_model` jamais matérialisé** (vide après config *et* usage) → modèles servis par le catalogue.
+3. **Format des défauts** : `model@factory` au pré-remplissage `user_default_llm`, puis `model@instance@provider` une fois sélectionné via le système moderne.
+4. **Aucun tracking d'usage** dans les tables de config modèle (pas de `used_tokens` sur l'instance) → la conso de tokens **n'est pas récupérable** depuis ce système (relève de `usage-stats`).
+5. Le **nom d'instance est saisi par l'utilisateur** à l'ajout du provider (`default`, `Admin`, … variables) → ne pas le supposer fixe dans la copie.
+
+#### Rôle de `user_default_llm` (`conf/service_conf.yaml`)
+
+Testé en isolant la variable (config `xxxx`/bge-m3 → `OpenAI`+modèles réels → création d'users → tentative de chat).
+
+`user_default_llm` est chargé au démarrage (`common/settings.py`) en `LLM_FACTORY`, `API_KEY`, `CHAT_MDL`/`EMBEDDING_MDL` (format `model@factory`), `ALLOWED_LLM_FACTORIES`, `PARSERS`. À la création d'un tenant, les 3 chemins posent `Tenant.llm_id/embd_id/…` depuis ces valeurs.
+
+| Effet | Statut |
+|---|---|
+| Défauts modèle par user (`Tenant.*_id`) | ❌ **vestigial** : pose des **pointeurs pendants** ; **aucun provider/instance créé** (vérifié : `test_b`/`test_c` → 0 provider, 0 instance, 0 `tenant_llm`). Un nouvel user **ne peut pas créer de chat** (UI : « ajouter d'abord un embedding + un LLM »). Seul un **chat partagé** marche (résolu contre le propriétaire). |
+| `parser_ids` par défaut (`PARSERS`) | ✅ vivant (3 chemins de création) |
+| Whitelist factories (`ALLOWED_LLM_FACTORIES`) | ✅ vivant (`api_utils.py:709`) |
+| Embedding **builtin TEI** (`EMBEDDING_CFG`) | ✅ vivant en profil `tei-` (`tenant_model_service.py:195`) |
+| Seeding `tenant_llm` via `get_init_tenant_llm` | ⚠️ boot superuser uniquement → écrit une table **obsolète** |
+
+**Conséquences pour la feature :**
+- La supervision doit afficher un défaut `model@factory` (2 parties) **comme potentiellement pendant** tant qu'aucun provider correspondant n'existe chez le tenant.
+- **Piste produit** liée à la copie de config : pour rendre un user autonome, il ne suffit pas de copier le défaut `Tenant` — il faut **créer le `Provider` + `Instance`**. C'est précisément ce que `copy_models()` apporte (le manque que `user_default_llm` ne comble pas).
+
+**Grille de décision — faut-il utiliser `user_default_llm` ?**
+
+| Contexte | Verdict |
+|---|---|
+| Bootstrap modèle via **provider externe** (OpenAI, Bedrock, Gemini… — cas Synerga) | ❌ **Inutile** : pointeur pendant, l'user doit configurer un provider de toute façon ; crée une fausse impression de config. |
+| **Embedding builtin / TEI** (profil `tei-`) | ✅ **Intérêt réel** : configuré sans factory pour matcher `TEI_MODEL`, le défaut embedding est résolu par le bypass dédié → fonctionnel sans config manuelle. |
+| `parsers` (parser_ids par défaut) | ✅ Utile, indépendant des modèles. |
+| `allowed_factories` (whitelist providers) | ✅ Utile, indépendant des modèles. |
+
+→ **Sur Synerga (Bedrock externe)** : la partie `default_models` est inutile ; ne conserver `user_default_llm` que pour `parsers`/`allowed_factories` (ou la vider sans rien casser côté modèles). Le vrai besoin « user autonome sans saisie » relève de `copy_models()`, pas de `user_default_llm`.
+
+> **Gotcha opérationnel** : `user_default_llm` (et toute `service_conf.yaml`) est lu **au démarrage** par **deux process distincts** — l'API (`9380`) et l'admin (`9381`), chacun avec son propre snapshot `settings`. Un changement impose de **redémarrer les deux** (sinon un user créé via l'admin reflète l'ancienne config).
+
 ### Services réutilisables (système cible)
 
 - `api/apps/services/models_api_service.py` — `list_tenant_added_models(tenant_id, model_type_filter=None)`, `list_tenant_default_models(tenant_id)`, `set_tenant_default_models(...)`.
@@ -293,8 +343,10 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 - **Copie = Provider + Instance (+ défauts), pas une ligne plate** : créer le `Provider` cible s'il manque, puis l'`Instance` (avec `api_key`). La couche `Model` (`tenant_model`) est **vide sur Synerga** (modèles issus du catalogue) → ne la copier que si elle existe. Réutiliser `provider_api_service` plutôt que des inserts bruts.
 - **Consommateur de chats partagés** : un utilisateur qui n'utilise que des chats `team` d'un autre tenant n'a **aucune** config modèle propre (cf. `test_user_a`) — la résolution se fait contre le tenant **propriétaire** du chat. La supervision doit donc afficher « 0 config » sans la traiter comme une anomalie.
 - **Unicité provider** `(tenant_id, provider_name)` + instance par `(provider_id, instance_name)` : overwrite = mettre à jour l'existant.
-- **Défauts du `Tenant`** : ne copier un défaut (`model@instance@provider`) que si la chaîne correspondante existe chez la cible après copie.
-- **Groups de routing** : hors périmètre V1 (tables `tenant_model_group*` vides sur l'instance locale).
+- **Nom d'instance saisi par l'utilisateur** (`default`, `Admin`, …) : ne pas le supposer fixe ; le copier tel quel et matcher sur `(provider_name, instance_name)`.
+- **Défauts du `Tenant`** : copier un défaut au format `model@instance@provider` ; un défaut `model@factory` (2 parties, pré-rempli par `user_default_llm`) peut être **pendant** chez la source — ne le propager que si la chaîne existe chez la cible.
+- **Pas de conso/usage** : aucun `used_tokens` exploitable dans le système de modèles → la supervision n'affiche pas de consommation (relève de `usage-stats`).
+- **Groups de routing** : hors périmètre V1 (tables `tenant_model_group*` vides en local et sur Synerga).
 
 ---
 
