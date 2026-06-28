@@ -1,8 +1,14 @@
+---
+title: "Relation `chunks` et `doc_aggs` dans les réponses de l'API Chat"
+type: knowledge
+status: reference
+date: 2026-04-21
+audience: "développeurs frontend"
+---
+
 # Relation `chunks` et `doc_aggs` dans les réponses de l'API Chat
 
-**Audience :** développeurs frontend
 **Endpoints concernés :** `POST /chats/{chat_id}/completions`, `POST /chats/{chat_id}/sessions/{session_id}/completions`
-**Date :** 2026-04-21
 
 ---
 

@@ -1,8 +1,13 @@
-# Feature : Provisionnement automatique des équipes via Keycloak
+---
+title: "Feature : Provisionnement automatique des équipes via Keycloak"
+type: feature
+status: partial
+date: 2026-06-17
+branch: "eurelis/feature/keycloak-team-provisioning"
+reviewed: 2026-06-28
+---
 
-**Branche** : `eurelis/feature/keycloak-team-provisioning`  
-**Date** : 2026-06-17  
-**Statut** : Partiellement implémenté
+# Feature : Provisionnement automatique des équipes via Keycloak
 
 ---
 
