@@ -1,7 +1,12 @@
-# Presidio en pratique : implémenter le masquage PII dans un pipeline RAG
+---
+title: "Presidio en pratique : implémenter le masquage PII dans un pipeline RAG"
+type: blog
+status: published
+tags: ["IA", "Python", "Sécurité", "RAG"]
+reading_time: "12 min"
+---
 
-**Catégories :** IA, Python, Sécurité, RAG  
-**Temps de lecture :** 12 min
+# Presidio en pratique : implémenter le masquage PII dans un pipeline RAG
 
 ---
 

@@ -1,3 +1,10 @@
+---
+title: "Internationalisation des templates d'agent"
+type: feature
+status: partial
+reviewed: 2026-06-28
+---
+
 # Internationalisation des templates d'agent
 
 ## Contexte

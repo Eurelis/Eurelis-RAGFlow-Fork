@@ -1,6 +1,11 @@
-# Spec — Table `usage_log` (append-only)
+---
+title: "Spec — Table `usage_log` (append-only)"
+type: spec
+status: implemented
+reviewed: 2026-06-28
+---
 
-**Statut :** Implémenté
+# Spec — Table `usage_log` (append-only)
 
 Table append-only et immuable : chaque fin de completion / retrieval / tâche d'ingestion y écrit un enregistrement. Elle survit à la suppression des sessions et dialogs, et constitue la source de vérité unique pour toutes les statistiques de consommation (dashboards admin et utilisateur).
 

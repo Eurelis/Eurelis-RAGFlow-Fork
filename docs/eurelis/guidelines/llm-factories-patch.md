@@ -1,3 +1,9 @@
+---
+title: "Gestion de `conf/llm_factories.patch.json`"
+type: guideline
+status: reference
+---
+
 # Gestion de `conf/llm_factories.patch.json`
 
 ## Principe

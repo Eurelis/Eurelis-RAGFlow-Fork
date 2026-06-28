@@ -1,3 +1,10 @@
+---
+title: "Fix : PDF parser — fallback IMAGE2TEXT → CHAT manquant"
+type: feature
+status: implemented
+reviewed: 2026-06-28
+---
+
 # Fix : PDF parser — fallback IMAGE2TEXT → CHAT manquant
 
 ## Problème

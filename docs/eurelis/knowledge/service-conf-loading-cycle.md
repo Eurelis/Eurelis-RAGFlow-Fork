@@ -1,3 +1,9 @@
+---
+title: "Cycle de chargement et mise à jour de `service_conf.yaml`"
+type: knowledge
+status: reference
+---
+
 # Cycle de chargement et mise à jour de `service_conf.yaml`
 
 ## Vue d'ensemble
