@@ -1,8 +1,13 @@
-# Feature : PII Masking (Presidio)
+---
+title: "Feature : PII Masking (Presidio)"
+type: feature
+status: implemented
+date: 2026-05-31
+branch: "eurelis/feature/pii-masking"
+reviewed: 2026-06-28
+---
 
-**Branche** : `eurelis/feature/pii-masking`  
-**Date** : 2026-05-31  
-**Statut** : Implémenté (MVP + réhydratation des réponses)
+# Feature : PII Masking (Presidio)
 
 ---
 

@@ -1,3 +1,9 @@
+---
+title: "Générer le Knowledge Graph"
+type: knowledge
+status: reference
+---
+
 # Générer le Knowledge Graph
 
 ## Via l'interface

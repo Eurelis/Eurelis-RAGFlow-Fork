@@ -1,3 +1,9 @@
+---
+title: "Gestion des Métadonnées : Ingestion → Recherche RAG"
+type: knowledge
+status: reference
+---
+
 # Gestion des Métadonnées : Ingestion → Recherche RAG
 
 ## Architecture globale

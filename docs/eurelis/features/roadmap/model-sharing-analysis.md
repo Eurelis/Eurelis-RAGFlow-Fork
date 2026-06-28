@@ -1,3 +1,10 @@
+---
+title: "Analyse : Partage des Modèles LLM dans RAGFlow"
+type: feature
+status: analysis
+reviewed: 2026-06-28
+---
+
 # Analyse : Partage des Modèles LLM dans RAGFlow
 
 ## Contexte

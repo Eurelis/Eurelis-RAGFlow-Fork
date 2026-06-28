@@ -1,6 +1,13 @@
+---
+title: "Spec — Shield : intégration token usage & visibilité stats RAGFlow"
+type: spec
+status: implemented
+reviewed: 2026-06-28
+---
+
 # Spec — Shield : intégration token usage & visibilité stats RAGFlow
 
-> **Note refactoring `source`/`token_type`.** Les références à `chatbot` ci-dessous désignent l'**endpoint** `/api/v1/chatbots/{id}/completions` (toujours valide), pas une valeur de `source` dans `usage_log`. Côté `usage_log`, ces sessions sont désormais loggées sous **`source="chat"`** (la valeur `chatbot` a été fusionnée dans `chat`), avec une dimension `token_type` (`llm`/`embedding`). Référence à jour : `docs/eurelis/specs/usage-log-table.md`.
+> **Note refactoring `source`/`token_type`.** Les références à `chatbot` ci-dessous désignent l'**endpoint** `/api/v1/chatbots/{id}/completions` (toujours valide), pas une valeur de `source` dans `usage_log`. Côté `usage_log`, ces sessions sont désormais loggées sous **`source="chat"`** (la valeur `chatbot` a été fusionnée dans `chat`), avec une dimension `token_type` (`llm`/`embedding`). Référence à jour : `docs/eurelis/specs/usage-stats/usage-log-table.md`.
 
 ## Contexte
 
