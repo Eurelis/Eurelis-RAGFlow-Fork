@@ -1,3 +1,9 @@
+---
+title: "Réorganisation du workspace Eurelis RAGFlow"
+type: knowledge
+status: reference
+---
+
 # Réorganisation du workspace Eurelis RAGFlow
 
 **Objectif :** regrouper `Eurelis-RAGFlow-Fork` et `Eurelis-RAGFlow-Shield` sous un dossier parent commun pour partager le contexte Claude Code en une seule session.

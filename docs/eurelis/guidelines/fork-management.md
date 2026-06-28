@@ -1,3 +1,9 @@
+---
+title: "Gestion du fork — Fork Eurelis de RAGFlow"
+type: guideline
+status: reference
+---
+
 # Gestion du fork — Fork Eurelis de RAGFlow
 
 La meilleure approche est le **fork Git avec synchronisation upstream**, combinée à une discipline de branches rigoureuse. Voici la stratégie complète :

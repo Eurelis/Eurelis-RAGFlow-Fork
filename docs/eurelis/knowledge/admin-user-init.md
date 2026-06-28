@@ -1,3 +1,9 @@
+---
+title: "Initialisation de l'utilisateur admin par défaut"
+type: knowledge
+status: reference
+---
+
 # Initialisation de l'utilisateur admin par défaut
 
 ## Vue d'ensemble

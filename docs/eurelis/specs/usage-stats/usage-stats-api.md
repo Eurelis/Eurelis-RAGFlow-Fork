@@ -1,7 +1,15 @@
+---
+title: "Spec — API statistiques de consommation & dashboard admin"
+type: spec
+status: implemented
+reviewed: 2026-06-28
+depends_on:
+  - "docs/eurelis/specs/usage-stats/usage-log-table.md"
+---
+
 # Spec — API statistiques de consommation & dashboard admin
 
 **Branche :** `eurelis/feature/usage-stats`
-**Dépend de :** `docs/eurelis/specs/usage-log-table.md` (table `usage_log` ✅ implémentée)
 
 > **⚠ Mise à jour — modèle actuel (fait autorité).** Depuis le refactoring `source`/`token_type`, `usage_log` expose deux dimensions orthogonales :
 > - `source` (flux) : **`chat` · `search` · `agent` · `ingestion`** (les anciens `chatbot`/`agentbot` sont fusionnés dans `chat`/`agent` ; `ingestion_llm` et `query_embedding` n'existent plus).
