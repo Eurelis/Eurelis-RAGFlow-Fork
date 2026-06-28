@@ -1,3 +1,9 @@
+---
+title: "Chat — Endpoints API et gestion des pièces jointes"
+type: knowledge
+status: reference
+---
+
 # Chat — Endpoints API et gestion des pièces jointes
 
 Analyse des endpoints utilisés par le chat RAGFlow, avec focus sur la gestion des pièces jointes.

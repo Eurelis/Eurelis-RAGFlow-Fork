@@ -1,3 +1,9 @@
+---
+title: "Intégration Tavily — Recherche web dans le pipeline RAG"
+type: knowledge
+status: reference
+---
+
 # Intégration Tavily — Recherche web dans le pipeline RAG
 
 ## Vue d'ensemble

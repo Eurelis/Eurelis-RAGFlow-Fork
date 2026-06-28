@@ -1,3 +1,9 @@
+---
+title: "Gestion des Entités : Ingestion → Recherche RAG"
+type: knowledge
+status: reference
+---
+
 # Gestion des Entités : Ingestion → Recherche RAG
 
 ## Architecture globale
