@@ -1,7 +1,7 @@
 # Note d'implémentation : Supervision admin des modèles par tenant
 
 > **Branche :** `eurelis/feature/admin-model-supervision` (depuis `eurelis/main`)
-> **Statut global :** 🛠️ Backend (Phases 1-2) + frontend (Phases 3-4) implémentés ; reste la validation UI navigateur + finalisation (Phase 5)
+> **Statut global :** ✅ Implémenté et validé (backend + frontend + sécurité). Feature locale — pas de PR upstream.
 > **Nature :** fonctionnalité **locale Eurelis** — jamais poussée upstream. Contrainte : **empreinte minimale sur le code upstream** (cf. section dédiée).
 
 ## TODO (vue d'ensemble)
@@ -13,7 +13,7 @@
 - [x] **Phase 2 — Backend copie (granulaire)** : `copy_instance` / `delete_instance` / `copy_defaults` (vers liste de cibles, overwrite) + 3 routes POST (validé sur test_c)
 - [x] **Phase 3 — Frontend service & types** : endpoints `eurelis-api.ts` + service dédié `admin-model-supervision-service.ts` (tsc OK)
 - [x] **Phase 4 — Frontend page** : `model-supervision.tsx` (matrice + actions granulaires : copier/supprimer une instance, copier les défauts — vers liste de cibles) + route + nav + i18n (tsc & eslint OK)
-- [ ] **Phase 5 — Finalisation** : tests e2e, en-têtes Eurelis, revue sécurité, PR
+- [x] **Phase 5 — Finalisation** : e2e (ops manuelles validées en BDD), en-têtes Eurelis, revue sécurité OK — **PR hors périmètre** (feature locale)
 
 **Cible confirmée :** système `tenant_model_*` (legacy `tenant_llm` hors périmètre) · **Routing/Groups :** hors périmètre V1 (non câblé).
 
@@ -33,11 +33,11 @@ Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de 
 
 ## Décisions gelées
 
-| Décision                                              | Choix retenu                                |
-|-------------------------------------------------------|---------------------------------------------|
-| Périmètre V1                                          | Comparer + **opérations granulaires** : copier une instance, supprimer une instance, copier les défauts (chacune vers une liste de cibles) |
-| Conflit sur copie (instance déjà présente chez la cible) | **Écraser (overwrite)**, apparié par nom d'instance |
-| Copie des clés API (secrets)                          | **Oui** — copie complète incluant `api_key` |
+| Décision                                                 | Choix retenu                                                                                                                               |
+|----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| Périmètre V1                                             | Comparer + **opérations granulaires** : copier une instance, supprimer une instance, copier les défauts (chacune vers une liste de cibles) |
+| Conflit sur copie (instance déjà présente chez la cible) | **Écraser (overwrite)**, apparié par nom d'instance                                                                                        |
+| Copie des clés API (secrets)                             | **Oui** — copie complète incluant `api_key`                                                                                                |
 
 > Conséquence sécurité : la copie reste une opération **backend** (les `api_key` ne transitent pas en clair vers le frontend). L'affichage/comparaison masque les clés (`sk-…1234`).
 
@@ -191,13 +191,13 @@ Vérifié le **2026-06-27** sur la base `rag_flow` (`docker-mysql-1`, serveur `f
 
 **Volumétrie des tables (global) :**
 
-| Table | Lignes | Note |
-|---|---:|---|
-| `tenant_llm` | 136 | **obsolète** : résidu pré-migration, `used_tokens` figés (tracking mort), non lu pour la résolution |
-| `tenant_model_provider` | 23 | système cible |
-| `tenant_model_instance` | 23 | porte les `api_key` |
-| `tenant_model` | **0** | modèles servis par le catalogue `FACTORY_LLM_INFOS` |
-| `tenant_model_group` / `…_mapping` | **0** | routing non utilisé |
+| Table                              | Lignes | Note                                                                                                |
+|------------------------------------|-------:|-----------------------------------------------------------------------------------------------------|
+| `tenant_llm`                       |    136 | **obsolète** : résidu pré-migration, `used_tokens` figés (tracking mort), non lu pour la résolution |
+| `tenant_model_provider`            |     23 | système cible                                                                                       |
+| `tenant_model_instance`            |     23 | porte les `api_key`                                                                                 |
+| `tenant_model`                     |  **0** | modèles servis par le catalogue `FACTORY_LLM_INFOS`                                                 |
+| `tenant_model_group` / `…_mapping` |  **0** | routing non utilisé                                                                                 |
 
 **Cas `v.lambert@eurelis.com`** (admin, `tenant_id 9d066918…`) — *gère ses connexions* :
 - 2 providers / 2 instances : **Bedrock** (`api_key` = payload JSON, 181 c) et **Gemini** (clé simple, 39 c), instance `default`, `active`.
@@ -217,12 +217,12 @@ Vérifié le **2026-06-27** sur la base `rag_flow` (`docker-mysql-1`, serveur `f
 
 Pour lever le doute « Synerga = résidu de migration », vérifié sur un **install neuf** (code courant `usage-stats`, base `rag_flow` locale) en isolant chaque action :
 
-| Étape | Constat |
-|---|---|
-| **Init (état zéro)** | 1 seul compte `admin@ragflow.io` ; **toutes** les tables modèles à **0** (y compris `tenant_llm`). Défaut `embd_id = bge-m3@xxxx` issu de `user_default_llm`. |
-| **Config provider OpenAI + clé (UI moderne)** | écrit **uniquement** `tenant_model_provider` (1) + `tenant_model_instance` (1, `api_key` + `extra.base_url`). **`tenant_llm` reste à 0**, `tenant_model` à 0. |
-| **2ᵉ user créé sans config** | 0 provider / 0 `tenant_llm` / colonnes `tenant_*_id` NULL ; défaut `embd_id = bge-m3@xxxx` (2 parties) **pendant** → reproduit le cas `test_user_a`. |
-| **Chat créé + 1 message** | `llm_id` admin = `gpt-5.5@Admin@OpenAI` (3 parties) ; après usage : `tenant_llm` toujours **0 / 0 token**, `tenant_model` 0, **aucun compteur d'usage** sur l'instance. |
+| Étape                                                       | Constat                                                                                                                                                                                                                                                                                                                    |
+|-------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Init (état zéro)**                                        | 1 seul compte `admin@ragflow.io` ; **toutes** les tables modèles à **0** (y compris `tenant_llm`). Défaut `embd_id = bge-m3@xxxx` issu de `user_default_llm`.                                                                                                                                                              |
+| **Config provider OpenAI + clé (UI moderne)**               | écrit **uniquement** `tenant_model_provider` (1) + `tenant_model_instance` (1, `api_key` + `extra.base_url`). **`tenant_llm` reste à 0**, `tenant_model` à 0.                                                                                                                                                              |
+| **2ᵉ user créé sans config**                                | 0 provider / 0 `tenant_llm` / colonnes `tenant_*_id` NULL ; défaut `embd_id = bge-m3@xxxx` (2 parties) **pendant** → reproduit le cas `test_user_a`.                                                                                                                                                                       |
+| **Chat créé + 1 message**                                   | `llm_id` admin = `gpt-5.5@Admin@OpenAI` (3 parties) ; après usage : `tenant_llm` toujours **0 / 0 token**, `tenant_model` 0, **aucun compteur d'usage** sur l'instance.                                                                                                                                                    |
 | **Chat `team` d'admin utilisé par v.lambert (sans config)** | ✅ fonctionne. Le `dialog` est `permission=team`, `tenant_id=admin` ; v.lambert est `role=normal` dans l'équipe admin et garde **0 config**. La résolution se fait contre le **tenant propriétaire** (`dialog_service.py:360` → `get_model_config_from_provider_instance(dialog.tenant_id, …)`), pas l'utilisateur courant. |
 
 **Conclusions renforcées :**
@@ -238,13 +238,13 @@ Testé en isolant la variable (config `xxxx`/bge-m3 → `OpenAI`+modèles réels
 
 `user_default_llm` est chargé au démarrage (`common/settings.py`) en `LLM_FACTORY`, `API_KEY`, `CHAT_MDL`/`EMBEDDING_MDL` (format `model@factory`), `ALLOWED_LLM_FACTORIES`, `PARSERS`. À la création d'un tenant, les 3 chemins posent `Tenant.llm_id/embd_id/…` depuis ces valeurs.
 
-| Effet | Statut |
-|---|---|
-| Défauts modèle par user (`Tenant.*_id`) | ❌ **vestigial** : pose des **pointeurs pendants** ; **aucun provider/instance créé** (vérifié : `test_b`/`test_c` → 0 provider, 0 instance, 0 `tenant_llm`). Un nouvel user **ne peut pas créer de chat** (UI : « ajouter d'abord un embedding + un LLM »). Seul un **chat partagé** marche (résolu contre le propriétaire). |
-| `parser_ids` par défaut (`PARSERS`) | ✅ vivant (3 chemins de création) |
-| Whitelist factories (`ALLOWED_LLM_FACTORIES`) | ✅ vivant (`api_utils.py:709`) |
-| Embedding **builtin TEI** (`EMBEDDING_CFG`) | ✅ vivant en profil `tei-` (`tenant_model_service.py:195`) |
-| Seeding `tenant_llm` via `get_init_tenant_llm` | ⚠️ boot superuser uniquement → écrit une table **obsolète** |
+| Effet                                          | Statut                                                                                                                                                                                                                                                                                                                       |
+|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Défauts modèle par user (`Tenant.*_id`)        | ❌ **vestigial** : pose des **pointeurs pendants** ; **aucun provider/instance créé** (vérifié : `test_b`/`test_c` → 0 provider, 0 instance, 0 `tenant_llm`). Un nouvel user **ne peut pas créer de chat** (UI : « ajouter d'abord un embedding + un LLM »). Seul un **chat partagé** marche (résolu contre le propriétaire). |
+| `parser_ids` par défaut (`PARSERS`)            | ✅ vivant (3 chemins de création)                                                                                                                                                                                                                                                                                             |
+| Whitelist factories (`ALLOWED_LLM_FACTORIES`)  | ✅ vivant (`api_utils.py:709`)                                                                                                                                                                                                                                                                                                |
+| Embedding **builtin TEI** (`EMBEDDING_CFG`)    | ✅ vivant en profil `tei-` (`tenant_model_service.py:195`)                                                                                                                                                                                                                                                                    |
+| Seeding `tenant_llm` via `get_init_tenant_llm` | ⚠️ boot superuser uniquement → écrit une table **obsolète**                                                                                                                                                                                                                                                                   |
 
 **Conséquences pour la feature :**
 - La supervision doit afficher un défaut `model@factory` (2 parties) **comme potentiellement pendant** tant qu'aucun provider correspondant n'existe chez le tenant.
@@ -252,12 +252,12 @@ Testé en isolant la variable (config `xxxx`/bge-m3 → `OpenAI`+modèles réels
 
 **Grille de décision — faut-il utiliser `user_default_llm` ?**
 
-| Contexte | Verdict |
-|---|---|
-| Bootstrap modèle via **provider externe** (OpenAI, Bedrock, Gemini… — cas Synerga) | ❌ **Inutile** : pointeur pendant, l'user doit configurer un provider de toute façon ; crée une fausse impression de config. |
-| **Embedding builtin / TEI** (profil `tei-`) | ✅ **Intérêt réel** : configuré sans factory pour matcher `TEI_MODEL`, le défaut embedding est résolu par le bypass dédié → fonctionnel sans config manuelle. |
-| `parsers` (parser_ids par défaut) | ✅ Utile, indépendant des modèles. |
-| `allowed_factories` (whitelist providers) | ✅ Utile, indépendant des modèles. |
+| Contexte                                                                           | Verdict                                                                                                                                                      |
+|------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Bootstrap modèle via **provider externe** (OpenAI, Bedrock, Gemini… — cas Synerga) | ❌ **Inutile** : pointeur pendant, l'user doit configurer un provider de toute façon ; crée une fausse impression de config.                                  |
+| **Embedding builtin / TEI** (profil `tei-`)                                        | ✅ **Intérêt réel** : configuré sans factory pour matcher `TEI_MODEL`, le défaut embedding est résolu par le bypass dédié → fonctionnel sans config manuelle. |
+| `parsers` (parser_ids par défaut)                                                  | ✅ Utile, indépendant des modèles.                                                                                                                            |
+| `allowed_factories` (whitelist providers)                                          | ✅ Utile, indépendant des modèles.                                                                                                                            |
 
 → **Sur Synerga (Bedrock externe)** : la partie `default_models` est inutile ; ne conserver `user_default_llm` que pour `parsers`/`allowed_factories` (ou la vider sans rien casser côté modèles). Le vrai besoin « user autonome sans saisie » relève de `copy_models()`, pas de `user_default_llm`.
 
@@ -283,11 +283,11 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 **Stratégie backend — blueprint Eurelis isolé.** L'admin enregistre un blueprint unique via `app.register_blueprint(admin_bp)` (`admin/server/admin_server.py:53`). On crée un **second blueprint Eurelis** dans un nouveau fichier, avec le même `url_prefix="/api/v1/admin"`, et on l'enregistre par **une seule ligne** ajoutée à `admin_server.py`.
 
-| Type | Fichier | Action |
-|------|---------|--------|
-| 🆕 Nouveau (Eurelis) | `admin/server/admin_model_supervision.py` | Blueprint + handlers + classe `TenantModelMgr` (service) |
-| ✏️ Upstream (1 ligne) | `admin/server/admin_server.py` | `import` + `register_blueprint(...)` du blueprint Eurelis |
-| ♻️ Réutilisé (0 edit) | `api/apps/services/models_api_service.py`, `provider_api_service.py` | appelés tels quels |
+| Type                 | Fichier                                                              | Action                                                    |
+|----------------------|----------------------------------------------------------------------|-----------------------------------------------------------|
+| 🆕 Nouveau (Eurelis) | `admin/server/admin_model_supervision.py`                            | Blueprint + handlers + classe `TenantModelMgr` (service)  |
+| ✏️ Upstream (1 ligne) | `admin/server/admin_server.py`                                       | `import` + `register_blueprint(...)` du blueprint Eurelis |
+| ♻️ Réutilisé (0 edit) | `api/apps/services/models_api_service.py`, `provider_api_service.py` | appelés tels quels                                        |
 
 > Aucune modification de `admin/server/routes.py` ni `services.py`.
 
@@ -295,14 +295,14 @@ Fonctionnalité **locale Eurelis**, jamais mergée upstream. Tout fichier upstre
 
 Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurelis-api.ts`, service Eurelis dédié important `{ request }` de `admin-service.ts`. **`api.ts`/`admin.service.d.ts` non touchés.**
 
-| Type | Fichier | Action |
-|------|---------|--------|
-| ♻️ Eurelis (fait) | `web/src/utils/eurelis-api.ts` | + 3 endpoints `adminTenantModels` / `adminCompareTenantModels` / `adminCopyTenantModels` |
-| 🆕 Nouveau (Eurelis, fait) | `web/src/services/admin-model-supervision-service.ts` | fonctions + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…) |
-| 🆕 Nouveau (Eurelis) | `web/src/pages/admin/model-supervision.tsx` | la page |
-| ✏️ Upstream (1 route) | `web/src/routes.tsx` | + `AdminModelSupervision` |
-| ✏️ Upstream (1 item) | `navigation-layout.tsx` | + entrée de menu |
-| ♻️ Eurelis | `web/src/locales/eurelis/{en,fr}.ts` | + libellés |
+| Type                       | Fichier                                               | Action                                                                                   |
+|----------------------------|-------------------------------------------------------|------------------------------------------------------------------------------------------|
+| ♻️ Eurelis (fait)           | `web/src/utils/eurelis-api.ts`                        | + 3 endpoints `adminTenantModels` / `adminCompareTenantModels` / `adminCopyTenantModels` |
+| 🆕 Nouveau (Eurelis, fait) | `web/src/services/admin-model-supervision-service.ts` | fonctions + types (`TenantModelConfig`, `CompareResult`, `CopySummary`…)                 |
+| 🆕 Nouveau (Eurelis)       | `web/src/pages/admin/model-supervision.tsx`           | la page                                                                                  |
+| ✏️ Upstream (1 route)       | `web/src/routes.tsx`                                  | + `AdminModelSupervision`                                                                |
+| ✏️ Upstream (1 item)        | `navigation-layout.tsx`                               | + entrée de menu                                                                         |
+| ♻️ Eurelis                  | `web/src/locales/eurelis/{en,fr}.ts`                  | + libellés                                                                               |
 
 **Règles transverses :** en-têtes de commentaires Eurelis sur les nouveaux fichiers ; chaque insertion dans un fichier upstream encadrée d'un commentaire repère (ex. `// --- Eurelis: model supervision ---`) pour faciliter la relecture et les rebases.
 
@@ -314,13 +314,13 @@ Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurel
 
 **`admin/server/admin_model_supervision.py`** (nouveau) — classe `TenantModelMgr` + handlers du blueprint Eurelis, opérant sur le système `tenant_model_*` :
 
-| Méthode                             | Rôle                                                                                                                                                                                                                                                                                                    |
-|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `list_tenant_models(tenant_id)`     | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                                                                                                                                                     |
-| `compare_tenants(tenant_ids)`       | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + flag « défaut » (`raw_defaults` + `resolvable`).                                                                                                                                                              |
+| Méthode                                                | Rôle                                                                                                                                                               |
+|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `list_tenant_models(tenant_id)`                        | Réutilise `models_api_service.list_tenant_added_models()` + `list_tenant_default_models()`. `api_key` (sur l'instance) **masquée** dans la réponse.                |
+| `compare_tenants(tenant_ids)`                          | Matrice : pour chaque `(provider, instance, model_name, model_type)`, statut par tenant + flag « défaut » (`raw_defaults` + `resolvable`).                         |
 | `copy_instance(source, provider, instance, targets[])` | Copie **un** `Provider/Instance` (api_key + `tenant_model` si présent) d'un tenant source vers une liste de cibles, en **overwrite** (apparie par nom d'instance). |
-| `delete_instance(provider, instance, targets[])`       | Supprime **un** `Provider/Instance` (et ses `tenant_model`) d'une liste de cibles ; retire aussi le provider s'il n'a plus d'instance. |
-| `copy_defaults(source, targets[])`                     | Copie les **modèles par défaut** du `Tenant` source (`llm_id`, `embd_id`…) vers une liste de cibles, en **overwrite**. |
+| `delete_instance(provider, instance, targets[])`       | Supprime **un** `Provider/Instance` (et ses `tenant_model`) d'une liste de cibles ; retire aussi le provider s'il n'a plus d'instance.                             |
+| `copy_defaults(source, targets[])`                     | Copie les **modèles par défaut** du `Tenant` source (`llm_id`, `embd_id`…) vers une liste de cibles, en **overwrite**.                                             |
 
 > **Évolution V1** : la copie globale `copy_models` initiale a été **remplacée** par ces 3 opérations granulaires (copier une instance / supprimer une instance / copier les défauts), chacune vers une **liste de cibles**.
 
@@ -396,29 +396,30 @@ Suit le précédent **stats** (`admin-stats-service.ts`) : endpoints dans `eurel
 - [ ] Validation rendu navigateur (`/admin/model-supervision`)
 
 ### Phase 5 — Finalisation
-- [ ] Tests de bout en bout (comparaison + copie réelle entre 2 tenants)
-- [ ] En-têtes de commentaires Eurelis sur les nouveaux fichiers
-- [ ] Revue de sécurité (aucune fuite d'`api_key` vers le front)
-- [ ] Mise à jour de la doc / PR
+- [x] Tests de bout en bout : séquence d'ops manuelles validée en BDD (admin → v.lambert : delete instance → copy defaults → copy instance ; défauts redevenus résolubles)
+- [x] En-têtes de commentaires Eurelis sur les 3 nouveaux fichiers
+- [x] Revue de sécurité : 5 routes en `@check_admin_auth` ; `api_key` jamais renvoyée en clair (hint masqué) ; copie backend-only
+- [x] Mise à jour de la doc
+- [x] PR : **hors périmètre** (feature locale, jamais poussée upstream)
 
 ---
 
 ## Fichiers clés de référence
 
-| Rôle                                                  | Fichier                                                                                                      |
-|-------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| Modèles DB cible (`TenantModel*`, `lignes 1403–1458`) | `api/db/db_models.py`                                                                                        |
-| Service haut niveau modèles (réutilisable)            | `api/apps/services/models_api_service.py`                                                                    |
-| Service haut niveau providers (réutilisable)          | `api/apps/services/provider_api_service.py`                                                                  |
-| Résolution / helpers (`split_model_name`…)            | `api/db/joint_services/tenant_model_service.py`                                                              |
-| Services CRUD bas niveau                              | `api/db/services/tenant_model_{provider,instance,group,group_mapping}_service.py`, `tenant_model_service.py` |
-| Migration legacy → nouveau (référence)                | `tools/scripts/mysql_migration.py`                                                                           |
-| Pattern cross-tenant admin (référence, **non modifié**) | `admin/server/services.py` (`TenantMgr`), `admin/server/routes.py`                                         |
-| Code backend Eurelis (**nouveau**)                    | `admin/server/admin_model_supervision.py`                                                                  |
-| Enregistrement blueprint (**1 ligne upstream**)       | `admin/server/admin_server.py` (~ligne 53)                                                                   |
-| Service frontend admin                                | `web/src/services/admin-service.ts`                                                                          |
-| Endpoints frontend                                    | `web/src/utils/api.ts`                                                                                       |
-| Pages admin existantes (référence UI)                 | `web/src/pages/admin/users.tsx`, `user-team.tsx`                                                             |
-| Routing / navigation                                  | `web/src/routes.tsx`, `web/src/pages/admin/layouts/navigation-layout.tsx`                                    |
-| i18n Eurelis                                          | `web/src/locales/eurelis/{en,fr}.ts`                                                                         |
-| Legacy hors périmètre                                 | `api/db/db_models.py` (`TenantLLM`), `api/apps/llm_app.py`                                                   |
+| Rôle                                                    | Fichier                                                                                                      |
+|---------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| Modèles DB cible (`TenantModel*`, `lignes 1403–1458`)   | `api/db/db_models.py`                                                                                        |
+| Service haut niveau modèles (réutilisable)              | `api/apps/services/models_api_service.py`                                                                    |
+| Service haut niveau providers (réutilisable)            | `api/apps/services/provider_api_service.py`                                                                  |
+| Résolution / helpers (`split_model_name`…)              | `api/db/joint_services/tenant_model_service.py`                                                              |
+| Services CRUD bas niveau                                | `api/db/services/tenant_model_{provider,instance,group,group_mapping}_service.py`, `tenant_model_service.py` |
+| Migration legacy → nouveau (référence)                  | `tools/scripts/mysql_migration.py`                                                                           |
+| Pattern cross-tenant admin (référence, **non modifié**) | `admin/server/services.py` (`TenantMgr`), `admin/server/routes.py`                                           |
+| Code backend Eurelis (**nouveau**)                      | `admin/server/admin_model_supervision.py`                                                                    |
+| Enregistrement blueprint (**1 ligne upstream**)         | `admin/server/admin_server.py` (~ligne 53)                                                                   |
+| Service frontend admin                                  | `web/src/services/admin-service.ts`                                                                          |
+| Endpoints frontend                                      | `web/src/utils/api.ts`                                                                                       |
+| Pages admin existantes (référence UI)                   | `web/src/pages/admin/users.tsx`, `user-team.tsx`                                                             |
+| Routing / navigation                                    | `web/src/routes.tsx`, `web/src/pages/admin/layouts/navigation-layout.tsx`                                    |
+| i18n Eurelis                                            | `web/src/locales/eurelis/{en,fr}.ts`                                                                         |
+| Legacy hors périmètre                                   | `api/db/db_models.py` (`TenantLLM`), `api/apps/llm_app.py`                                                   |
