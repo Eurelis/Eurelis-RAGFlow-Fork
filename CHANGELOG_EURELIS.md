@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.1-eurelis.3-exp.5] - 2026-06-28 ⚠️ expérimental
+
+Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/admin-model-supervision`.
+
+### Added
+- **Supervision admin des modèles par tenant** — nouvelle page d'administration `/admin/model-supervision` (cross-tenant, superuser) pour visualiser, comparer et propager les configurations de modèles.
+  - Comparaison multi-tenants en matrice : fournisseurs/instances (clé API **masquée**), modèles par défaut (avec détection des défauts **« pendants »** non résolubles), modèles disponibles (avec filtre texte).
+  - Opérations granulaires vers une **liste de tenants cibles** : copier un fournisseur/instance (clé incluse, overwrite), supprimer un fournisseur/instance, copier les modèles par défaut.
+  - Backend isolé : blueprint admin Eurelis (`admin/server/admin_model_supervision.py`), 5 routes sous `/api/v1/admin/tenants/…`, ciblant le système `tenant_model_*` (legacy `tenant_llm` hors périmètre). Les clés API ne transitent jamais en clair vers le frontend.
+
+---
+
 ## [v0.26.1-eurelis.3-exp.4] - 2026-06-23 ⚠️ expérimental
 
 Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
