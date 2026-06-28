@@ -1,7 +1,12 @@
-# Protéger les données personnelles dans vos pipelines RAG : l'approche Presidio
+---
+title: "Protéger les données personnelles dans vos pipelines RAG : l'approche Presidio"
+type: blog
+status: published
+tags: ["IA", "Sécurité", "RGPD", "RAG"]
+reading_time: "8 min"
+---
 
-**Catégories :** IA, Sécurité, RGPD, RAG  
-**Temps de lecture :** 8 min
+# Protéger les données personnelles dans vos pipelines RAG : l'approche Presidio
 
 ---
 

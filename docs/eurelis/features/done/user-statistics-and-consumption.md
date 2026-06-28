@@ -1,8 +1,15 @@
+---
+title: "Statistiques de consommation par utilisateur"
+type: feature
+status: implemented
+reviewed: 2026-06-28
+---
+
 # Statistiques de consommation par utilisateur
 
 **Dernière mise à jour :** 2026-06-22
 
-> **Note refactoring `source`/`token_type`.** Ce document de suivi conserve sa valeur historique. Le modèle `usage_log` a depuis évolué : la colonne `source` ne contient plus que les **flux** `chat` · `search` · `agent` · `ingestion` (les anciens `chatbot`/`agentbot` sont fusionnés dans `chat`/`agent`), et une colonne `token_type` (`llm` · `embedding`) porte la nature du token. Les colonnes `dialog_id`/`session_id` sont renommées `resource_id`/`object_id`. Référence à jour : `docs/eurelis/specs/usage-log-table.md` et `docs/eurelis/features/api-usage-stats-user.md`.
+> **Note refactoring `source`/`token_type`.** Ce document de suivi conserve sa valeur historique. Le modèle `usage_log` a depuis évolué : la colonne `source` ne contient plus que les **flux** `chat` · `search` · `agent` · `ingestion` (les anciens `chatbot`/`agentbot` sont fusionnés dans `chat`/`agent`), et une colonne `token_type` (`llm` · `embedding`) porte la nature du token. Les colonnes `dialog_id`/`session_id` sont renommées `resource_id`/`object_id`. Référence à jour : `docs/eurelis/specs/usage-stats/usage-log-table.md` et `docs/eurelis/specs/usage-stats/api-usage-stats-user.md`.
 
 ---
 
@@ -22,8 +29,8 @@
 - [x] **Étape 8 (partiel)** — UI utilisateur RAGFlow ✅ : page `/user-setting/stats` avec KPIs, graphiques, tableau par dialog — `pages/user-setting/stats/index.tsx`
 - [x] **Étape 8 (suite)** — UI Shield : bloc de stats dans l'en-tête de conversation (tokens, durée, histogramme par tour) — spec : `conversation-stats-header/spec.md` dans Shield
 - [ ] **Étape 7** — Endpoint Shield `GET /stats/me` : proxy + agrégation multi-serveurs RAGFlow
-- [ ] **Ingestion** — Historisation des tokens d'embedding dans `usage_log` (`source='ingestion'`) — spec : `docs/eurelis/features/usage-stats-ingestion.md`
-- [ ] **Endpoints futurs** — `GET /usage-stats/me/timeseries` et `GET /usage-stats/me/breakdown?group_by=source|model` — spec : `docs/eurelis/features/api-usage-stats-user.md`
+- [ ] **Ingestion** — Historisation des tokens d'embedding dans `usage_log` (`source='ingestion'`) — spec : `docs/eurelis/specs/usage-stats/usage-stats-ingestion.md`
+- [ ] **Endpoints futurs** — `GET /usage-stats/me/timeseries` et `GET /usage-stats/me/breakdown?group_by=source|model` — spec : `docs/eurelis/specs/usage-stats/api-usage-stats-user.md`
 
 ---
 
@@ -71,7 +78,7 @@ Pour les sessions agents (canvas), `api_4_conversation.dialog_id` pointe vers `u
 
 **Fix (Étapes 2 & 3) :** table `usage_log` append-only (source unique, toutes surfaces) + `UsageLogService.log()` câblé dans les 5 points de completion (`chat`, `chatbot`, `agent`). Les données survivent à la suppression des conversations.
 
-→ Voir spec : `docs/eurelis/specs/usage-log-table.md`
+→ Voir spec : `docs/eurelis/specs/usage-stats/usage-log-table.md`
 
 ---
 
@@ -127,7 +134,7 @@ L'objectif est d'exploiter la donnée déjà présente (ou à ajouter) en base p
 - `class UsageLog(DataBaseModel)` dans `api/db/db_models.py` (après `API4Conversation`) — table `usage_log` auto-créée par `init_database_tables()` au démarrage
 - `UsageLogService` dans `api/db/services/usage_log_service.py` — méthodes `log()`, `stats_for_user()`, `stats_all_users()`, `stats_by_day()`
 
-→ Voir spec complète : `docs/eurelis/specs/usage-log-table.md`
+→ Voir spec complète : `docs/eurelis/specs/usage-stats/usage-log-table.md`
 
 ---
 
@@ -359,4 +366,4 @@ Voir : `docs/integration/keycloak-authentication.md`
 ## Hors périmètre
 
 - Breakdown par nœud pour les agents — upstream [#11576](https://github.com/infiniflow/ragflow/issues/11576)
-- Stats Langfuse par `user_id` / `session_id` — voir `docs/eurelis/roadmap/langfuse-session-user-integration.md`
+- Stats Langfuse par `user_id` / `session_id` — voir `docs/eurelis/features/roadmap/langfuse-session-user-integration.md`

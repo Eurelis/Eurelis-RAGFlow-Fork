@@ -1,6 +1,11 @@
-# Gestion des utilisateurs et administration RAGFlow
+---
+title: "Gestion des utilisateurs et administration RAGFlow"
+type: knowledge
+status: reference
+date: 2026-05-22
+---
 
-**Date :** 2026-05-22
+# Gestion des utilisateurs et administration RAGFlow
 
 ---
 
