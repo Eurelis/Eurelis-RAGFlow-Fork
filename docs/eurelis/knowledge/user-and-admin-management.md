@@ -1,6 +1,11 @@
-# Gestion des utilisateurs et administration RAGFlow
+---
+title: "Gestion des utilisateurs et administration RAGFlow"
+type: knowledge
+status: reference
+date: 2026-05-22
+---
 
-**Date :** 2026-05-22
+# Gestion des utilisateurs et administration RAGFlow
 
 ---
 
@@ -78,6 +83,40 @@ Base : `/api/v1`
 | `/tenants/{tenant_id}`       | PATCH   | Membre invité            | Accepter une invitation (passage de `INVITE` → `NORMAL`)        |
 
 > **Contrainte :** l'invitation nécessite que l'invité possède déjà un compte RAGFlow (`POST /users` ou login OAuth préalable).
+
+---
+
+## Provisionnement automatique via SSO (OIDC / OAuth)
+
+### Auto-création de compte
+
+À la **première connexion** via un canal SSO (OIDC, OAuth2, GitHub), si l'email n'existe pas encore, RAGFlow **crée automatiquement le compte** (User + Tenant + relation `UserTenant` owner + dossier racine). Le point d'injection est le callback dans `api/apps/restful_apis/user_api.py` (`oauth_callback`).
+
+> **⚠️ Non gardé par `REGISTER_ENABLED`.** Ce flag ne protège que l'inscription par mot de passe (`POST /users`). Le login SSO auto-provisionne toujours un compte si l'email est inconnu — le seul « contrôle » est la présence du canal dans `OAUTH_CONFIG`.
+
+### Assignation aux équipes par défaut (`default_teams`) — *fork Eurelis*
+
+À la création d'un compte SSO, l'utilisateur peut être **automatiquement ajouté comme membre (`NORMAL`)** à une liste d'équipes prédéfinies. Configuré par canal dans la section `oauth` du `service_conf.yaml` :
+
+```yaml
+oauth:
+  keycloak:
+    type: "oidc"
+    issuer: "..."
+    client_id: "..."
+    client_secret: "..."
+    redirect_uri: "..."
+    default_teams:                 # ← clé propre au fork Eurelis
+      - "team-owner-1@example.com" # email du propriétaire (owner) de l'équipe
+      - "team-owner-2@example.com"
+```
+
+- Chaque entrée est l'**email de l'owner** d'une équipe (rappel : `tenant_id == user.id` de l'owner).
+- L'assignation n'a lieu **qu'à la création** du compte ; les connexions suivantes ne modifient pas les appartenances (idempotent).
+- Rôle assigné : `NORMAL` (jamais `OWNER`).
+- Robuste : un email owner introuvable ou une erreur d'insertion est loggé mais **ne bloque jamais le login**.
+
+Implémentation : `api/apps/auth/auto_team_provisioning.py` (fonction `assign_default_teams`). Conception et alternative envisagée (mapping groupes Keycloak) : voir [`features/done/keycloak-team-provisioning.md`](../features/done/keycloak-team-provisioning.md).
 
 ---
 

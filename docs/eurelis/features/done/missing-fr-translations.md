@@ -1,3 +1,10 @@
+---
+title: "Missing French translations"
+type: feature
+status: analysis
+reviewed: 2026-06-28
+---
+
 # Missing French translations
 
 Analysed on 2026-05-10 · EN: 2289 keys · FR: 1090 keys · **Missing: 1202 keys**

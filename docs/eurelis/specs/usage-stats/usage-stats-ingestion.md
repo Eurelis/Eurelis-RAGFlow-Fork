@@ -1,6 +1,11 @@
-# Historisation des tokens d'ingestion dans `usage_log`
+---
+title: "Historisation des tokens d'ingestion dans `usage_log`"
+type: spec
+status: implemented
+reviewed: 2026-06-28
+---
 
-**Statut :** Implémenté
+# Historisation des tokens d'ingestion dans `usage_log`
 
 L'ingestion de documents consomme des tokens de deux natures, désormais toutes deux historisées dans `usage_log` sous le flux `source='ingestion'`, distinguées par la colonne `token_type` :
 

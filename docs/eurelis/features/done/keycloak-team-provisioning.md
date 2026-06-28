@@ -1,8 +1,13 @@
-# Feature : Provisionnement automatique des équipes via Keycloak
+---
+title: "Feature : Provisionnement automatique des équipes via Keycloak"
+type: feature
+status: partial
+date: 2026-06-17
+branch: "eurelis/feature/keycloak-team-provisioning"
+reviewed: 2026-06-28
+---
 
-**Branche** : `eurelis/feature/keycloak-team-provisioning`  
-**Date** : 2026-06-17  
-**Statut** : Partiellement implémenté
+# Feature : Provisionnement automatique des équipes via Keycloak
 
 ---
 
@@ -179,47 +184,75 @@ Connexion Keycloak
 
 ## Point d'implémentation
 
+> **Note** : les extraits ci-dessous reflètent l'implémentation réelle (`api/apps/auth/auto_team_provisioning.py`). L'assignation passe directement par `UserTenantService.save(...)` (et non par `TenantMgr.add_member`), avec un contrôle d'idempotence.
+
 ```python
-# api/apps/auth/auto_team_provisioning.py (nouveau fichier)
+# api/apps/auth/auto_team_provisioning.py (nouveau fichier Eurelis)
 
 import logging
-from api.db.services import UserService
-from admin.server.services import TenantMgr
+from datetime import datetime
+
+from api.db import UserTenantRole
+from api.db.services.user_service import UserService, UserTenantService
+from common.constants import StatusEnum
+from common.misc_utils import get_uuid
+from common.time_utils import current_timestamp, datetime_format
+
+_logger = logging.getLogger(__name__)
+
 
 def assign_default_teams(user_id: str, oauth_config: dict) -> None:
-    """Assigne automatiquement l'utilisateur aux équipes configurées (Option A)."""
+    """Assigne l'utilisateur aux équipes listées dans oauth_config['default_teams'] (Option A).
+
+    Chaque entrée est l'email du propriétaire (owner) de l'équipe. Les erreurs sont
+    loggées mais ne remontent jamais — une équipe mal configurée ne doit pas bloquer le login.
+    """
     for owner_email in oauth_config.get("default_teams", []):
         owners = UserService.query(email=owner_email)
         if not owners:
-            logging.getLogger(__name__).warning(
-                "default_teams: no user found for email %s, skipping", owner_email
+            _logger.warning(
+                "default_teams: no user found for email %r, skipping", owner_email
             )
             continue
-        tenant_id = owners[0].id
-        _safe_assign(tenant_id, user_id)
+        _safe_assign(tenant_id=owners[0].id, user_id=user_id)
+
 
 def _safe_assign(tenant_id: str, user_id: str) -> None:
     try:
-        TenantMgr.add_member(tenant_id, user_id, role="normal")
-    except ValueError as e:
-        # Déjà membre — silencieux
-        logging.getLogger(__name__).debug(
-            "Skipping team assignment for user %s in tenant %s: %s", user_id, tenant_id, e
+        existing = UserTenantService.filter_by_tenant_and_user_id(tenant_id, user_id)
+        if existing and existing.status == StatusEnum.VALID.value:
+            _logger.debug(
+                "User %s is already a member of tenant %s, skipping", user_id, tenant_id
+            )
+            return
+        now = current_timestamp()
+        UserTenantService.save(
+            id=get_uuid(),
+            user_id=user_id,
+            tenant_id=tenant_id,
+            role=UserTenantRole.NORMAL.value,
+            invited_by=tenant_id,
+            status=StatusEnum.VALID.value,
+            create_time=now,
+            create_date=datetime_format(datetime.now()),
+            update_time=now,
+            update_date=datetime_format(datetime.now()),
         )
+        _logger.info("Assigned user %s to tenant %s", user_id, tenant_id)
     except Exception:
-        logging.getLogger(__name__).warning(
+        _logger.warning(
             "Failed to assign user %s to tenant %s", user_id, tenant_id, exc_info=True
         )
 ```
 
-**Point d'injection dans `api/apps/restful_apis/user_api.py`** (ligne ~246, après `user_register`) :
+**Point d'injection dans `api/apps/restful_apis/user_api.py`** (après `user_register`, avant `login_user`) :
 
 ```python
 users = user_register(user_id, {...})
 if not users:
     raise Exception(f"Failed to register {user_info.email}")
 
-from api.apps.auth.eurelis_provisioning import assign_default_teams
+from api.apps.auth.auto_team_provisioning import assign_default_teams
 assign_default_teams(user_id, channel_config)
 
 user = users[0]
