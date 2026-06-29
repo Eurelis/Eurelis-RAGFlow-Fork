@@ -1,4 +1,23 @@
-# Analyse : Partage des Chats dans RAGFlow
+---
+title: "Partage des Chats dans RAGFlow (analyse + implémentation)"
+type: feature
+status: implemented
+reviewed: 2026-06-29
+---
+
+# Partage des Chats dans RAGFlow
+
+> **Implémenté** dans le cadre de la feature `group_work` (commit `0cd1cc4ef`, suivi de `fce49a224`).
+> L'implémentation retenue diffère du design proposé ci-dessous sur un point : **aucune colonne `created_by` n'a été ajoutée** au modèle `Dialog`. Le contrôle « propriétaire » s'appuie sur `tenant_id` via le helper `_ensure_owned_chat`, et toute la logique vit dans le pattern RESTful `api/apps/restful_apis/chat_api.py` (et non l'ancien `api/apps/dialog_app.py`, supprimé depuis).
+>
+> Couverture effective :
+> - Champ `permission` (`me`/`team`) sur `Dialog` — `api/db/db_models.py`.
+> - Création / mise à jour : `permission` accepté et validé — `chat_api.py` (~440, ~602).
+> - Liste : `DialogService.get_by_tenant_ids()` filtre les chats `team` des tenants rejoints.
+> - Lecture : accès aux chats partagés via appartenance au tenant — `chat_api.py` (~177).
+> - `update_chat` / `delete_chat` protégés par `_ensure_owned_chat`.
+>
+> Le texte ci-dessous est conservé comme **document d'analyse historique** ; certaines références de fichiers (ex. `dialog_app.py`) ne correspondent plus au code actuel.
 
 ## Contexte
 

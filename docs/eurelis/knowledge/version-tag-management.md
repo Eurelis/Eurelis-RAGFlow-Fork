@@ -1,3 +1,9 @@
+---
+title: "Gestion des tags de version affichés dans RAGFlow"
+type: knowledge
+status: reference
+---
+
 # Gestion des tags de version affichés dans RAGFlow
 
 ## Vue d'ensemble

@@ -1,3 +1,10 @@
+---
+title: "API — Statistiques de consommation (utilisateur)"
+type: spec
+status: implemented
+reviewed: 2026-06-28
+---
+
 # API — Statistiques de consommation (utilisateur)
 
 Ces endpoints permettent à un utilisateur authentifié d'accéder à ses propres statistiques de consommation (sessions, tokens, durée) sur la période de son choix.
@@ -20,7 +27,7 @@ Les statistiques sont calculées sur la table append-only `usage_log`. Deux dime
 - `source=agent` couvre les workflows d'agent (retrieval inclus).
 - `source=ingestion` couvre l'indexation de documents (voir `usage-stats-ingestion.md`).
 
-> Voir `docs/eurelis/specs/usage-log-table.md` pour le schéma complet (`resource_id`, `object_id`, `tokens`, `duration`, `model`, `provider`).
+> Voir `docs/eurelis/specs/usage-stats/usage-log-table.md` pour le schéma complet (`resource_id`, `object_id`, `tokens`, `duration`, `model`, `provider`).
 
 ### Filtres communs
 

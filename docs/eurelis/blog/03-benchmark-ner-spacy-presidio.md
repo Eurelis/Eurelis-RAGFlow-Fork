@@ -1,7 +1,12 @@
-# Benchmark NER spaCy × Presidio : sm bat md, et ce n'est pas un bug
+---
+title: "Benchmark NER spaCy × Presidio : sm bat md, et ce n'est pas un bug"
+type: blog
+status: published
+tags: ["IA", "Python", "Benchmark", "NLP"]
+reading_time: "10 min"
+---
 
-**Catégories :** IA, Python, Benchmark, NLP  
-**Temps de lecture :** 10 min
+# Benchmark NER spaCy × Presidio : sm bat md, et ce n'est pas un bug
 
 ---
 

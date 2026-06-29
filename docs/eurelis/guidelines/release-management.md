@@ -1,3 +1,9 @@
+---
+title: "Release et build des images — Fork Eurelis de RAGFlow"
+type: guideline
+status: reference
+---
+
 # Release et build des images — Fork Eurelis de RAGFlow
 
 ## Gestion des releases

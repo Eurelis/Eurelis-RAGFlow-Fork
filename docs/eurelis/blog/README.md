@@ -1,3 +1,9 @@
+---
+title: "Articles de blog — Série PII Masking avec Presidio"
+type: blog
+status: published
+---
+
 # Articles de blog — Série PII Masking avec Presidio
 
 Série de 3 articles pour le blog Eurelis sur l'intégration du masquage PII dans les pipelines RAG.

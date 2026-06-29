@@ -1,3 +1,9 @@
+---
+title: "Chat App — Configuration des Variables (section \"Variable\")"
+type: knowledge
+status: reference
+---
+
 # Chat App — Configuration des Variables (section "Variable")
 
 ## Vue d'ensemble

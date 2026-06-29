@@ -1,3 +1,11 @@
+---
+title: "Note d'implémentation : Supervision admin des modèles par tenant"
+type: feature
+status: implemented
+branch: "eurelis/feature/admin-model-supervision"
+reviewed: 2026-06-28
+---
+
 # Note d'implémentation : Supervision admin des modèles par tenant
 
 > **Branche :** `eurelis/feature/admin-model-supervision` (depuis `eurelis/main`)
@@ -27,7 +35,7 @@ Ajouter, dans l'espace d'administration, une **supervision des modèles LLM conf
 2. **Comparer** les configurations de plusieurs tenants côte à côte.
 3. **Copier** la configuration d'un tenant vers un autre.
 
-Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de modèles entre membres d'équipe analysé dans [`model-sharing-analysis.md`](./model-sharing-analysis.md), qui est orienté utilisateur final.
+Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de modèles entre membres d'équipe analysé dans [`model-sharing-analysis.md`](../roadmap/model-sharing-analysis.md), qui est orienté utilisateur final.
 
 ---
 
@@ -43,7 +51,7 @@ Cette fonctionnalité est **admin-only** (superuser) et distincte du partage de 
 
 ### Alternative écartée : partage utilisateur → équipe
 
-L'option « permettre à un utilisateur de partager ses modèles avec son équipe » (cf. [`model-sharing-analysis.md`](./model-sharing-analysis.md)) a été comparée puis **écartée pour la V1**.
+L'option « permettre à un utilisateur de partager ses modèles avec son équipe » (cf. [`model-sharing-analysis.md`](../roadmap/model-sharing-analysis.md)) a été comparée puis **écartée pour la V1**.
 
 | Critère                          | Supervision admin + copie (retenu) | Partage équipe (écarté V1)                       |
 |----------------------------------|------------------------------------|--------------------------------------------------|
