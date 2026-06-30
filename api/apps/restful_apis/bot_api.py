@@ -270,9 +270,9 @@ async def ask_about_embedded(tenant_id=None):
         chat_llm_name = tenant_info.llm_id
 
     async def stream():
-        nonlocal req, uid
+        nonlocal req, uid, search_id
         try:
-            async for ans in async_ask(req["question"], req["kb_ids"], uid, chat_llm_name=chat_llm_name, search_config=search_config):
+            async for ans in async_ask(req["question"], req["kb_ids"], uid, chat_llm_name=chat_llm_name, search_config=search_config, search_id=search_id):
                 yield "data:" + json.dumps({"code": 0, "message": "", "data": ans}, ensure_ascii=False) + "\n\n"
         except Exception as e:
             yield "data:" + json.dumps(

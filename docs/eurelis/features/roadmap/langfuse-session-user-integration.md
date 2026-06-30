@@ -1,3 +1,10 @@
+---
+title: "Intégration sessions et utilisateurs dans le tracking Langfuse"
+type: feature
+status: proposed
+reviewed: 2026-06-28
+---
+
 # Intégration sessions et utilisateurs dans le tracking Langfuse
 
 ## Contexte

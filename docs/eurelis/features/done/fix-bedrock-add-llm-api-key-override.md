@@ -1,3 +1,10 @@
+---
+title: "Fix : add_llm — clé API Bedrock écrasée par la logique \"existing key\""
+type: feature
+status: implemented
+reviewed: 2026-06-28
+---
+
 # Fix : add_llm — clé API Bedrock écrasée par la logique "existing key"
 
 ## Problème

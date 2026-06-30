@@ -28,6 +28,7 @@ from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.connector_service import Connector2KbService
 from api.db.services.task_service import GRAPH_RAPTOR_FAKE_DOC_ID, TaskService
+from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from api.db.services.user_service import TenantService, UserService, UserTenantService
 from common.constants import FileSource, StatusEnum
 from api.utils.api_utils import deep_merge, get_parser_config, remap_dictionary_keys, verify_embedding_availability
@@ -1079,6 +1080,9 @@ async def search(dataset_id: str, tenant_id: str, req: dict):
         c.pop("vector", None)
     ranks["labels"] = labels
 
+    # Eurelis — dataset SDK retrieval and Search-app retrieval are both logged as "search".
+    await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id or dataset_id)
+
     return True, ranks
 
 
@@ -1449,5 +1453,8 @@ async def search_datasets(tenant_id: str, req: dict):
     for c in ranks["chunks"]:
         c.pop("vector", None)
     ranks["labels"] = labels
+
+    # Eurelis — dataset SDK retrieval and Search-app retrieval are both logged as "search".
+    await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id or (kb_ids[0] if kb_ids else ""))
 
     return True, ranks

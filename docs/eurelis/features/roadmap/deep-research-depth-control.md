@@ -1,7 +1,13 @@
+---
+title: "Spec — Contrôle de la profondeur de récursion Deep Research par chatbot"
+type: feature
+status: proposed
+date: 2026-05-27
+reviewed: 2026-06-28
+---
+
 # Spec — Contrôle de la profondeur de récursion Deep Research par chatbot
 
-**Statut** : Proposition  
-**Date** : 2026-05-27  
 **Auteur** : Eurelis  
 **Branche cible** : `eurelis/feature/deep-research-depth`
 

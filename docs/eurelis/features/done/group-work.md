@@ -1,8 +1,13 @@
-# Feature : Gestion des équipes (group_work)
+---
+title: "Feature : Gestion des équipes (group_work)"
+type: feature
+status: implemented
+date: 2026-05-23
+branch: "eurelis/feature/group_work"
+reviewed: 2026-06-28
+---
 
-**Branche** : `eurelis/feature/group_work`  
-**Date** : 2026-05-23  
-**Statut** : Complet
+# Feature : Gestion des équipes (group_work)
 
 ---
 

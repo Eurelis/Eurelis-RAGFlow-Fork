@@ -1,7 +1,13 @@
+---
+title: "Feature : Extension du système de tags aux Discussions et Recherches"
+type: feature
+status: proposed
+date: 2026-06-20
+reviewed: 2026-06-28
+---
+
 # Feature : Extension du système de tags aux Discussions et Recherches
 
-**Date** : 2026-06-20  
-**Statut** : Piste d'implémentation — non implémenté  
 **Origine** : Feature upstream [#14774](https://github.com/infiniflow/ragflow/pull/14774) (tags agents, mai 2026) — extension Eurelis envisagée
 
 ---
