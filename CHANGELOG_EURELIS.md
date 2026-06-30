@@ -4,56 +4,26 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
-## [v0.26.1-eurelis.3-exp.5] - 2026-06-28 ⚠️ expérimental
+## [v0.26.1-eurelis.3] - 2026-06-30
 
-Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/admin-model-supervision`.
+Basé sur RAGFlow `v0.26.1`. Release finale consolidant les itérations expérimentales `exp.1` → `exp.5` : statistiques de consommation, supervision admin des modèles et correctifs associés.
 
 ### Added
 - **Supervision admin des modèles par tenant** — nouvelle page d'administration `/admin/model-supervision` (cross-tenant, superuser) pour visualiser, comparer et propager les configurations de modèles.
   - Comparaison multi-tenants en matrice : fournisseurs/instances (clé API **masquée**), modèles par défaut (avec détection des défauts **« pendants »** non résolubles), modèles disponibles (avec filtre texte).
   - Opérations granulaires vers une **liste de tenants cibles** : copier un fournisseur/instance (clé incluse, overwrite), supprimer un fournisseur/instance, copier les modèles par défaut.
   - Backend isolé : blueprint admin Eurelis (`admin/server/admin_model_supervision.py`), 5 routes sous `/api/v1/admin/tenants/…`, ciblant le système `tenant_model_*` (legacy `tenant_llm` hors périmètre). Les clés API ne transitent jamais en clair vers le frontend.
-
----
-
-## [v0.26.1-eurelis.3-exp.4] - 2026-06-23 ⚠️ expérimental
-
-Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
-
-### Fixed
-- **Chats partagés en équipe absents de la liste** — l'endpoint de listing des chats passait `joined_tenant_ids=[]`, donc la clause `(tenant_id ∈ joined ET permission='team')` était toujours vide : seuls les chats propres de l'utilisateur étaient renvoyés. Les chats `permission='team'` des équipes rejointes n'apparaissaient jamais dans la sidebar (accessibles uniquement par lien direct). `joined_tenant_ids` est désormais calculé via `TenantService.get_joined_tenants_by_user_id` et transmis — les membres voient bien les chats partagés avec leur équipe.
-
----
-
-## [v0.26.1-eurelis.3-exp.3] - 2026-06-23 ⚠️ expérimental
-
-Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
-
-### Changed
-- **Détail de session restreint aux tokens LLM** — `stats_for_session()` filtre les tours sur `token_type` (défaut `llm`). Les totaux et l'histogramme par tour de l'endpoint `/usage-stats/me/session/{id}` reflètent désormais l'usage LLM uniquement, en excluant les embeddings (et autres natures non-LLM).
-
----
-
-## [v0.26.1-eurelis.3-exp.2] - 2026-06-22 ⚠️ expérimental
-
-Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`. Correctif de démarrage par-dessus `exp.1` (image `exp.1` non démarrable).
-
-### Fixed
-- **Démarrage cassé (`ImportError: update_request_with_filtered_beta`)** — `crawl4ai 0.8.9` (sur pypi.org) tire `unclecode-litellm`, un fork de litellm qui s'installe dans le même namespace `litellm/` et écrase le `litellm==1.82.5` pinné, faisant crasher le `task_executor` au boot. `unclecode-litellm` est retiré du `uv.lock` (le build le consomme via `uv sync --frozen`). `pyproject.toml` reste aligné sur l'upstream — son garde-fou `exclude-dependencies` est un champ uv invalide (no-op). Procédure de régénération du lock documentée dans le commit du fix.
-
----
-
-## [v0.26.1-eurelis.3-exp.1] - 2026-06-22 ⚠️ expérimental
-
-Basé sur RAGFlow `v0.26.1` — branche `eurelis/feature/usage-stats`.
-
-### Added
 - **Statistiques de consommation de tokens** — table append-only `usage_log` avec dashboards admin et utilisateur. Modèle orthogonal : `source` (flux : `chat` · `search` · `agent` · `ingestion`) × `token_type` (`llm` · `embedding`).
   - Logging câblé sur le chat, le widget chatbot, la recherche IA (`async_ask`), le retrieval d'agent, le retrieval SDK dataset et l'ingestion de documents (tokens *embedding* **et** *LLM*), centralisé dans `api/db/services/eurelis_usage_log.py`.
   - APIs `/api/v1/usage-stats/me/*` (serveur Quart) et `/api/v1/admin/stats/*` (serveur admin Flask) : filtres `source`/`type`, séries temporelles (`by_source`/`by_type`), breakdowns (`group_by=source|type|model|dialog`), `available_sources`/`available_types`.
   - Frontend : dashboard admin, détail par utilisateur et page utilisateur — presets de période, filtres multi-select source/type avec pastilles de couleur, barres empilées par flux, « Top modèles » colorés par nature (`token_type`), filtres de recherche sur les tableaux ressources et utilisateurs.
 
+### Changed
+- **Détail de session restreint aux tokens LLM** — `stats_for_session()` filtre les tours sur `token_type` (défaut `llm`). Les totaux et l'histogramme par tour de l'endpoint `/usage-stats/me/session/{id}` reflètent désormais l'usage LLM uniquement, en excluant les embeddings (et autres natures non-LLM).
+
 ### Fixed
+- **Chats partagés en équipe absents de la liste** — l'endpoint de listing des chats passait `joined_tenant_ids=[]`, donc la clause `(tenant_id ∈ joined ET permission='team')` était toujours vide : seuls les chats propres de l'utilisateur étaient renvoyés. Les chats `permission='team'` des équipes rejointes n'apparaissaient jamais dans la sidebar (accessibles uniquement par lien direct). `joined_tenant_ids` est désormais calculé via `TenantService.get_joined_tenants_by_user_id` et transmis — les membres voient bien les chats partagés avec leur équipe.
+- **Démarrage cassé (`ImportError: update_request_with_filtered_beta`)** — `crawl4ai 0.8.9` (sur pypi.org) tire `unclecode-litellm`, un fork de litellm qui s'installe dans le même namespace `litellm/` et écrase le `litellm==1.82.5` pinné, faisant crasher le `task_executor` au boot. `unclecode-litellm` est retiré du `uv.lock` (le build le consomme via `uv sync --frozen`). `pyproject.toml` reste aligné sur l'upstream — son garde-fou `exclude-dependencies` est un champ uv invalide (no-op). Procédure de régénération du lock documentée dans le commit du fix.
 - Propagation des `ContextVars` asyncio dans le thread pool (`thread_pool_exec`) sous Python 3.13 (`ThreadPoolExecutor` WorkerContext).
 - Dérivation du type `image2text` depuis les tags du factory quand `model_type` l'omet.
 
