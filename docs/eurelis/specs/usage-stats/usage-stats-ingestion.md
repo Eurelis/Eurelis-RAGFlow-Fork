@@ -73,6 +73,21 @@ Les tokens LLM d'ingestion sont accumulés par `(model, provider)` via le compte
 
 ---
 
+## ⚠️ Mise en cache LLM et sous-comptage
+
+L'extraction mots-clés / questions (et les autres appels LLM d'ingestion) consulte d'abord un **cache LLM** dans Redis, dont la clé est **`xxh64(llm_name + contenu_du_chunk + …)`** (`rag/graphrag/utils.py::get_llm_cache`). Sur un **cache hit**, l'appel LLM est **sauté** — donc `add_ingestion_llm_tokens()` n'est **pas** invoqué et **aucun token `llm` n'est historisé** pour ce chunk.
+
+**Conséquence pour l'interprétation des stats :**
+
+- Les tokens **`llm` d'ingestion** reflètent le **travail LLM réellement effectué**, pas le volume de contenu ingéré. Si un même contenu de chunk se répète — dans un autre document, un autre dataset, voire un autre tenant (le cache est **global par contenu**, non cloisonné) — le second traitement **ne re-facture pas** les tokens LLM.
+- Les tokens **`embedding` d'ingestion** ne sont **pas** concernés : ils sont historisés directement, sans cache, à chaque vectorisation.
+
+Ce comportement est **correct** (pas d'appel LLM ⇒ pas de tokens), mais il faut en tenir compte : deux ingestions de contenus identiques afficheront des `llm@ingestion` très différents (première > 0, suivantes ≈ 0). Vérifié empiriquement : contenu unique → 603 tokens ; ré-ingestion du même contenu → 0.
+
+> Le test de non-régression `test/eurelis/eurelis_features/test_usage_logging_matrix.py::test_ingestion_llm_logged` contourne le cache en utilisant un **contenu unique** à chaque exécution (cache miss garanti), pour une assertion déterministe.
+
+---
+
 ## Lecture — méthodes de service
 
 **Fichier :** `api/db/services/usage_log_service.py`
@@ -96,5 +111,6 @@ Les tokens LLM d'ingestion sont accumulés par `(model, provider)` via le compte
 |---|---|
 | `user_id` = `Document.created_by` | En cas de re-parsing par un autre utilisateur, les tokens restent attribués à l'uploader initial (acceptable). |
 | Tokens LLM d'ingestion | Désormais tracés (`token_type='llm'`), contrairement à la première version embedding-only. |
+| Sous-comptage LLM par cache | Les appels LLM d'ingestion passent par un cache Redis keyé sur le contenu → un contenu déjà vu (tous tenants/datasets confondus) ne re-facture pas de tokens `llm`. Voir « Mise en cache LLM et sous-comptage » ci-dessus. L'embedding n'est pas concerné. |
 | `provider` éventuellement vide | Rempli depuis la config du modèle quand disponible. |
 | Sémantique partagée des colonnes | `resource_id`/`object_id` ont un sens différent selon `source` — toujours filtrer. |
