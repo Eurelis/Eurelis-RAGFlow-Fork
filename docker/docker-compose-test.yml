@@ -1,0 +1,115 @@
+# Eurelis — stack Docker dédiée aux tests de non-régression (RAGFlow complet + Ollama local).
+# Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
+#
+# Projet Compose isolé (`name: ragflow-test`) : volumes/containers séparés du stack de dev,
+# réinitialisables via `docker compose -f docker/docker-compose-test.yml down -v` sans toucher
+# aux données de développement. Réutilise docker-compose-base.yml (mysql, redis, minio, es01)
+# et le fichier .env (crédentials, ports, profils). Le LLM est servi localement par Ollama —
+# aucun appel cloud, exécution déterministe (cf. docs/eurelis/specs/tests-non-regression/strategy.md).
+#
+# Lancement :   docker compose -f docker/docker-compose-test.yml up -d
+# Reset total : docker compose -f docker/docker-compose-test.yml down -v
+#
+# Masquage PII : ACTIVÉ en permanence mais scopé aux modèles suffixés "::pii" (cf. bloc environment
+# de ragflow-cpu). Deux modèles chat coexistent : `qwen2.5:0.5b` (sans PII) et `qwen2.5:0.5b::pii`
+# (avec PII). Désactivation complète : PII_MASKING_ENABLED=false docker compose ... up -d
+# (ou : make -C test/eurelis e2e-pii-off).
+#
+# NB : réutilise les ports par défaut du .env (9380/9381/3306/9000/1200/6379). Arrêter le stack
+# de dev avant de lancer le stack de test si les deux partagent ces ports.
+
+name: ragflow-test
+
+include:
+  - ./docker-compose-base.yml
+
+services:
+  ragflow-cpu:
+    depends_on:
+      mysql:
+        condition: service_healthy
+      es01:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - cpu
+    # Image du FORK Eurelis (et non l'upstream infiniflow/ragflow du .env) : c'est l'artefact
+    # sous test. Pointer RAGFLOW_TEST_IMAGE sur l'image construite depuis la branche à valider.
+    image: ${RAGFLOW_TEST_IMAGE:-eurelis/ragflow:latest}
+    # L'image Eurelis du Docker Hub est buildée amd64-only. Sur Apple Silicon (arm64), forcer la
+    # plateforme la fait tourner en émulation. Sur un hôte amd64 (CI), c'est la plateforme native.
+    platform: ${RAGFLOW_TEST_PLATFORM:-linux/amd64}
+    command:
+      - --enable-adminserver
+      - --init-model-provider-tables
+    ports:
+      - ${SVR_WEB_HTTP_PORT}:80
+      - ${SVR_WEB_HTTPS_PORT}:443
+      - ${SVR_HTTP_PORT}:9380
+      - ${ADMIN_SVR_HTTP_PORT}:9381
+    volumes:
+      # Stack de test = artefact construit : on NE monte PAS entrypoint.sh ni
+      # service_conf.yaml.template du dépôt (l'image Eurelis les contient déjà, en version
+      # cohérente). Monter la version du dépôt sur une image d'une autre version casse le boot.
+      - ./ragflow-logs:/ragflow/logs
+      # Patch synthétique llm_factories → teste le merge Eurelis (common/settings.py) au démarrage.
+      - ../test/eurelis/fixtures/llm_factories.patch.json:/ragflow/conf/llm_factories.patch.json:ro
+    env_file: .env
+    environment:
+      # Stack de test : on autorise l'auto-inscription pour créer l'utilisateur `qa`
+      # (le .env met REGISTER_ENABLED=0 ; environment: a priorité sur env_file).
+      - REGISTER_ENABLED=1
+      # --- PII masking : ACTIVÉ en permanence, mais SCOPÉ aux modèles suffixés "::pii".
+      # Le filtre `.*::pii@.*` fait que seul le modèle `qwen2.5:0.5b::pii` est masqué ; le modèle
+      # standard `qwen2.5:0.5b` ne l'est pas → on a un modèle SANS et un modèle AVEC masquage,
+      # dans la même stack toujours up. Mode regex/checksum (NER off → déterministe) + audit fichier
+      # monté sur l'hôte (docker/ragflow-logs/pii_audit.log). Réf : docs/eurelis/features/pii-masking.md.
+      # Désactivation complète possible : PII_MASKING_ENABLED=false (make e2e-pii-off).
+      # NB : on interpole via des variables EURELIS_PII_* (absentes du .env) et non PII_MASKING_*,
+      # sinon la valeur `false` du .env serait lue lors de l'interpolation et écraserait le défaut.
+      - PII_MASKING_ENABLED=${EURELIS_PII_ENABLED:-true}
+      - PII_MASKING_NER=false
+      - PII_MASKING_PROVIDERS=${EURELIS_PII_PROVIDERS:-.*::pii@.*}
+      - PII_MASKING_ENTITIES=EMAIL_ADDRESS:MASK,CREDIT_CARD:MASK,IBAN_CODE:MASK,IP_ADDRESS:MASK
+      - PII_MASKING_ROLES=user
+      - PII_AUDIT_LOG_ENABLED=${EURELIS_PII_AUDIT:-true}
+      - PII_AUDIT_LOG_LEVEL=detailed
+      - PII_AUDIT_LOG_DESTINATION=both
+      - PII_AUDIT_LOG_FILE=/ragflow/logs/pii_audit.log
+      - PII_MASKING_STARTUP_FAIL=false
+    networks:
+      - ragflow
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # /api/v1/system/healthz est non authentifié et renvoie 200 seulement si
+      # MySQL + Redis + doc engine + storage sont tous OK.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9380/api/v1/system/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 240s  # généreux : boot RAGFlow sous émulation amd64 (Apple Silicon)
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - ${OLLAMA_PORT:-11434}:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ragflow
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  ollama_data:
+    driver: local
