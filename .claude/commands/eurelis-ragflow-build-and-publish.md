@@ -1,13 +1,16 @@
 ---
 description: Build et publie l'image Docker Eurelis sur Docker Hub depuis eurelis/main
-allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git status:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git push:*), Bash(git commit:*), Bash(git add:*), Bash(git diff:*), Bash(git merge-base:*), Bash(docker buildx:*), Bash(docker login:*), Bash(docker build:*), Bash(docker info:*), Bash(docker manifest:*), Bash(cat:*), Bash(grep:*), Read, Edit, AskUserQuestion
+allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git status:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git push:*), Bash(git commit:*), Bash(git add:*), Bash(git diff:*), Bash(git merge-base:*), Bash(docker buildx:*), Bash(docker login:*), Bash(docker build:*), Bash(docker info:*), Bash(docker manifest:*), Bash(docker image inspect:*), Bash(docker compose:*), Bash(docker logs:*), Bash(make:*), Bash(curl:*), Bash(cat:*), Bash(grep:*), Read, Edit, AskUserQuestion
 ---
 
 # /eurelis-ragflow-build-and-publish — Build et publication de l'image Docker Eurelis
 
 Tu es chargé de builder et publier l'image Docker du fork Eurelis de RAGFlow selon la stratégie de `docs/eurelis/guidelines/release-management.md`.
 
-**Règle d'or** : on ne build que depuis `eurelis/main`, avec un tag `vX.Y.Z-eurelis.N`. Jamais de build sans tag.
+**Règles d'or** :
+- On ne build que depuis `eurelis/main`, avec un tag `vX.Y.Z-eurelis.N`. Jamais de build sans tag.
+- **On ne publie jamais une image dont les tests de non-régression échouent.** Le flux est
+  **build local (`--load`) → `/eurelis-ragflow-non-regression-tests` → push** (jamais de `--push` direct).
 
 **Usage** :
 - `/eurelis-ragflow-build-and-publish` — utilise le tag `vX.Y.Z-eurelis.N` présent sur HEAD
@@ -153,17 +156,20 @@ Si l'utilisateur refuse, arrêter proprement.
 
 ---
 
-## ÉTAPE 2 — Commande de build
+## ÉTAPE 2 — Build LOCAL (sans push)
+
+On build d'abord **localement** (`--load`, **pas** `--push`) afin de pouvoir **tester l'image avant de la publier**.
 
 Afficher la commande sur **une seule ligne** (remplacer `TAG` par le tag réel) :
 
 ```
-docker buildx build --builder eurelis-builder --platform linux/amd64 -t eurelis/ragflow:TAG -t eurelis/ragflow:latest --push .
+docker buildx build --builder eurelis-builder --platform linux/amd64 -t eurelis/ragflow:TAG -t eurelis/ragflow:latest --load .
 ```
 
-Rappeler à l'utilisateur de lancer cette commande depuis la **racine du dépôt** et que le build prend 10 à 30 minutes.
+Rappeler à l'utilisateur : lancer depuis la **racine du dépôt** ; build de 10 à 30 minutes ; `--load` charge
+l'image dans le store Docker local (**pas encore publiée**).
 
-**En cas d'erreur**, voici les solutions :
+**En cas d'erreur** :
 
 | Erreur | Cause | Solution |
 |---|---|---|
@@ -172,11 +178,42 @@ Rappeler à l'utilisateur de lancer cette commande depuis la **racine du dépôt
 | `The service was stopped` | Builder instable | `docker buildx stop eurelis-builder` puis relancer |
 | `GPG error ports.ubuntu.com` | Clés ARM64 obsolètes | Construire en `linux/amd64` uniquement (déjà le cas) |
 
+Attendre la **confirmation** que le build est terminé et l'image chargée
+(`docker image inspect eurelis/ragflow:TAG` réussit) avant de continuer.
+
+---
+
+## ÉTAPE 3 — Tests de non-régression (GATE OBLIGATOIRE)
+
+Avant toute publication, **valider l'image fraîchement buildée** via la commande dédiée :
+
+> **`/eurelis-ragflow-non-regression-tests TAG`**
+> (équivaut à `RAGFLOW_TEST_IMAGE=eurelis/ragflow:TAG make -C test/eurelis e2e`)
+
+- Les tests tournent contre l'image **chargée en local** à l'étape 2 (stack complète + Ollama, sans bouchons).
+- Lancer les tests **n'utilise pas** buildx/push — c'est `docker compose` + `pytest`, donc exécutable directement.
+- **Si les tests échouent → ARRÊTER : ne PAS publier.** Remonter les tests rouges (et `make -C test/eurelis e2e-logs`
+  au besoin), corriger, rebuild (étape 2), re-tester.
+- **Si les tests passent** (`N passed, M skipped` — skips attendus : endpoint image de chunk, palier `vision` gaté)
+  → continuer vers la publication.
+
+---
+
+## ÉTAPE 4 — Publication (push)
+
+**Uniquement après des tests verts.** L'image étant déjà buildée localement, afficher la commande de push :
+
+```
+docker push eurelis/ragflow:TAG && docker push eurelis/ragflow:latest
+```
+
+Rappeler que cette étape **publie sur Docker Hub** (irréversible sauf suppression manuelle).
+
 ---
 
 ## RAPPORT FINAL
 
-Une fois le build terminé avec succès, les images sont disponibles sur Docker Hub :
+Une fois les **tests verts** (étape 3) **et** le push effectué (étape 4), les images sont disponibles sur Docker Hub :
 
 ```
 docker pull eurelis/ragflow:TAG
@@ -210,3 +247,4 @@ Procédure de mise à jour d'une instance existante :
 | Entrée changelog incorrecte | Demander corrections avant de continuer |
 | Refus de confirmation | Arrêt propre |
 | Erreur de build | Arrêt — afficher cause et solution |
+| **Tests de non-régression en échec** | **Arrêt — NE PAS publier** ; corriger, rebuild, re-tester |
