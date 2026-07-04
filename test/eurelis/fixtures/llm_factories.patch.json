@@ -1,0 +1,33 @@
+{
+  "_comment": "Eurelis — patch SYNTHÉTIQUE pour le test d'intégration du merge llm_factories. Fichier propre au fork Eurelis, absent de l'upstream RAGFlow. Monté dans la stack de test sur /ragflow/conf/llm_factories.patch.json (cf. docker/docker-compose-test.yml).",
+  "factory_llm_infos": [
+    {
+      "name": "EurelisMergeTest",
+      "logo": "",
+      "tags": "LLM,CHAT",
+      "status": "1",
+      "rank": 0,
+      "llm": [
+        {
+          "llm_name": "eurelis-merge-marker",
+          "tags": "LLM,CHAT",
+          "max_tokens": 8192,
+          "model_type": "chat",
+          "is_tools": false
+        }
+      ]
+    },
+    {
+      "name": "OpenAI",
+      "llm": [
+        {
+          "llm_name": "eurelis-openai-marker",
+          "tags": "LLM,CHAT,IMAGE2TEXT",
+          "max_tokens": 8192,
+          "model_type": "chat",
+          "is_tools": false
+        }
+      ]
+    }
+  ]
+}
