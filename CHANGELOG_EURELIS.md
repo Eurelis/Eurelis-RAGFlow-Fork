@@ -4,6 +4,26 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.1] - 2026-07-05
+
+Basé sur RAGFlow `v0.26.3`. Rebase du fork sur la nouvelle base upstream — aucune nouvelle fonctionnalité Eurelis, mais réintégration des 43 commits Eurelis sur `v0.26.3` avec résolution des conflits.
+
+### Changed
+- **Rebase sur RAGFlow `v0.26.3`** — intégration de 299 commits upstream (`v0.26.1` → `v0.26.3`) : parser DOCX dédié, comptabilité de tokens agrégée « autoritative » + propagation Langfuse des runs agent, provider « New API » (passerelles OpenAI-compatibles), correctifs GraphRAG (`RedisDB.mget`), PDF compressés, fuite de sessions MCP, XSS du modal de rerun agent, etc.
+- **Masquage PII fusionné avec la nouvelle comptabilité de tokens upstream** — le hook PII streaming (`chat_model.py` : retour tuple de `_construct_completion_args` + `StreamingUnmasker`/flush) coexiste avec `stream_options.include_usage` + `_commit_round` de l'upstream. Nouvelle classe vision `NewAPICv` intégrée à côté des méthodes PII de `BedrockCV` (`cv_model.py`).
+- **Statistiques de consommation alignées sur l'upstream** — comptage `add_ingestion_llm_tokens` / `used_tokens` conservé face au nouveau logging paresseux et à `_report_usage` (`llm_service.py`) ; condition `model_config["model_type"]` harmonisée (`dialog_service.py`).
+- **Branding Eurelis réappliqué** sur le nouveau header responsive upstream (`useHeaderNavLayout`, mode compact) — liens Discord/GitHub masqués.
+
+### Fixed
+- **`uv.lock` régénéré** avec un `uv` récent respectant `exclude-dependencies` (upstream) : `unclecode-litellm` et `agentrun-mem0ai` restent exclus. Le correctif Eurelis dédié au drop de `unclecode-litellm` devient obsolète (absorbé par le mécanisme upstream).
+
+### Notes
+- Deux commits Eurelis écartés au rebase (devenus vides — contenu déjà présent upstream) : correction du commentaire `ContextVars` et drop manuel de `unclecode-litellm`. Un commit i18n FR a été absorbé (mergé upstream).
+- Validé par la suite de non-régression : **42 passed / 2 skipped** + palier vision **1 passed** (OpenAI `gpt-5.4-mini`).
+- ⚠ La migration `usage_log.token_type` (voir `v0.26.1-eurelis.3`) reste requise sur une base existante non encore migrée.
+
+---
+
 ## [v0.26.1-eurelis.3] - 2026-06-30
 
 Basé sur RAGFlow `v0.26.1`. Release finale consolidant les itérations expérimentales `exp.1` → `exp.5` : statistiques de consommation, supervision admin des modèles et correctifs associés.
