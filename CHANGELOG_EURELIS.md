@@ -4,6 +4,24 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.2] - 2026-07-05
+
+Basé sur RAGFlow `v0.26.3`. Ajout du partage d'équipe des Search apps, d'un sélecteur de fenêtre temporelle pour les statistiques, et de la couverture de non-régression du contrat Search consommé par le Shield.
+
+### Added
+- **Partage d'équipe des Search apps** (`permission` `me|team`) — symétrique au partage des chats : une search `team` créée par le propriétaire d'un tenant devient visible par les membres l'ayant rejoint. Colonne `search.permission` + migration, filtre équipe dans `SearchService.get_by_tenant_ids`, récupération des tenants rejoints dans le listing (`search_api`), et sélecteur « Me / Équipe » dans les réglages search (front).
+- **Sélecteur de fenêtre temporelle des statistiques** (pages user + admin) — granularité Semaine/Mois/Année avec navigation ◀▶, mode « Personnalisé » (calendrier de plage), libellés d'axe hebdomadaires localisés (`YYYY - Sww`). La sélection est conservée entre `/admin/stats` et `/admin/stats/users/<email>` (store dédié).
+- **Tests de non-régression Search** — contrat Shield des 5 endpoints de la feature Search UI (028 : liste, détail, retrieval, résumé SSE, recommandation ; `p0`) et partage d'équipe des search (`p1`), avec search app de référence ajoutée au seed.
+
+### Changed
+- **Menu mobile** : masquage des liens Discord / GitHub / Help (branding Eurelis), en cohérence avec le masquage déjà en place côté desktop.
+
+### Notes
+- Validé par la suite de non-régression sur l'image `v0.26.3-eurelis.2` : **p0 vert** (contrat Shield, dont les 5 endpoints Search) et **partage search `p1` vert**.
+- La search app de référence du seed est créée avec un modèle de résumé (`chat_id`) : l'endpoint `/searches/{id}/completions` ne retombe pas sur le modèle par défaut du tenant quand `chat_id` est absent.
+
+---
+
 ## [v0.26.3-eurelis.1] - 2026-07-05
 
 Basé sur RAGFlow `v0.26.3`. Rebase du fork sur la nouvelle base upstream — aucune nouvelle fonctionnalité Eurelis, mais réintégration des 43 commits Eurelis sur `v0.26.3` avec résolution des conflits.
