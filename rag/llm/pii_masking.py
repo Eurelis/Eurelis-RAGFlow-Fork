@@ -380,8 +380,17 @@ class PiiMaskingEngine:
                 " (PERSON, LOCATION, DATE_TIME detection unavailable)"
             )
 
-        # Build recognizer registry
-        registry = RecognizerRegistry()
+        # Build recognizer registry.
+        # NB: RecognizerRegistry.supported_languages defaults to ["en"] and is NOT
+        # updated by load_predefined_recognizers(). It must be seeded with the full
+        # language list here so it stays consistent with AnalyzerEngine.supported_languages
+        # below — otherwise Presidio raises "Misconfigured engine, supported languages
+        # have to be consistent" whenever PII_MASKING_LANGUAGES contains a non-"en"
+        # language (e.g. "fr,en"). The language-agnostic regex/checksum recognizers
+        # (EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, IBAN_CODE, IP_ADDRESS) are
+        # instantiated for every language in `languages`; NER entities (PERSON,
+        # LOCATION, DATE_TIME) come from each language's spaCy model via the NlpEngine.
+        registry = RecognizerRegistry(supported_languages=languages)
         registry.load_predefined_recognizers(languages=languages, nlp_engine=nlp_engine)
 
         # Load custom recognizers
