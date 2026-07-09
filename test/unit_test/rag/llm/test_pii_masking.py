@@ -246,6 +246,22 @@ class TestEngineLifecycle:
 
     @patch.dict(os.environ, {
         "PII_MASKING_ENABLED": "true",
+        "PII_MASKING_NER": "true",
+        "PII_MASKING_LANGUAGES": "fr,en",
+        "PII_MASKING_NER_MODEL_FR": "fr_core_news_sm",
+        "PII_MASKING_NER_MODEL_EN": "en_core_web_sm",
+        "PII_MASKING_ENTITIES": "PERSON:MASK,EMAIL_ADDRESS:MASK",
+    })
+    def test_initialize_multilang_fr_en(self):
+        """Regression: a multi-language registry (fr,en) must stay consistent with
+        the AnalyzerEngine's supported_languages, otherwise Presidio raises
+        'Misconfigured engine, supported languages have to be consistent'."""
+        from rag.llm.pii_masking import PiiMaskingEngine
+        PiiMaskingEngine.initialize()
+        assert PiiMaskingEngine.is_available() is True
+
+    @patch.dict(os.environ, {
+        "PII_MASKING_ENABLED": "true",
         "PII_MASKING_NER": "false",
         "PII_MASKING_STARTUP_FAIL": "false",
     })
