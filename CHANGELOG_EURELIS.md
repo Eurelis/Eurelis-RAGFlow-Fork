@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.4] - 2026-07-09
+
+Basé sur RAGFlow `v0.26.3`. Correctif du masquage PII multi-langue : l'init Presidio échouait dès que `PII_MASKING_LANGUAGES` contenait une langue autre que « en » (ex. `fr,en`), désactivant silencieusement le masquage. Le modèle FR embarqué en `.3` est désormais réellement exploitable.
+
+### Fixed
+- **Init du masquage PII en multi-langue (`fr`, `fr,en`)** — `RecognizerRegistry()` était construit avec son `supported_languages` par défaut (`["en"]`) que `load_predefined_recognizers()` ne met jamais à jour ; l'`AnalyzerEngine`, lui, était créé avec la liste complète des langues, d'où l'erreur Presidio *« Misconfigured engine, supported languages have to be consistent »* et le masquage désactivé silencieusement (`PII_MASKING_STARTUP_FAIL=false`). Le registre est désormais initialisé avec la liste complète des langues configurées (`RecognizerRegistry(supported_languages=languages)`). Les recognizers regex/checksum (EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, IBAN_CODE, IP_ADDRESS) restent disponibles pour chaque langue ; les entités NER (PERSON, LOCATION, DATE_TIME) proviennent du modèle spaCy de chaque langue. Le cas `en` seul est inchangé.
+
+### Tests
+- **Non-régression : init PII multi-langue** (`test_initialize_multilang_fr_en` dans `test/unit_test/rag/llm/test_pii_masking.py`) — vérifie que l'init `fr,en` avec NER réussit (`is_available() is True`). Chemin non couvert auparavant : tous les tests d'init utilisaient `PII_MASKING_NER=false` et la langue « en ».
+
+---
+
 ## [v0.26.3-eurelis.3] - 2026-07-09
 
 Basé sur RAGFlow `v0.26.3`. Ajout du modèle spaCy français *small* dans l'image pour activer le NER FR du masquage PII (Presidio).
