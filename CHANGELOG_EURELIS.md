@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.3] - 2026-07-09
+
+Basé sur RAGFlow `v0.26.3`. Ajout du modèle spaCy français *small* dans l'image pour activer le NER FR du masquage PII (Presidio).
+
+### Added
+- **Modèle spaCy `fr_core_news_sm` (3.8.0, ~16 Mo)** embarqué dans l'image aux côtés de `en_core_web_sm`, via `pyproject.toml` (installé par `uv sync`, sans téléchargement runtime). Débloque la détection NER FR (PER/LOC/DATE_TIME) du masquage PII sur les déploiements francophones (ex. Synerga) avec `PII_MASKING_NER=true` + `PII_MASKING_LANGUAGES=fr` + `PII_MASKING_NER_MODEL_FR=fr_core_news_sm`. Le modèle EN existant est conservé. Variante *small* choisie (précision NER moindre que `lg` acceptée) pour garder l'image légère.
+
+### Notes
+- `uv.lock` régénéré avec un `uv` récent (0.11.x) respectant `exclude-dependencies` : seule l'entrée `fr-core-news-sm` est ajoutée, `unclecode-litellm` et `agentrun-mem0ai` restent exclus.
+
+---
+
 ## [v0.26.3-eurelis.2] - 2026-07-05
 
 Basé sur RAGFlow `v0.26.3`. Ajout du partage d'équipe des Search apps, d'un sélecteur de fenêtre temporelle pour les statistiques, et de la couverture de non-régression du contrat Search consommé par le Shield.
