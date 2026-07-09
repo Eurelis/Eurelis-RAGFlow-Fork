@@ -11,6 +11,9 @@ Basé sur RAGFlow `v0.26.3`. Ajout du modèle spaCy français *small* dans l'ima
 ### Added
 - **Modèle spaCy `fr_core_news_sm` (3.8.0, ~16 Mo)** embarqué dans l'image aux côtés de `en_core_web_sm`, via `pyproject.toml` (installé par `uv sync`, sans téléchargement runtime). Débloque la détection NER FR (PER/LOC/DATE_TIME) du masquage PII sur les déploiements francophones (ex. Synerga) avec `PII_MASKING_NER=true` + `PII_MASKING_LANGUAGES=fr` + `PII_MASKING_NER_MODEL_FR=fr_core_news_sm`. Le modèle EN existant est conservé. Variante *small* choisie (précision NER moindre que `lg` acceptée) pour garder l'image légère.
 
+### Tests
+- **Non-régression : présence des modèles spaCy** (`test/eurelis/eurelis_features/test_spacy_models.py`, `p1`) — vérifie, via `docker exec` dans le conteneur sous test, que l'image embarque `en_core_web_sm` **et** `fr_core_news_sm`, et que le NER FR détecte bien une PER (« Jean Dupont ») et une LOC (« Paris »). Garde-fou contre la régression prod (image sans modèle FR).
+
 ### Notes
 - `uv.lock` régénéré avec un `uv` récent (0.11.x) respectant `exclude-dependencies` : seule l'entrée `fr-core-news-sm` est ajoutée, `unclecode-litellm` et `agentrun-mem0ai` restent exclus.
 
