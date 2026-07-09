@@ -59,7 +59,9 @@ def setup_auth(login_manager):
 
                 # Decode JWT to get the UUID access_token
                 jwt = Serializer(secret_key=settings.get_secret_key())
-                access_token = str(jwt.loads(jwt_token))
+                # Eurelis — TTL de session 12 h : un JWT plus ancien lève SignatureExpired
+                # (capté par le except ci-dessous → 401).
+                access_token = str(jwt.loads(jwt_token, max_age=12 * 3600))
 
                 if not access_token or not access_token.strip():
                     logging.warning("Authentication attempt with empty access token after JWT decode")
@@ -167,7 +169,10 @@ def login_admin(email: str, password: str):
         raise AdminException(f"User {email} inactive", 403)
 
     resp = user.to_json()
-    user.access_token = get_uuid()
+    # Eurelis — pas de rotation si le token est déjà valide : sessions multi-appareils coexistantes
+    # (TTL appliqué côté jwt.loads dans le request_loader ci-dessus).
+    if not user.access_token or len(user.access_token) < 32 or user.access_token.startswith("INVALID_"):
+        user.access_token = get_uuid()
     login_user(user)
     user.update_time = (current_timestamp(),)
     user.update_date = (datetime_format(datetime.now()),)
