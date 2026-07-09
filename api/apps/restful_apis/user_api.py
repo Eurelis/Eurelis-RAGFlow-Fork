@@ -123,7 +123,10 @@ async def login():
             message="This account has been disabled, please contact the administrator!",
         )
     elif user:
-        user.access_token = get_uuid()
+        # Eurelis — pas de rotation si le token est déjà valide : les sessions de plusieurs
+        # appareils partagent le même access_token et coexistent (TTL appliqué côté jwt.loads).
+        if not user.access_token or len(user.access_token) < 32 or user.access_token.startswith("INVALID_"):
+            user.access_token = get_uuid()
         login_user(user)
         user.last_login_time = get_format_time()
         user.update_time = current_timestamp()
@@ -262,7 +265,10 @@ async def oauth_callback(channel):
 
         # User exists, try to log in
         user = users[0]
-        user.access_token = get_uuid()
+        # Eurelis — même garde qu'au login mot de passe : pas de rotation si le token est déjà
+        # valide, pour que la session SSO coexiste avec les autres appareils.
+        if not user.access_token or len(user.access_token) < 32 or user.access_token.startswith("INVALID_"):
+            user.access_token = get_uuid()
         if user and hasattr(user, "is_active") and user.is_active == "0":
             return redirect("/?error=user_inactive")
 
