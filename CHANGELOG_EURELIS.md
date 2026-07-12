@@ -4,6 +4,26 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.5] - 2026-07-12
+
+Basé sur RAGFlow `v0.26.3`. Sessions de login interactives **multi-appareils** avec **expiration** : plusieurs sessions d'un même compte coexistent désormais (fini le « dernier login gagne »), bornées par un TTL de 12 h. Ajout de la couverture de non-régression du contrat de sessions et de trois endpoints consommés par le Shield.
+
+### Added
+- **TTL de session JWT (12 h)** — la validation des tokens applique désormais `max_age=12*3600` à `jwt.loads`, côté API (`api/apps/__init__.py`) **et** serveur admin (`admin/server/auth.py`) : un JWT plus ancien que 12 h lève `SignatureExpired` → 401, forçant une reconnexion périodique. Aucune expiration temporelle n'était appliquée auparavant (les tokens restaient valides jusqu'à rotation ou logout).
+
+### Changed
+- **Sessions login multi-appareils** — les points de login (mot de passe et OAuth/SSO côté API `user_api.py`, login admin `auth.py`) ne régénèrent plus systématiquement l'`access_token` : il n'est renouvelé que s'il est absent ou invalidé (préfixe `INVALID_`). Plusieurs sessions d'un même compte (navigateurs/appareils, ou API `:9380` + admin `:9381`) partagent alors le même `access_token` et **coexistent**, au lieu que chaque nouveau login évince les précédents. Combiné au TTL ci-dessus, l'exposition d'un token reste bornée dans le temps.
+
+### Tests
+- **Contrat Shield — sessions login** (`test/eurelis/shield_contract/test_auth_sessions.py`, `p0`) : coexistence multi-session (un 2ᵉ login ne révoque pas le token du 1er) sur l'API et l'admin, et application du TTL (JWT forgé à −13 h refusé, token frais accepté ; forge signée avec le secret réel du serveur, `skip` propre si le secret est indisponible côté hôte).
+- **Contrat Shield — `GET /system/version`** (`test/eurelis/shield_contract/`, `p0`) : enveloppe `{code, message, data}` figée, `message` inclus (le Shield le lit pour son diagnostic d'erreur).
+- **Contrat Shield — endpoints Admin de rattachement d'équipe** (`test/eurelis/shield_contract/test_admin_teams.py`, `p0`) : résolution d'`id` utilisateur (`GET /admin/users/{email}` → `data` = liste, utilisateur inexistant → `data: []`) et ajout de membre (`POST /admin/tenants/{tenant_id}/users`) avec idempotence (`400` + sous-chaîne « already »).
+
+### Notes
+- Le bug upstream des tuples `update_time` / `update_date` dans le login admin (`admin/server/auth.py`, PR upstream infiniflow/ragflow #10642) est **laissé tel quel** pour préserver des rebases propres — il n'affecte pas l'authentification.
+
+---
+
 ## [v0.26.3-eurelis.4] - 2026-07-09
 
 Basé sur RAGFlow `v0.26.3`. Correctif du masquage PII multi-langue : l'init Presidio échouait dès que `PII_MASKING_LANGUAGES` contenait une langue autre que « en » (ex. `fr,en`), désactivant silencieusement le masquage. Le modèle FR embarqué en `.3` est désormais réellement exploitable.
