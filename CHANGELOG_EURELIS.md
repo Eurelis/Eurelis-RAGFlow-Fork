@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.6] - 2026-07-13
+
+Basé sur RAGFlow `v0.26.3`. Correctif de la validation d'email de l'endpoint admin de création d'utilisateur : le plus-addressing (`+` dans la partie locale) était refusé, ce qui empêchait le Shield d'auto-provisionner certains comptes.
+
+### Fixed
+- **Plus-addressing (`+`) dans l'email de `POST /api/v1/admin/users`** — la validation de `UserMgr.create_user` (`admin/server/services.py`) utilisait le motif `^[\w\._-]+@…`, dont la classe de caractères de la partie locale omettait `+` : toute adresse en plus-addressing (ex. `v.lambert+diligentia@eurelis.com`), pourtant valide au sens RFC 5321, était rejetée en `400 « Invalid email address »` avant même le contrôle d'unicité. Le Shield, qui auto-provisionne les comptes via cet endpoint, ne pouvait donc pas les créer (le chemin OIDC/Keycloak, lui, ne valide pas l'email — issu d'une claim de token — et passait). Ajout de `+` à la classe de caractères de la partie locale (`^[\w\.+_-]+@…`) ; le domaine est inchangé. L'endpoint d'inscription par mot de passe (`api/apps/restful_apis/user_api.py`), qui porte le même motif, n'est volontairement pas touché (hors périmètre).
+
+### Tests
+- **Contrat Shield — création d'utilisateur admin** (`test/eurelis/shield_contract/test_admin_user_creation.py`, `p0`) : fige l'acceptation d'un email avec `+` (`POST /api/v1/admin/users` → `200`, pas de « Invalid email address », `password` absent de la réponse) et le rejet d'un email réellement invalide (`400` + message « Invalid email address »). Schéma `ADMIN_CREATED_USER_SCHEMA` ajouté (`test/eurelis/schemas/admin.py`).
+
+---
+
 ## [v0.26.3-eurelis.5] - 2026-07-12
 
 Basé sur RAGFlow `v0.26.3`. Sessions de login interactives **multi-appareils** avec **expiration** : plusieurs sessions d'un même compte coexistent désormais (fini le « dernier login gagne »), bornées par un TTL de 12 h. Ajout de la couverture de non-régression du contrat de sessions et de trois endpoints consommés par le Shield.
