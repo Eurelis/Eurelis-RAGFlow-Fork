@@ -4,6 +4,15 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.7] - 2026-07-14
+
+Basé sur RAGFlow `v0.26.3`. Correctif d'un plantage du panel admin lors du changement de mot de passe d'un utilisateur provisionné via SSO (OIDC/OAuth), qui n'ont pas de mot de passe local.
+
+### Fixed
+- **Changement de mot de passe admin pour un utilisateur SSO (`PUT /api/v1/admin/users/{username}/password`)** — `UserMgr.update_user_password` (`admin/server/services.py`) appelait `check_password_hash(usr.password, psw)` pour éviter une écriture inutile si le nouveau mot de passe était identique à l'ancien. Or les comptes provisionnés via SSO (OIDC/OAuth/GitHub) n'ont pas de mot de passe local (`usr.password is None`, colonne `password` en `null=True`) : `check_password_hash(None, …)` plante à l'intérieur de Werkzeug (`pwhash.split('$')` → `'NoneType' object has no attribute 'split'`), renvoyant un `500`. La comparaison est désormais gardée par `usr.password`, si bien qu'un compte sans mot de passe passe directement à l'enregistrement du nouveau (donnant à ces utilisateurs un fallback mot de passe en complément du SSO). Correctif également soumis en upstream (PR infiniflow/ragflow #16914).
+
+---
+
 ## [v0.26.3-eurelis.6] - 2026-07-13
 
 Basé sur RAGFlow `v0.26.3`. Correctif de la validation d'email de l'endpoint admin de création d'utilisateur : le plus-addressing (`+` dans la partie locale) était refusé, ce qui empêchait le Shield d'auto-provisionner certains comptes.
