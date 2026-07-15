@@ -40,11 +40,16 @@ class _DummyAtomic:
         return False
 
 
+class _StubHeaders(dict):
+    def add_header(self, key, value):
+        self[key] = value
+
+
 class _StubResponse:
     def __init__(self, data=None, mimetype=None):
         self.data = data
         self.mimetype = mimetype
-        self.headers = {}
+        self.headers = _StubHeaders()
 
 
 class _Args(dict):
@@ -67,6 +72,11 @@ class _EnumValue:
 
 class _DummyStatusEnum:
     VALID = _EnumValue("1")
+
+
+class _DummyTenantPermission:
+    ME = _EnumValue("me")
+    TEAM = _EnumValue("team")
 
 
 class _DummyRetCode:
@@ -153,6 +163,7 @@ def _load_search_api(monkeypatch):
 
     db_pkg = ModuleType("api.db")
     db_pkg.__path__ = []
+    db_pkg.TenantPermission = _DummyTenantPermission
     monkeypatch.setitem(sys.modules, "api.db", db_pkg)
     api_pkg.db = db_pkg
 
@@ -225,6 +236,10 @@ def _load_search_api(monkeypatch):
         def get_by_id(_tenant_id):
             return True, SimpleNamespace(id=_tenant_id)
 
+        @staticmethod
+        def get_joined_tenants_by_user_id(_user_id):
+            return []
+
     class _UserTenantService:
         @staticmethod
         def query(**_kwargs):
@@ -265,6 +280,11 @@ def _load_search_api(monkeypatch):
     api_utils_mod.validate_request = _validate_request
     monkeypatch.setitem(sys.modules, "api.utils.api_utils", api_utils_mod)
     utils_pkg.api_utils = api_utils_mod
+
+    pagination_utils_mod = ModuleType("api.utils.pagination_utils")
+    pagination_utils_mod.validate_rest_api_page_size = lambda page_size: page_size
+    monkeypatch.setitem(sys.modules, "api.utils.pagination_utils", pagination_utils_mod)
+    utils_pkg.pagination_utils = pagination_utils_mod
 
     module_name = "test_search_api_unit_module"
     module_path = repo_root / "api" / "apps" / "restful_apis" / "search_api.py"
@@ -463,6 +483,94 @@ def test_update_and_detail_route_matrix_unit(monkeypatch):
     res = module.detail(search_id="s1")
     assert res["code"] == module.RetCode.EXCEPTION_ERROR
     assert "detail boom" in res["message"]
+
+
+@pytest.mark.p2
+def test_completion_authorization_matrix_unit(monkeypatch):
+    """Eurelis — le résumé IA (/completions) est autorisé au propriétaire ET aux
+    membres d'un tenant ayant partagé la Search App en permission='team'."""
+    module = _load_search_api(monkeypatch)
+    _set_request_json(monkeypatch, module, {"question": "q"})
+
+    # current_user.id == "tenant-1" (défini par le harness)
+
+    # propriétaire → autorisé (réponse SSE streaming, pas un dict d'erreur)
+    monkeypatch.setattr(
+        module.SearchService, "get_detail",
+        lambda _sid: {"id": _sid, "tenant_id": "tenant-1", "created_by": "tenant-1",
+                      "permission": "me", "search_config": {"kb_ids": ["kb-1"]}},
+    )
+    res = _run(module.completion(search_id="s1"))
+    assert isinstance(res, module.Response), res
+
+    # membre d'un tenant rejoint + permission='team' → autorisé
+    monkeypatch.setattr(
+        module.SearchService, "get_detail",
+        lambda _sid: {"id": _sid, "tenant_id": "owner-2", "created_by": "owner-2",
+                      "permission": "team", "search_config": {"kb_ids": ["kb-1"]}},
+    )
+    monkeypatch.setattr(module.TenantService, "get_joined_tenants_by_user_id",
+                        lambda _uid: [{"tenant_id": "owner-2"}])
+    res = _run(module.completion(search_id="s1"))
+    assert isinstance(res, module.Response), res
+
+    # non-membre (app 'team' mais tenant propriétaire non rejoint) → refusé
+    monkeypatch.setattr(module.TenantService, "get_joined_tenants_by_user_id",
+                        lambda _uid: [{"tenant_id": "other"}])
+    res = _run(module.completion(search_id="s1"))
+    assert isinstance(res, dict) and res["code"] == module.RetCode.AUTHENTICATION_ERROR, res
+
+    # permission='me', non-propriétaire → refusé
+    monkeypatch.setattr(
+        module.SearchService, "get_detail",
+        lambda _sid: {"id": _sid, "tenant_id": "owner-2", "created_by": "owner-2",
+                      "permission": "me", "search_config": {"kb_ids": ["kb-1"]}},
+    )
+    res = _run(module.completion(search_id="s1"))
+    assert isinstance(res, dict) and res["code"] == module.RetCode.AUTHENTICATION_ERROR, res
+
+    # search introuvable → refusé (autorisation)
+    monkeypatch.setattr(module.SearchService, "get_detail", lambda _sid: {})
+    res = _run(module.completion(search_id="s1"))
+    assert isinstance(res, dict) and res["code"] == module.RetCode.AUTHENTICATION_ERROR, res
+
+
+@pytest.mark.p2
+def test_completion_owner_resolution_and_usage_attribution_unit(monkeypatch):
+    """Eurelis — pour un appel par un membre, async_ask est invoqué avec
+    owner_tenant_id = propriétaire (résolution modèles/coût) et
+    acting_user_id = appelant (attribution de conso)."""
+    module = _load_search_api(monkeypatch)
+    _set_request_json(monkeypatch, module, {"question": "q"})
+
+    captured = {}
+
+    async def _spy_async_ask(question, kb_ids, owner_tenant_id, acting_user_id=None, **kwargs):
+        captured["owner_tenant_id"] = owner_tenant_id
+        captured["acting_user_id"] = acting_user_id
+        if False:
+            yield None
+
+    monkeypatch.setattr(module, "async_ask", _spy_async_ask)
+    monkeypatch.setattr(
+        module.SearchService, "get_detail",
+        lambda _sid: {"id": _sid, "tenant_id": "owner-2", "created_by": "owner-2",
+                      "permission": "team", "search_config": {"kb_ids": ["kb-1"]}},
+    )
+    monkeypatch.setattr(module.TenantService, "get_joined_tenants_by_user_id",
+                        lambda _uid: [{"tenant_id": "owner-2"}])
+
+    res = _run(module.completion(search_id="s1"))
+    # consommer le générateur SSE pour déclencher l'appel à async_ask
+    _run(_drain(res.data))
+
+    assert captured["owner_tenant_id"] == "owner-2", captured
+    assert captured["acting_user_id"] == "tenant-1", captured
+
+
+async def _drain(agen):
+    async for _ in agen:
+        pass
 
 
 @pytest.mark.p2
