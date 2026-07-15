@@ -23,6 +23,7 @@ from api.db.services.dialog_service import async_ask
 from api.apps import current_user, login_required
 
 from api.constants import DATASET_NAME_LIMIT
+from api.db import TenantPermission
 from api.db.db_models import DB
 from api.db.services import duplicate_name
 from api.db.services.knowledgebase_service import KnowledgebaseService
@@ -37,6 +38,26 @@ from api.utils.pagination_utils import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, validate
 def _full_text_weight(vector_similarity_weight):
     if isinstance(vector_similarity_weight, Real):
         return 1 - vector_similarity_weight
+    return None
+
+
+def _accessible_search(search_id):
+    """Eurelis — Search app dict si l'utilisateur courant peut l'exécuter, sinon None.
+
+    Miroir de ``_ensure_owned_chat`` (chat_api) : propriétaire OU permission='team'
+    sur un tenant que l'utilisateur a rejoint. Réutilise ``SearchService.get_detail``
+    (qui renvoie déjà created_by/tenant_id/permission/search_config) pour éviter une
+    double requête côté endpoint.
+    """
+    search_app = SearchService.get_detail(search_id)
+    if not search_app:
+        return None
+    if search_app.get("created_by") == current_user.id:
+        return search_app
+    if search_app.get("permission") == TenantPermission.TEAM.value:
+        joined = TenantService.get_joined_tenants_by_user_id(current_user.id)
+        if any(t["tenant_id"] == search_app.get("tenant_id") for t in joined):
+            return search_app
     return None
 
 
@@ -211,7 +232,10 @@ def delete_search(search_id):
 @login_required
 @validate_request("question")
 async def completion(search_id):
-    if not SearchService.accessible4deletion(search_id, current_user.id):
+    # Eurelis — exécution du résumé IA autorisée au propriétaire ET aux membres
+    # d'un tenant ayant partagé la Search App en permission='team' (cf. le chat).
+    search_app = _accessible_search(search_id)
+    if not search_app:
         return get_json_result(
             data=False,
             message="no authorization",
@@ -220,9 +244,7 @@ async def completion(search_id):
 
     req = await get_request_json()
     uid = current_user.id
-    search_app = SearchService.get_detail(search_id)
-    if not search_app:
-        return get_data_error_result(message=f"Cannot find search {search_id}")
+    owner_tenant_id = search_app["tenant_id"]
 
     search_config = search_app.get("search_config", {})
     logging.debug(
@@ -242,9 +264,14 @@ async def completion(search_id):
             return get_data_error_result(message=f"You don't own the dataset {kb_id}")
 
     async def stream():
-        nonlocal req, uid, kb_ids, search_config
+        nonlocal req, uid, owner_tenant_id, kb_ids, search_config
         try:
-            async for ans in async_ask(req["question"], kb_ids, uid, search_config=search_config, search_id=search_id):
+            async for ans in async_ask(
+                req["question"], kb_ids,
+                owner_tenant_id,                # résolution modèles + coût provider = propriétaire
+                acting_user_id=uid,             # attribution de conso = membre appelant
+                search_config=search_config, search_id=search_id,
+            ):
                 yield "data:" + json.dumps({"code": 0, "message": "", "data": ans}, ensure_ascii=False) + "\n\n"
         except Exception as ex:
             yield (

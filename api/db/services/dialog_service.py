@@ -1850,7 +1850,12 @@ async def _stream_with_think_delta(stream_iter, min_tokens: int = 16):
         state.pending_after_close = ""
 
 
-async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_config={}, search_id=None):
+async def async_ask(question, kb_ids, owner_tenant_id, acting_user_id=None, chat_llm_name=None, search_config={}, search_id=None):
+    # Eurelis — dissocier le tenant de RÉSOLUTION des modèles (chat/rerank) = propriétaire
+    # de l'UTILISATEUR d'usage (appelant réel). Rétro-compat : sans acting_user_id, les
+    # anciens appels (owner == appelant) restent inchangés.
+    if acting_user_id is None:
+        acting_user_id = owner_tenant_id
     doc_ids = search_config.get("doc_ids", [])
     rerank_mdl = None
     kb_ids = search_config.get("kb_ids", kb_ids)
@@ -1875,11 +1880,11 @@ async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_conf
     embd_owner_tenant_id = kbs[0].tenant_id
     embd_model_config = resolve_model_config(embd_owner_tenant_id, LLMType.EMBEDDING, embedding_list[0])
     embd_mdl = LLMBundle(embd_owner_tenant_id, embd_model_config)
-    chat_model_config = resolve_model_config(tenant_id, LLMType.CHAT, chat_llm_name)
-    chat_mdl = LLMBundle(tenant_id, chat_model_config)
+    chat_model_config = resolve_model_config(owner_tenant_id, LLMType.CHAT, chat_llm_name)
+    chat_mdl = LLMBundle(owner_tenant_id, chat_model_config)
     if rerank_id:
-        rerank_model_config = resolve_model_config(tenant_id, LLMType.RERANK, rerank_id)
-        rerank_mdl = LLMBundle(tenant_id, rerank_model_config)
+        rerank_model_config = resolve_model_config(owner_tenant_id, LLMType.RERANK, rerank_id)
+        rerank_mdl = LLMBundle(owner_tenant_id, rerank_model_config)
     max_tokens = chat_mdl.max_length
     tenant_ids = list(set([kb.tenant_id for kb in kbs]))
 
@@ -1900,9 +1905,9 @@ async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_conf
     except TypeError:
         full_text_weight = None
     logger.debug(
-        "Search async_ask retrieval weight: search_id=%s tenant_id=%s kb_count=%s vector_similarity_weight=%s full_text_weight=%s",
+        "Search async_ask retrieval weight: search_id=%s owner_tenant_id=%s kb_count=%s vector_similarity_weight=%s full_text_weight=%s",
         search_id,
-        tenant_id,
+        owner_tenant_id,
         len(kb_ids),
         vector_similarity_weight,
         full_text_weight,
@@ -1977,9 +1982,10 @@ async def async_ask(question, kb_ids, tenant_id, chat_llm_name=None, search_conf
     final["final"] = True
     final["answer"] = ""
     if search_id:  # Eurelis — log search usage (query embedding + LLM synthesis)
-        await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id)
+        # Attribution de conso = appelant réel ; modèle/provider = propriétaire (résolution).
+        await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=acting_user_id, resource_id=search_id)
         await eurelis_usage_log.log_search_completion(
-            user_id=tenant_id,
+            user_id=acting_user_id,
             resource_id=search_id,
             prompt_text=sys_prompt + question,
             completion_text=full_answer,

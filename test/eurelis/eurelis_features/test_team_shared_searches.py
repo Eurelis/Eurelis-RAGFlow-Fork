@@ -137,3 +137,21 @@ def test_search_app_contract(team_setup):
         s for s in _list_searches(team_setup["a"]) if s["id"] == team_setup["team_search_id"]
     )
     assert_valid(match, SEARCH_APP_SCHEMA, label="GET /searches → search_apps[]")
+
+
+@pytest.mark.p1
+def test_teammate_can_run_summary_completion(team_setup):
+    """Le coéquipier peut LANCER le résumé IA d'un search partagé (permission=team).
+
+    Régression gardée : avant l'élargissement de l'autorisation, /completions était
+    gardé par `accessible4deletion` (created_by strict) et renvoyait « No authorization. »
+    à un membre. Le search de test n'a pas de KB → la réponse attendue est une erreur
+    métier (kb_ids requis), JAMAIS une erreur d'autorisation.
+    """
+    b = team_setup["b"]
+    sid = team_setup["team_search_id"]
+    r = b.post(f"/api/{VERSION}/searches/{sid}/completions", json={"question": "bonjour"})
+    if "text/event-stream" in r.headers.get("content-type", ""):
+        return  # autorisé et streamé (KB configurée)
+    body = r.json()
+    assert "authorization" not in (body.get("message") or "").lower(), body
