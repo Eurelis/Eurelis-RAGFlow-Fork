@@ -79,6 +79,25 @@ def check_storage() -> tuple[bool, dict]:
         return False, {"elapsed": f"{(timer() - st) * 1000.0:.1f}", "error": str(e)}
 
 
+def check_litellm() -> tuple[bool, dict]:
+    # Eurelis: a corrupted / shadowed litellm install (e.g. `unclecode-litellm`
+    # clobbering the `litellm` package namespace) loads as an empty namespace
+    # package with no top-level API — chat completions then die at runtime with
+    # "module 'litellm' has no attribute 'acompletion'". Probe the exact symbol
+    # the chat models rely on so the corruption surfaces here, not mid-completion.
+    st = timer()
+    try:
+        import litellm
+
+        ok = callable(getattr(litellm, "acompletion", None))
+        meta = {"elapsed": f"{(timer() - st) * 1000.0:.1f}", "file": getattr(litellm, "__file__", None)}
+        if not ok:
+            meta["error"] = "litellm has no callable 'acompletion' (corrupted or shadowed install)"
+        return ok, meta
+    except Exception as e:
+        return False, {"elapsed": f"{(timer() - st) * 1000.0:.1f}", "error": str(e)}
+
+
 def get_es_cluster_stats() -> dict:
     doc_engine = os.getenv("DOC_ENGINE", "elasticsearch")
     if doc_engine != "elasticsearch":
@@ -483,6 +502,15 @@ def run_health_checks() -> tuple[dict, bool]:
     except Exception:
         result["storage"] = "nok"
 
-    all_ok = (result.get("db") == "ok") and (result.get("redis") == "ok") and (result.get("doc_engine") == "ok") and (result.get("storage") == "ok")
+    try:
+        litellm_ok, litellm_meta = check_litellm()
+        result["litellm"] = _ok_nok(litellm_ok)
+        if not litellm_ok:
+            result.setdefault("_meta", {})["litellm"] = litellm_meta
+    except Exception:
+        result["litellm"] = "nok"
+
+    all_ok = (result.get("db") == "ok") and (result.get("redis") == "ok") and (result.get("doc_engine") == "ok") and (
+                result.get("storage") == "ok") and (result.get("litellm") == "ok")
     result["status"] = "ok" if all_ok else "nok"
     return result, all_ok
