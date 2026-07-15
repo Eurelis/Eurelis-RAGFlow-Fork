@@ -4,6 +4,25 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.8] - 2026-07-15
+
+Basé sur RAGFlow `v0.26.3`. Aligne le résumé IA des **Search apps** sur le partage d'équipe déjà en place pour le chat : un membre d'un tenant peut désormais lancer le résumé d'une Search app partagée (`permission="team"`), avec attribution correcte de la consommation. Ajoute par ailleurs un contrôle de santé `litellm` au healthz.
+
+### Added
+- **Contrôle `litellm` dans `/system/healthz`** (`api/utils/health_utils.py`) — nouvelle sonde `check_litellm()` qui vérifie que `litellm.acompletion` est bien exposé et appelable. Une install corrompue ou masquée (ex. `unclecode-litellm` écrasant le namespace `litellm`, qui charge alors comme un namespace package vide) fait désormais échouer le healthz (`litellm: "nok"`, `all_ok=False` → HTTP 500) au lieu de planter au premier appel de complétion. Couvert par le smoke test `p0` (`test/eurelis/test_smoke.py`).
+
+### Fixed
+- **Résumé IA d'une Search app partagée bloqué pour les membres (`POST /api/v1/searches/{search_id}/completions`)** — l'endpoint était gardé par `SearchService.accessible4deletion` (contrôle `created_by` strict, correct pour l'édition mais trop restrictif pour l'exécution), renvoyant `{code: AUTHENTICATION_ERROR, message: "No authorization."}` à tout membre non-propriétaire, même sur une app `permission="team"`. Côté Shield, la recherche et les résultats fonctionnaient mais le panneau « Résumé » restait vide (réponse JSON HTTP 200 non-SSE). Nouveau helper `_accessible_search` (`api/apps/restful_apis/search_api.py`), miroir de `_ensure_owned_chat` du chat : autorise le propriétaire **ou** un membre d'un tenant rejoint sur une app `permission="team"`. L'édition (`update`/`delete`) reste réservée au propriétaire (`accessible4deletion` inchangé).
+
+### Changed
+- **Découplage résolution des modèles / attribution de conso pour le résumé Search** (`async_ask`, `api/db/services/dialog_service.py`) — la signature devient `async_ask(question, kb_ids, owner_tenant_id, acting_user_id=None, …)`. Le chat/rerank (et le coût provider + clé API) sont désormais résolus sur le **propriétaire** de l'app (`owner_tenant_id`), tandis que la ligne de consommation (`eurelis_usage_log`) est attribuée au **membre appelant** (`acting_user_id`) — même règle produit que le chat. Auparavant, tout était résolu sur l'appelant, ce qui faisait échouer la synthèse pour un membre sans LLM configuré et loguait une conso incohérente. Rétro-compatible : sans `acting_user_id`, le comportement historique (`owner == appelant`) est conservé — l'appelant `/searchbots/ask` (`bot_api.py`) est inchangé.
+
+### Tests
+- **Unitaires — autorisation & attribution** (`test/testcases/test_web_api/test_search_app/test_search_routes_unit.py`, `p2`) : matrice d'autorisation de `/completions` (propriétaire ✓, membre d'un tenant rejoint + `team` ✓, non-membre ✗, `permission="me"` non-propriétaire ✗, search introuvable ✗) et vérification que `async_ask` reçoit `owner_tenant_id` = propriétaire et `acting_user_id` = appelant. Harness complété (`TenantPermission`, `get_joined_tenants_by_user_id`, `pagination_utils`, `headers.add_header`) — ce dernier réparant aussi les cas préexistants cassés par l'import upstream de `pagination_utils`.
+- **E2E — le membre peut lancer le résumé** (`test/eurelis/eurelis_features/test_team_shared_searches.py::test_teammate_can_run_summary_completion`, `p1`) : garde la régression exacte (plus de « No authorization. » pour un membre sur une app `team`).
+
+---
+
 ## [v0.26.3-eurelis.7] - 2026-07-14
 
 Basé sur RAGFlow `v0.26.3`. Correctif d'un plantage du panel admin lors du changement de mot de passe d'un utilisateur provisionné via SSO (OIDC/OAuth), qui n'ont pas de mot de passe local.
