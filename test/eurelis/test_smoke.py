@@ -13,7 +13,7 @@ def test_healthz(api):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body.get("status") == "ok", body
-    for dep in ("db", "doc_engine", "redis", "storage"):
+    for dep in ("db", "doc_engine", "redis", "storage", "litellm"):
         assert body.get(dep) == "ok", f"{dep} = {body.get(dep)}"
 
 
