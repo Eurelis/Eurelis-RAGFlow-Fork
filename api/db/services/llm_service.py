@@ -248,6 +248,9 @@ class LLMBundle(LLM4Tenant):
 
         sim, used_tokens = self.mdl.similarity(query, texts)
         logging.info("LLMBundle.similarity used_tokens: %d", used_tokens)
+        # Eurelis — accumulate rerank tokens on the bundle so the usage_log can
+        # record them (token_type="rerank"), mirroring encode()/encode_queries().
+        self.used_tokens += used_tokens
 
         if self.langfuse:
             generation.update(usage_details={"total_tokens": used_tokens})
