@@ -1164,6 +1164,7 @@ async def search(dataset_id: str, tenant_id: str, req: dict):
 
     # Eurelis — dataset SDK retrieval and Search-app retrieval are both logged as "search".
     await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id or dataset_id)
+    await eurelis_usage_log.log_rerank_from_bundle(rerank_mdl, source="search", user_id=tenant_id, resource_id=search_id or dataset_id)
 
     return True, ranks
 
@@ -1564,6 +1565,7 @@ async def search_datasets(tenant_id: str, req: dict):
 
     # Eurelis — dataset SDK retrieval and Search-app retrieval are both logged as "search".
     await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=tenant_id, resource_id=search_id or (kb_ids[0] if kb_ids else ""))
+    await eurelis_usage_log.log_rerank_from_bundle(rerank_mdl, source="search", user_id=tenant_id, resource_id=search_id or (kb_ids[0] if kb_ids else ""))
 
     return True, ranks
 
