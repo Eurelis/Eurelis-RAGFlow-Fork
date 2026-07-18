@@ -78,6 +78,41 @@ async def log_embedding_from_usage(usage, *, source, user_id, resource_id, objec
     )
 
 
+async def log_rerank_from_bundle(rerank_mdl, *, source, user_id, resource_id, object_id=""):
+    """Log reranking usage from an LLMBundle's accumulated ``used_tokens``.
+
+    Mirrors ``log_embedding_from_bundle`` for the reranker; ``source`` is the
+    originating flow. No-op when no reranker is configured.
+    """
+    if not rerank_mdl:
+        return
+    await _log(
+        source=source,
+        token_type="rerank",
+        user_id=user_id,
+        resource_id=resource_id,
+        object_id=object_id,
+        tokens=getattr(rerank_mdl, "used_tokens", 0),
+        model=rerank_mdl.model_config.get("llm_name", ""),
+        provider=rerank_mdl.model_config.get("llm_factory", ""),
+    )
+
+
+async def log_rerank_from_usage(usage, *, source, user_id, resource_id, object_id=""):
+    """Log reranking usage from a chat ``usage`` dict propagated by async_chat."""
+    usage = usage or {}
+    await _log(
+        source=source,
+        token_type="rerank",
+        user_id=user_id,
+        resource_id=resource_id,
+        object_id=object_id,
+        tokens=usage.get("rerank_tokens", 0),
+        model=usage.get("rerank_model", ""),
+        provider=usage.get("rerank_provider", ""),
+    )
+
+
 async def log_search_completion(*, user_id, resource_id, prompt_text, completion_text,
                                 model, provider, object_id="", duration_ms=0.0):
     """Log the LLM synthesis tokens of the search "ask" flow → source="search", token_type="llm".

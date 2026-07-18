@@ -817,6 +817,9 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
                 "embedding_tokens": embd_mdl.used_tokens if embd_mdl else 0,
                 "embedding_model": embd_mdl.model_config.get("llm_name", "") if embd_mdl else "",
                 "embedding_provider": embd_mdl.model_config.get("llm_factory", "") if embd_mdl else "",
+                "rerank_tokens": rerank_mdl.used_tokens if rerank_mdl else 0,
+                "rerank_model": rerank_mdl.model_config.get("llm_name", "") if rerank_mdl else "",
+                "rerank_provider": rerank_mdl.model_config.get("llm_factory", "") if rerank_mdl else "",
             },
         }
         return
@@ -951,6 +954,9 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
                 "embedding_tokens": embd_mdl.used_tokens if embd_mdl else 0,
                 "embedding_model": embd_mdl.model_config.get("llm_name", "") if embd_mdl else "",
                 "embedding_provider": embd_mdl.model_config.get("llm_factory", "") if embd_mdl else "",
+                "rerank_tokens": rerank_mdl.used_tokens if rerank_mdl else 0,
+                "rerank_model": rerank_mdl.model_config.get("llm_name", "") if rerank_mdl else "",
+                "rerank_provider": rerank_mdl.model_config.get("llm_factory", "") if rerank_mdl else "",
             },
         }
 
@@ -1822,6 +1828,7 @@ async def async_ask(question, kb_ids, owner_tenant_id, acting_user_id=None, chat
     if search_id:  # Eurelis — log search usage (query embedding + LLM synthesis)
         # Attribution de conso = appelant réel ; modèle/provider = propriétaire (résolution).
         await eurelis_usage_log.log_embedding_from_bundle(embd_mdl, source="search", user_id=acting_user_id, resource_id=search_id)
+        await eurelis_usage_log.log_rerank_from_bundle(rerank_mdl, source="search", user_id=acting_user_id, resource_id=search_id)
         await eurelis_usage_log.log_search_completion(
             user_id=acting_user_id,
             resource_id=search_id,
