@@ -1456,6 +1456,9 @@ async def session_completion(chat_id_in_arg=""):
                     await eurelis_usage_log.log_embedding_from_usage(
                         last_usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
                     )
+                    await eurelis_usage_log.log_rerank_from_usage(
+                        last_usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+                    )
             yield "data:" + json.dumps({"code": 0, "message": "", "data": True}, ensure_ascii=False) + "\n\n"
 
         if stream_mode:
@@ -1485,6 +1488,9 @@ async def session_completion(chat_id_in_arg=""):
                     provider=usage.get("provider", ""),
                 )
                 await eurelis_usage_log.log_embedding_from_usage(
+                    usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
+                )
+                await eurelis_usage_log.log_rerank_from_usage(
                     usage, source="chat", user_id=conv.user_id or "", resource_id=conv.dialog_id, object_id=conv.id
                 )
             break
