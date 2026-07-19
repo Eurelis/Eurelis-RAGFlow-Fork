@@ -56,6 +56,18 @@ def model_ref(model_name: str) -> str:
     """Référence RAGFlow d'un modèle : model@instance@provider."""
     return f"{model_name}@{OLLAMA_INSTANCE}@{OLLAMA_PROVIDER}"
 
+# --- Reranker mock (service mock-rerank du compose de test, API Jina-compatible) -------------
+# Sert uniquement à valider le logging token_type="rerank" de bout en bout (câblage chat/search),
+# pas la qualité du reranking.
+RERANK_PROVIDER = "Jina"
+RERANK_INSTANCE = "mock"
+RERANK_MODEL = "jina-reranker-v2-base-multilingual"
+RERANK_API_BASE = os.getenv("EURELIS_RERANK_API_BASE", "http://mock-rerank:8080/rerank")
+
+def rerank_ref() -> str:
+    """Référence RAGFlow du reranker mock : model@instance@provider."""
+    return f"{RERANK_MODEL}@{RERANK_INSTANCE}@{RERANK_PROVIDER}"
+
 # --- Jeu de données de référence (créé par seed.py, consommé par les tests) -----------------
 REF_DATASET_NAME = "eurelis-ref"
 REF_CHAT_NAME = "eurelis-ref-chat"           # chat SANS masquage PII (modèle standard)
