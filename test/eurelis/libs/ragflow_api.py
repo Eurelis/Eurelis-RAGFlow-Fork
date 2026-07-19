@@ -17,6 +17,10 @@ from configs import (
     OLLAMA_INTERNAL_URL,
     OLLAMA_PROVIDER,
     PASSWORD,
+    RERANK_API_BASE,
+    RERANK_INSTANCE,
+    RERANK_MODEL,
+    RERANK_PROVIDER,
     VERSION,
 )
 
@@ -179,3 +183,36 @@ def ensure_default_ollama_models(base_url: str, auth_header: str) -> None:
     )
     if not _ok(r.json()):
         raise AuthError(f"add modèle {CHAT_MODEL_PII} : {r.json().get('message')!r}")
+
+
+def ensure_rerank_model(base_url: str, auth_header: str) -> None:
+    """Amorçage idempotent d'un reranker mock (provider Jina) pointant sur le service mock-rerank.
+
+    Sert à valider le logging token_type="rerank" de bout en bout ; le connecteur Jina tape
+    l'`api_base` de l'instance (http://mock-rerank:8080/rerank). Idempotent (tolère « déjà existant »).
+    """
+    headers = {"Authorization": auth_header, "Content-Type": "application/json"}
+
+    def _ok(body: dict) -> bool:
+        msg = (body.get("message") or "").lower()
+        return body.get("code") == 0 or "already exist" in msg or "duplicated" in msg
+
+    r = httpx.put(f"{base_url}/api/{VERSION}/providers", headers=headers,
+                  json={"provider_name": RERANK_PROVIDER}, timeout=HTTP_TIMEOUT)
+    if not _ok(r.json()):
+        raise AuthError(f"add provider {RERANK_PROVIDER} : {r.json().get('message')!r}")
+
+    r = httpx.post(
+        f"{base_url}/api/{VERSION}/providers/{RERANK_PROVIDER}/instances",
+        headers=headers,
+        json={
+            "instance_name": RERANK_INSTANCE,
+            "api_key": "mock",
+            "base_url": RERANK_API_BASE,
+            "region": "default",
+            "model_info": [{"model_type": ["rerank"], "model_name": RERANK_MODEL, "max_tokens": 8192}],
+        },
+        timeout=HTTP_TIMEOUT,
+    )
+    if not _ok(r.json()):
+        raise AuthError(f"create instance {RERANK_PROVIDER} : {r.json().get('message')!r}")
