@@ -26,6 +26,7 @@ from configs import (
 )
 from libs.ragflow_api import (
     ensure_default_ollama_models,
+    ensure_rerank_model,
     get_api_token,
     login,
     register_user,
@@ -131,6 +132,8 @@ def main() -> int:
     auth = login(HOST_ADDRESS)
     ensure_default_ollama_models(HOST_ADDRESS, auth)
     print("  tenant amorcé sur Ollama (chat + embedding)")
+    ensure_rerank_model(HOST_ADDRESS, auth)
+    print("  reranker mock amorcé (provider Jina → mock-rerank)")
     token = get_api_token(HOST_ADDRESS, auth)
 
     with httpx.Client(

@@ -22,6 +22,7 @@ from configs import (
     REF_DOC_TEXT,
     VERSION,
     model_ref,
+    rerank_ref,
 )
 from libs.sse import stream_completions
 from libs.usage import delta, usage_matrix
@@ -160,3 +161,43 @@ def test_search_llm_and_embedding_logged(api, ref_dataset_id):
     d = delta(before, usage_matrix(api))
     assert d.get(("search", "llm"), 0) > 0, f"(search, llm) non logué : {d}"
     assert d.get(("search", "embedding"), 0) > 0, f"(search, embedding) non logué : {d}"
+
+
+# --- rerank (câblage du logging token_type="rerank" de bout en bout) -------------------------
+def test_chat_rerank_logged(api, ref_dataset_id):
+    """Un chat AVEC base ET reranker configuré → une vraie requête produit une ligne (chat, rerank)."""
+    chat_id = api.post(
+        f"/api/{VERSION}/chats",
+        json={"name": "eurelis-matrix-rerank-chat", "dataset_ids": [ref_dataset_id], "rerank_id": rerank_ref()},
+    ).json()["data"]["id"]
+    try:
+        sid = api.post(f"/api/{VERSION}/chats/{chat_id}/sessions", json={"name": "x"}).json()["data"]["id"]
+        before = usage_matrix(api)
+        stream_completions(api, chat_id, "Que fait Eurelis avec RAGFlow ?", sid)
+        time.sleep(1)
+        d = delta(before, usage_matrix(api))
+        assert d.get(("chat", "rerank"), 0) > 0, f"(chat, rerank) non logué : {d}"
+    finally:
+        api.request("DELETE", f"/api/{VERSION}/chats", json={"ids": [chat_id]})
+
+
+def test_search_rerank_logged(api, ref_dataset_id):
+    """Un search app AVEC reranker configuré → une vraie requête produit une ligne (search, rerank)."""
+    sid = api.post(
+        f"/api/{VERSION}/searches",
+        json={
+            "name": "eurelis-matrix-rerank-search",
+            "search_config": {"kb_ids": [ref_dataset_id], "chat_id": model_ref(CHAT_MODEL), "rerank_id": rerank_ref()},
+        },
+    ).json()["data"]["search_id"]
+    try:
+        before = usage_matrix(api)
+        with api.stream("POST", f"/api/{VERSION}/searches/{sid}/completions",
+                        json={"question": "Que fait Eurelis ?", "kb_ids": [ref_dataset_id]}) as resp:
+            for _ in resp.iter_lines():
+                pass
+        time.sleep(1)
+        d = delta(before, usage_matrix(api))
+        assert d.get(("search", "rerank"), 0) > 0, f"(search, rerank) non logué : {d}"
+    finally:
+        api.request("DELETE", f"/api/{VERSION}/searches/{sid}")
