@@ -4,6 +4,22 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.9] - 2026-07-19
+
+Basé sur RAGFlow `v0.26.3`. Ajoute le support du **reranking via AWS Bedrock** (connecteur absent de l'upstream), corrige un défaut de qualité qui neutralisait les rerankers neuronaux, et intègre la consommation de tokens du reranking dans les statistiques Eurelis.
+
+### Added
+- **Connecteur reranker AWS Bedrock** (`rag/llm/rerank_model.py`, classe `BedrockRerank`, `_FACTORY_NAME = "Bedrock"`) — la factory Bedrock proposait chat/embedding/CV mais aucun reranker : sélectionner un modèle rerank Bedrock plantait avec `Factory not in rerank model`. Le connecteur appelle l'API Rerank de `bedrock-agent-runtime` et réutilise le protocole de clé JSON de `BedrockEmbed` (`auth_mode` / `bedrock_region` / `bedrock_ak` / `bedrock_sk`, modes `access_key_secret` / `iam_role` / `assume_role`). Documents tronqués à la fenêtre du modèle (Cohere Rerank v3.5 ~2k tokens, Amazon Rerank v1 8k) ; scores renvoyés en `[0,1]` (normalisation partagée `Base.similarity` inchangée). Modèles à déclarer dans le catalogue via `conf/llm_factories.patch.json` (`amazon.rerank-v1:0`, `cohere.rerank-v3-5:0`). Soumis en upstream (PR infiniflow/ragflow #16960, qui porte en plus des durcissements API — cap 32 000 caractères, découpage en lots de 1 000, pagination `nextToken` — non encore back-portés ici).
+- **Consommation du reranking dans `usage_log`** (`token_type="rerank"`) — `LLMBundle.similarity` (`api/db/services/llm_service.py`) accumule désormais les tokens rerank sur le bundle (comme `encode`/`encode_queries`), et de nouveaux helpers `log_rerank_from_bundle` / `log_rerank_from_usage` (`api/db/services/eurelis_usage_log.py`) écrivent la consommation pour les flux **chat** (`chat_api.py`, `conversation_service.py`) et **search** (recherche IA `async_ask` dans `dialog_service.py` + retrieval pur des Search apps / SDK dans `dataset_api_service.py`). Sans changement de schéma — la colonne `token_type` discrimine déjà et l'API stats ventile `"rerank"` dynamiquement (`GROUP BY`). Le reranking était auparavant un angle mort des statistiques (uniquement loggué en INFO et Langfuse).
+
+### Changed
+- **Reranking sur le texte naturel des chunks au lieu de la version tokenisée** (`Dealer.rerank_by_model`, `rag/nlp/search.py`) — les rerankers externes recevaient `content_ltks` (texte tokenisé : minusculisé, stemmé, accents éclatés) au lieu du texte naturel. Un reranker neuronal note ce charabia bien plus bas : sur des chunks FR réels, le même chunk pertinent chutait de ~0,5-0,85 (`content_with_weight`) à ~0,01-0,03 (`content_ltks`), soit un facteur 10-90×, neutralisant le reranker (la remontée était alors portée par les seuls mots-clés) et forçant un `similarity_threshold` artificiellement bas. Le reranker est désormais nourri au `content_with_weight` (mise en forme conservée, tableaux HTML compris — à ne pas nettoyer : Cohere exploite la structure des tableaux) ; `ins_tw` / la similarité mots-clés du blend restent inchangés. Bénéfice universel (Cohere, Jina, Voyage…). Soumis en upstream (PR infiniflow/ragflow #16961). Documenté dans `docs/eurelis/knowledge/reranking-natural-text-input.md`.
+
+### Tests
+- **Unitaires — logging conso rerank** (`test/unit_test/api/db/services/test_rerank_usage_log.py`) : accumulation des tokens sur le bundle (`LLMBundle.similarity`) et écriture des lignes `token_type="rerank"` (depuis le bundle et depuis le dict `usage`, no-op sans reranker configuré, skip à 0 token).
+
+---
+
 ## [v0.26.3-eurelis.8] - 2026-07-15
 
 Basé sur RAGFlow `v0.26.3`. Aligne le résumé IA des **Search apps** sur le partage d'équipe déjà en place pour le chat : un membre d'un tenant peut désormais lancer le résumé d'une Search app partagée (`permission="team"`), avec attribution correcte de la consommation. Ajoute par ailleurs un contrôle de santé `litellm` au healthz.
