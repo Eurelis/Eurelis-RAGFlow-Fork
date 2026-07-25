@@ -1,0 +1,186 @@
+{
+  "components": {
+    "begin": {
+      "downstream": [
+        "CodeExec:RunPython"
+      ],
+      "obj": {
+        "component_name": "Begin",
+        "params": {
+          "enablePrologue": true,
+          "inputs": {},
+          "mode": "conversational",
+          "outputs": {},
+          "prologue": "Envoie-moi un message (par ex. une liste de nombres) : je vais exécuter un script Python dans la sandbox et te renvoyer le résultat."
+        }
+      },
+      "upstream": []
+    },
+    "CodeExec:RunPython": {
+      "downstream": [
+        "Message:ShowResult"
+      ],
+      "obj": {
+        "component_name": "CodeExec",
+        "params": {
+          "arguments": {
+            "query": "sys.query"
+          },
+          "lang": "python",
+          "outputs": {
+            "result": {
+              "type": "Object",
+              "value": ""
+            }
+          },
+          "script": "def main(query):\n    import sys\n    import platform\n    import re\n\n    numbers = [float(x) for x in re.findall(r\"-?\\d+(?:\\.\\d+)?\", str(query or \"\"))]\n    stats = {}\n    if numbers:\n        stats = {\n            \"count\": len(numbers),\n            \"sum\": sum(numbers),\n            \"mean\": sum(numbers) / len(numbers),\n            \"min\": min(numbers),\n            \"max\": max(numbers),\n        }\n\n    return {\n        \"python_version\": sys.version,\n        \"platform\": platform.platform(),\n        \"query_recue\": str(query),\n        \"nombres_detectes\": numbers,\n        \"stats\": stats,\n    }\n"
+        }
+      },
+      "upstream": [
+        "begin"
+      ]
+    },
+    "Message:ShowResult": {
+      "downstream": [],
+      "obj": {
+        "component_name": "Message",
+        "params": {
+          "content": [
+            "Résultat de l'exécution Python dans la sandbox :\n\n{CodeExec:RunPython@result}\n\nErreur éventuelle : {CodeExec:RunPython@_ERROR}"
+          ]
+        }
+      },
+      "upstream": [
+        "CodeExec:RunPython"
+      ]
+    }
+  },
+  "globals": {
+    "sys.conversation_turns": 0,
+    "sys.date": "",
+    "sys.files": [],
+    "sys.history": [],
+    "sys.query": "",
+    "sys.user_id": ""
+  },
+  "graph": {
+    "nodes": [
+      {
+        "data": {
+          "form": {
+            "enablePrologue": true,
+            "inputs": {},
+            "mode": "conversational",
+            "outputs": {},
+            "prologue": "Envoie-moi un message (par ex. une liste de nombres) : je vais exécuter un script Python dans la sandbox et te renvoyer le résultat."
+          },
+          "label": "Begin",
+          "name": "begin"
+        },
+        "id": "begin",
+        "measured": {
+          "height": 48,
+          "width": 200
+        },
+        "position": {
+          "x": 80,
+          "y": 200
+        },
+        "selected": false,
+        "sourcePosition": "left",
+        "targetPosition": "right",
+        "type": "beginNode"
+      },
+      {
+        "data": {
+          "form": {
+            "arguments": {
+              "query": "sys.query"
+            },
+            "lang": "python",
+            "outputs": {
+              "result": {
+                "type": "Object",
+                "value": ""
+              }
+            },
+            "script": "def main(query):\n    import sys\n    import platform\n    import re\n\n    numbers = [float(x) for x in re.findall(r\"-?\\d+(?:\\.\\d+)?\", str(query or \"\"))]\n    stats = {}\n    if numbers:\n        stats = {\n            \"count\": len(numbers),\n            \"sum\": sum(numbers),\n            \"mean\": sum(numbers) / len(numbers),\n            \"min\": min(numbers),\n            \"max\": max(numbers),\n        }\n\n    return {\n        \"python_version\": sys.version,\n        \"platform\": platform.platform(),\n        \"query_recue\": str(query),\n        \"nombres_detectes\": numbers,\n        \"stats\": stats,\n    }\n"
+          },
+          "label": "CodeExec",
+          "name": "Exécution Python"
+        },
+        "id": "CodeExec:RunPython",
+        "measured": {
+          "height": 49,
+          "width": 200
+        },
+        "position": {
+          "x": 380,
+          "y": 200
+        },
+        "selected": false,
+        "sourcePosition": "right",
+        "targetPosition": "left",
+        "type": "ragNode"
+      },
+      {
+        "data": {
+          "form": {
+            "content": [
+              "Résultat de l'exécution Python dans la sandbox :\n\n{CodeExec:RunPython@result}\n\nErreur éventuelle : {CodeExec:RunPython@_ERROR}"
+            ]
+          },
+          "label": "Message",
+          "name": "Résultat"
+        },
+        "id": "Message:ShowResult",
+        "measured": {
+          "height": 49,
+          "width": 200
+        },
+        "position": {
+          "x": 680,
+          "y": 200
+        },
+        "selected": false,
+        "sourcePosition": "right",
+        "targetPosition": "left",
+        "type": "messageNode"
+      }
+    ],
+    "edges": [
+      {
+        "data": {
+          "isHovered": false
+        },
+        "id": "xy-edge__beginstart-CodeExec:RunPythonend",
+        "markerEnd": "logo",
+        "source": "begin",
+        "sourceHandle": "start",
+        "target": "CodeExec:RunPython",
+        "targetHandle": "end",
+        "type": "buttonEdge",
+        "zIndex": 1001
+      },
+      {
+        "data": {
+          "isHovered": false
+        },
+        "id": "xy-edge__CodeExec:RunPythonstart-Message:ShowResultend",
+        "markerEnd": "logo",
+        "source": "CodeExec:RunPython",
+        "sourceHandle": "start",
+        "target": "Message:ShowResult",
+        "targetHandle": "end",
+        "type": "buttonEdge",
+        "zIndex": 1001
+      }
+    ]
+  },
+  "history": [],
+  "memory": [],
+  "messages": [],
+  "path": [],
+  "retrieval": [],
+  "variables": {}
+}
