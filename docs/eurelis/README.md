@@ -124,6 +124,7 @@ Documentation technique de référence.
 | [Initialisation de l'utilisateur admin par défaut](./knowledge/admin-user-init.md) | `reference` |
 | [Configuration des variables d'une Chat App](./knowledge/chat-app-variable-configuration.md) | `reference` |
 | [Endpoints API Chat et pièces jointes](./knowledge/chat-endpoints-and-attachments.md) | `reference` |
+| [Exécution de code Python dans les agents (sandbox CodeExec)](./knowledge/code-exec-sandbox.md) | `reference` |
 | [Gestion des entités (ingestion → recherche)](./knowledge/entity-management.md) | `reference` |
 | [Génération du Knowledge Graph](./knowledge/knowledge-graph-generation.md) | `reference` |
 | [Configuration des modèles LLM par tenant](./knowledge/llm-default-configuration.md) | `reference` |
