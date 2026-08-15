@@ -111,6 +111,29 @@ LITELLM_ALLOWED_GEN_CONF_KEYS = ALLOWED_GEN_CONF_KEYS | frozenset(
 )
 
 
+# --- BEDROCK DEFAULT MAX OUTPUT TOKENS (Eurelis) ---
+def _bedrock_default_max_output_tokens(model_name: str) -> int:
+    """Output ceiling for Bedrock requests that carry no explicit limit.
+
+    Without ``maxTokens``, the Bedrock Converse API applies a small service-side
+    default (~4096 for Claude models) and truncates long answers with
+    ``finish_reason: "length"``. litellm injects a per-model default for
+    Anthropic direct but not for Bedrock; replicate that strategy from its model
+    registry, falling back to ``LLM_BEDROCK_DEFAULT_MAX_OUTPUT_TOKENS`` (default
+    4096, the historical behaviour) for models the registry doesn't know.
+
+    NB: with ``LITELLM_LOCAL_MODEL_COST_MAP=True`` (``api/ragflow_server.py``)
+    the effective registry is the one *bundled* in the pinned litellm —
+    litellm >= 1.92 required for eu.anthropic.claude-opus-4-8 / claude-sonnet-5.
+    """
+    try:
+        max_output = litellm.get_model_info(model_name).get("max_output_tokens")
+    except Exception:
+        max_output = None
+    return int(max_output) if max_output else int(os.environ.get("LLM_BEDROCK_DEFAULT_MAX_OUTPUT_TOKENS", 4096))
+# --- END BEDROCK DEFAULT MAX OUTPUT TOKENS ---
+
+
 def _apply_model_family_policies(
     model_name: str,
     *,
@@ -2610,6 +2633,14 @@ class LiteLLMBase(ABC):
         elif self.provider == SupportedLiteLLMProvider.Bedrock:
             import boto3
             from botocore.utils import validate_region_name
+
+            # --- BEDROCK MAX TOKENS INJECTION (Eurelis) ---
+            # Unless the caller already set an output limit, inject the model's
+            # real max output tokens so Bedrock doesn't fall back to its small
+            # service-side default (~4096) and truncate long answers.
+            if "max_tokens" not in completion_args and "max_completion_tokens" not in completion_args:
+                completion_args["max_tokens"] = _bedrock_default_max_output_tokens(effective_model_name)
+            # --- END BEDROCK MAX TOKENS INJECTION ---
 
             completion_args.pop("api_key", None)
             completion_args.pop("api_base", None)

@@ -73,7 +73,9 @@ class LLMParam(ComponentParamBase):
                 pass
 
         if int(self.max_tokens) > 0 and get_attr("maxTokensEnabled"):
-            conf["max_tokens"] = int(self.max_tokens)
+            # Eurelis — emit max_completion_tokens: it survives _clean_conf (which
+            # deliberately strips legacy max_tokens), making the UI toggle effective.
+            conf["max_completion_tokens"] = int(self.max_tokens)
         if float(self.temperature) >= 0 and get_attr("temperatureEnabled"):
             conf["temperature"] = float(self.temperature)
         if float(self.top_p) > 0 and get_attr("topPEnabled"):
