@@ -56,6 +56,20 @@ def model_ref(model_name: str) -> str:
     """Référence RAGFlow d'un modèle : model@instance@provider."""
     return f"{model_name}@{OLLAMA_INSTANCE}@{OLLAMA_PROVIDER}"
 
+# --- Bedrock réel (palier opt-in, AILAB-22) ---------------------------------------------------
+# Test e2e de non-troncature des réponses longues : nécessite de vrais credentials AWS Bedrock
+# (appel cloud payant, ~1 réponse longue par run). Skippé si EURELIS_BEDROCK_TEST_AK/SK absents.
+BEDROCK_PROVIDER = "Bedrock"
+BEDROCK_INSTANCE = "e2e"
+BEDROCK_TEST_AK = os.getenv("EURELIS_BEDROCK_TEST_AK")
+BEDROCK_TEST_SK = os.getenv("EURELIS_BEDROCK_TEST_SK")
+BEDROCK_TEST_REGION = os.getenv("EURELIS_BEDROCK_TEST_REGION", "eu-west-1")
+BEDROCK_TEST_CHAT_MODEL = os.getenv("EURELIS_BEDROCK_TEST_CHAT_MODEL", "eu.anthropic.claude-opus-4-8")
+
+def bedrock_ref() -> str:
+    """Référence RAGFlow du modèle chat Bedrock du palier opt-in : model@instance@provider."""
+    return f"{BEDROCK_TEST_CHAT_MODEL}@{BEDROCK_INSTANCE}@{BEDROCK_PROVIDER}"
+
 # --- Reranker mock (service mock-rerank du compose de test, API Jina-compatible) -------------
 # Sert uniquement à valider le logging token_type="rerank" de bout en bout (câblage chat/search),
 # pas la qualité du reranking.
