@@ -172,11 +172,13 @@ dependencies = [
     #    "xxhash>=3.5.0,<4.0.0",
     #    "trio>=0.17.0,<0.29.0",
     #    "click>=8.1.8",
-    # litellm < 1.84.0 vulnerable to multiple CVE's. Previously pinned to 1.82.5 due to broken
-    # imports in 1.82.6–1.82.8 (caching) and 1.88.0 (custom_logger); both
-    # issues are resolved in 1.84.0. Exact pin retained due to litellm's
-    # history of introducing regressions on minor bumps.
-    "litellm==1.84.0",
+    # Eurelis — bump au-delà du pin upstream (1.84.0) : le registre EMBARQUÉ de
+    # litellm doit connaître eu.anthropic.claude-opus-4-8 (>=1.88.0) et
+    # eu.anthropic.claude-sonnet-5 (>=1.92.0) car LITELLM_LOCAL_MODEL_COST_MAP=True
+    # (cf. AILAB-22). Versions upstream connues cassées : 1.82.6-1.82.8
+    # (`litellm.caching.caching`) et 1.88.0 (`litellm.integrations.custom_logger`).
+    # Pin exact conservé (historique de régressions litellm sur bumps mineurs).
+    "litellm==1.96.2",
     #    "pip>=25.2",
     #    "imageio-ffmpeg>=0.6.0",
     #    "cryptography==46.0.3",
