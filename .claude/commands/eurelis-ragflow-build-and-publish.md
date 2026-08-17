@@ -61,16 +61,25 @@ Après avoir résolu le tag, vérifier :
 2. **Branche correcte** : la branche active (ou le commit checké) doit appartenir à `eurelis/main`. Si ce n'est pas le cas, **arrêter** :
    > ERREUR : vous devez builder depuis `eurelis/main`. Faites `git checkout eurelis/main`.
 
-3. **Docker opérationnel** : `docker info` doit répondre sans erreur. Si Docker n'est pas démarré, **arrêter**.
+3. **Arbre de travail propre** : `git status --porcelain` doit être **vide** — aucun fichier modifié, stagé ou untracked. Le contexte de build Docker embarque le working tree tel quel (`COPY conf conf`, etc.) : tout fichier non commité (config de tests locaux, `conf/llm_factories.patch.json` d'environnement, secrets…) serait silencieusement distribué dans l'image publiée. Si l'arbre n'est pas propre, **arrêter** :
+   > ERREUR : l'arbre de travail contient des fichiers non commités ou non stashés — l'image embarquerait un état local non reproductible depuis le tag.
+   > ```bash
+   > git stash push -u -m "pre-build"   # met de côté modifs ET untracked
+   > # … build …
+   > git stash pop                       # restaure après le build
+   > ```
+   > Ne jamais builder par-dessus un arbre sale, même « pour gagner du temps ».
 
-4. **Builder eurelis-builder présent** : `docker buildx ls` doit contenir `eurelis-builder`. Si absent, **arrêter** :
+4. **Docker opérationnel** : `docker info` doit répondre sans erreur. Si Docker n'est pas démarré, **arrêter**.
+
+5. **Builder eurelis-builder présent** : `docker buildx ls` doit contenir `eurelis-builder`. Si absent, **arrêter** :
    > ERREUR : le builder multi-platform est absent. Créez-le avec :
    > ```bash
    > docker buildx create --name eurelis-builder --driver docker-container --bootstrap
    > docker buildx use eurelis-builder
    > ```
 
-5. **Connexion Docker Hub** : vérifiable via `cat ~/.docker/config.json | grep index.docker.io`. Si absent, **arrêter** :
+6. **Connexion Docker Hub** : vérifiable via `cat ~/.docker/config.json | grep index.docker.io`. Si absent, **arrêter** :
    > ERREUR : vous n'êtes pas connecté à Docker Hub. Lancez `docker login`.
 
 Si une vérification échoue, **ne pas continuer**.
@@ -240,6 +249,7 @@ Procédure de mise à jour d'une instance existante :
 | Tag paramètre ≠ HEAD, refus de checkout | Arrêt propre |
 | Aucun tag eurelis sur HEAD (sans paramètre) | Arrêt — afficher la commande de tag ou l'usage avec paramètre |
 | Commit non issu de eurelis/main | Arrêt — demander checkout |
+| Arbre de travail sale (fichiers modifiés ou untracked) | Arrêt — `git stash push -u` avant build, `git stash pop` après |
 | Docker non démarré | Arrêt — demander démarrage |
 | Builder eurelis-builder absent | Arrêt — afficher la commande de création |
 | Non connecté à Docker Hub | Arrêt — afficher `docker login` |
