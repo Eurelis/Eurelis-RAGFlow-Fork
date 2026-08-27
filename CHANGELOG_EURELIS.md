@@ -4,6 +4,27 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.27.0-eurelis.1] - 2026-08-27
+
+Basé sur RAGFlow `v0.27.0`. Rebase du fork sur la nouvelle base upstream — aucune nouvelle fonctionnalité Eurelis, mais réintégration des 66 commits Eurelis sur `v0.27.0` (1225 commits upstream intégrés) avec résolution des conflits. Rapport détaillé : `docs/eurelis/eurelis-ragflow-sync-upstream/2026-08-27.md`.
+
+### Changed
+- **Rebase sur RAGFlow `v0.27.0`** — intégration de 1225 commits upstream (`v0.26.4` → `v0.27.0`) : catalogue providers v0.27.0, nouveaux doc engines (GaussDB, SeekDB, SereneDB), refactor extractor « 5-in-1 », rename interne `async_chat` → `rag_agent` dans les endpoints chat, sanitizer de tokens de contrôle MiniMax, migration `zhipuai` → `zai-sdk` (CVE pyjwt), schéma zod du Search déplacé vers `search-setting-hooks.ts`, `CLAUDE.md` upstream devenu symlink `AGENTS.md` (le fork conserve son fichier réel), nombreuses colonnes de migration `knowledgebase` (wiki/skill/structure).
+- **Masquage PII recomposé avec le sanitizer upstream** (`rag/llm/chat_model.py`) — l'upstream filtre désormais les tokens de contrôle MiniMax exactement là où le PII-unmasking s'insère : les deux mécanismes sont chaînés (sanitize → unmask), en non-stream comme en stream, flush compris.
+- **Instrumentations usage-stats et group_work portées sur `rag_agent`** (ex-`async_chat`) dans `chat_api.py` / `conversation_service.py` ; champ `permission` du Search réinjecté dans le schéma déplacé (`search-setting-hooks.ts`) ; extension Eurelis d'`async_ask` conservée sur la forme upstream `resolve_model_config(owner_tenant_id, …)`.
+- **Assouplissement `zhipuai>=2.0.1` abandonné** — l'upstream a remplacé `zhipuai` par `zai-sdk` pour débloquer un correctif CVE pyjwt.
+- **`docker/.env`** — inscription désactivée sur les deux variables désormais lues : `REGISTER_ENABLED=0` (Python) et `ENABLE_REGISTER=0` (nouveau, serveur Go).
+
+### Fixed
+- **`uv.lock` régénéré** (`uv lock`) sur la base du lock upstream v0.27.0 : presidio, trafilatura et `litellm==1.96.2` réintégrés (pin Eurelis conservé, toujours au-delà du minimum CVE upstream 1.84.0 ; transitives : pydantic-settings 2.12.0 → 2.15.0, ajout requests-file/tld/tldextract).
+
+### Notes
+- Deux commits Eurelis **absorbés par l'upstream** (écartés au rebase) : le connecteur **`BedrockRerank`** (PR #16960 mergée — l'upstream l'a enrichi : cap 32 000 caractères, lots de 1 000, pagination `nextToken`) et le **fix mot de passe admin SSO** (PR #16914). Partiellement absorbé : l'embarquement de `fr_core_news_sm` (l'upstream embarque désormais les modèles spaCy fr/es/pt/ja/de/zh) ; `BedrockCV` et le fix de clé API Bedrock (`llm_app.py`) sont également présents upstream.
+- Le correctif **`max_completion_tokens`** des composants agent (AILAB-22) reste nécessaire : `_clean_conf` upstream supprime toujours `max_tokens`.
+- Images d'infrastructure upstream : MySQL `8.0.40`, MinIO remplacé par `pgsty/silo`, redis en `--maxmemory-policy volatile-lru`.
+
+---
+
 ## [v0.26.3-eurelis.10] - 2026-08-14
 
 Basé sur RAGFlow `v0.26.3`. Correctif des **réponses tronquées à ~4 096 tokens de sortie sur Bedrock** (AILAB-22) : suffixe « The answer is truncated by your chosen LLM… » sur les réponses longues, reproduit en production Synerga avec `eu.anthropic.claude-opus-4-8`. Rend au passage le toggle « Max tokens » des composants agent LLM réellement opérant.
