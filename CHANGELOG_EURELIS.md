@@ -4,6 +4,21 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.27.1-eurelis.1] - 2026-08-28
+
+Basé sur RAGFlow `v0.27.1`. Rebase du fork sur la version corrective upstream — aucune nouvelle fonctionnalité Eurelis, réintégration des 68 commits Eurelis sur `v0.27.1` (333 commits upstream, ~245 fixes). Rapport détaillé : `docs/eurelis/eurelis-ragflow-sync-upstream/2026-08-28.md`.
+
+### Changed
+- **Rebase sur RAGFlow `v0.27.1`** — corrections notables intégrées : `rag_agent` ne forwarde plus les clés de bookkeeping des messages aux providers (#18663), prompt système honoré en chat « reasoning » (#18842), tenant du retrieval SQL dérivé du propriétaire du dataset (#18518), rename `prefetch_size` → `rerank_candidates` (#18718). Features upstream : authentification Bedrock par API key (#18301), registre central de connecteurs (`CONNECTOR_BY_SOURCE`), `resolve_llm_setting` pour la synthèse Search, connecteurs Azure DevOps/Xquik, provider Synthorai.
+- **Champ `permission` (group_work) réinjecté** dans le schéma zod enrichi des réglages chat (`use-chat-setting-schema.tsx` : `rerankCandidatesCountSchema` + `superRefine` upstream conservés).
+- **Connecteur Sitemap enregistré dans le nouveau registre upstream** `CONNECTOR_BY_SOURCE` (`FileSource.SITEMAP: SitemapConnector`) — requis par le nouvel endpoint de validation `connector_api.py`.
+- **Synthèse Search** : la config LLM de l'app (`resolve_llm_setting`, upstream) remplace le `temperature: 0.1` codé en dur, composée avec le chronométrage usage_log Eurelis.
+
+### Notes
+- Aucun commit Eurelis absorbé sur cette passe. `litellm==1.96.2` conservé dans `uv.lock` (inchangé par l'upstream).
+
+---
+
 ## [v0.27.0-eurelis.1] - 2026-08-27
 
 Basé sur RAGFlow `v0.27.0`. Rebase du fork sur la nouvelle base upstream — aucune nouvelle fonctionnalité Eurelis, mais réintégration des 66 commits Eurelis sur `v0.27.0` (1225 commits upstream intégrés) avec résolution des conflits. Rapport détaillé : `docs/eurelis/eurelis-ragflow-sync-upstream/2026-08-27.md`.
