@@ -11,6 +11,7 @@ import httpx
 
 from configs import (
     CHAT_MODEL,
+    SEARCH_LLM_SETTING,
     CHAT_MODEL_PII,
     HOST_ADDRESS,
     HTTP_TIMEOUT,
@@ -118,6 +119,7 @@ def ensure_search(client: httpx.Client, dataset_id: str, name: str = REF_SEARCH_
             "summary": True,                  # active le résumé (flag lu par le Shield)
             "related_search": True,           # active les suggestions
             "chat_id": model_ref(CHAT_MODEL),  # modèle du résumé : async_ask n'a pas de fallback défaut
+            "llm_setting": SEARCH_LLM_SETTING,  # pénalités à zéro — évite la boucle repeat_penalty<1 d'Ollama
         },
     }
     # POST /searches -> data={"search_id": "..."}

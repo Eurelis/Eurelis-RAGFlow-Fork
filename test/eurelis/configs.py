@@ -99,3 +99,20 @@ REF_DOC_TEXT = (
 HTTP_TIMEOUT = int(os.getenv("EURELIS_HTTP_TIMEOUT", "120"))
 # Délai max d'attente du parse d'un document (secondes).
 PARSE_TIMEOUT = int(os.getenv("EURELIS_PARSE_TIMEOUT", "300"))
+
+
+# llm_setting explicite pour les search apps de test — indispensable avec Ollama :
+# depuis v0.27.1, async_ask résout les 4 paramètres de génération via
+# resolve_llm_setting (défaut frequency_penalty=0.7). Or litellm passe
+# frequency_penalty TEL QUEL dans le repeat_penalty d'Ollama
+# (litellm/llms/ollama/chat/transformation.py), dont la sémantique diffère
+# de celle d'OpenAI : 1.0 = neutre, < 1 ENCOURAGE la répétition. Avec 0.7,
+# qwen2.5:0.5b part en boucle infinie et le stream SSE du résumé ne se
+# termine jamais (tué par le timeout worker à 600 s). On fixe donc 1.1 —
+# le défaut natif de repeat_penalty d'Ollama (pénalisation douce).
+SEARCH_LLM_SETTING = {
+    "temperature": 0.1,
+    "top_p": 0.3,
+    "frequency_penalty": 1.1,
+    "presence_penalty": 0.0,
+}
