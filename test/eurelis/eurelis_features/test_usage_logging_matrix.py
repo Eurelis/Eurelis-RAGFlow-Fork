@@ -15,6 +15,7 @@ import pytest
 
 from configs import (
     CHAT_MODEL,
+    SEARCH_LLM_SETTING,
     HOST_ADDRESS,
     HTTP_TIMEOUT,
     PARSE_TIMEOUT,
@@ -60,7 +61,7 @@ def _run_search(api, dataset_id: str, question: str):
     """Crée un search app (avec chat_id), déclenche la complétion (flux `search`), supprime."""
     sid = api.post(
         f"/api/{VERSION}/searches",
-        json={"name": "eurelis-matrix-search", "search_config": {"kb_ids": [dataset_id], "chat_id": model_ref(CHAT_MODEL)}},
+        json={"name": "eurelis-matrix-search", "search_config": {"kb_ids": [dataset_id], "chat_id": model_ref(CHAT_MODEL), "llm_setting": SEARCH_LLM_SETTING}},
     ).json()["data"]["search_id"]
     try:
         with api.stream("POST", f"/api/{VERSION}/searches/{sid}/completions",
@@ -187,7 +188,7 @@ def test_search_rerank_logged(api, ref_dataset_id):
         f"/api/{VERSION}/searches",
         json={
             "name": "eurelis-matrix-rerank-search",
-            "search_config": {"kb_ids": [ref_dataset_id], "chat_id": model_ref(CHAT_MODEL), "rerank_id": rerank_ref()},
+            "search_config": {"kb_ids": [ref_dataset_id], "chat_id": model_ref(CHAT_MODEL), "rerank_id": rerank_ref(), "llm_setting": SEARCH_LLM_SETTING},
         },
     ).json()["data"]["search_id"]
     try:
