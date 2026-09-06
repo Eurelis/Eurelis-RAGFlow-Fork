@@ -129,6 +129,7 @@ Documentation technique de référence.
 | [Génération du Knowledge Graph](./knowledge/knowledge-graph-generation.md) | `reference` |
 | [Configuration des modèles LLM par tenant](./knowledge/llm-default-configuration.md) | `reference` |
 | [Gestion des métadonnées (ingestion → recherche)](./knowledge/metadata-management.md) | `reference` |
+| [Note de migration 0.27.x — enregistrement des modèles](./knowledge/migration-0.27-model-registration.md) | `reference` |
 | [Reranking sur le texte naturel des chunks](./knowledge/reranking-natural-text-input.md) | `reference` |
 | [Cycle de chargement de `service_conf.yaml`](./knowledge/service-conf-loading-cycle.md) | `reference` |
 | [Intégration Tavily (recherche web)](./knowledge/tavily-integration.md) | `reference` |

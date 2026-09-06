@@ -46,6 +46,8 @@ settings.FACTORY_LLM_INFOS   (liste en mémoire : providers → modèles)
 
 La gestion du fichier `llm_factories.json` / `.patch.json` est documentée dans [`guidelines/llm-factories-patch.md`](../guidelines/llm-factories-patch.md).
 
+Les migrations de données à appliquer sur une base antérieure à `v0.27.0` (types de colonnes `tenant_*_id` et `model_type`, resynchronisation du catalogue) sont consignées dans [`migration-0.27-model-registration.md`](migration-0.27-model-registration.md).
+
 ### Valeurs de `model_type`
 
 Chaque modèle du catalogue porte un `model_type` qui détermine dans quels contextes il peut être utilisé, et à quel champ de défaut du `Tenant` il se rattache :
