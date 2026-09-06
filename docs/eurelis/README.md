@@ -130,6 +130,7 @@ Documentation technique de référence.
 | [Configuration des modèles LLM par tenant](./knowledge/llm-default-configuration.md) | `reference` |
 | [Gestion des métadonnées (ingestion → recherche)](./knowledge/metadata-management.md) | `reference` |
 | [Note de migration 0.27.x — enregistrement des modèles](./knowledge/migration-0.27-model-registration.md) | `reference` |
+| [Note de migration 0.27.x — prompts système des assistants de chat](./knowledge/migration-0.27-chat-system-prompt.md) | `reference` |
 | [Reranking sur le texte naturel des chunks](./knowledge/reranking-natural-text-input.md) | `reference` |
 | [Cycle de chargement de `service_conf.yaml`](./knowledge/service-conf-loading-cycle.md) | `reference` |
 | [Intégration Tavily (recherche web)](./knowledge/tavily-integration.md) | `reference` |
