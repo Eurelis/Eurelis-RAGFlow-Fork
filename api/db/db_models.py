@@ -18,6 +18,7 @@ import inspect
 import logging
 import operator
 import os
+import re
 import sys
 import time
 import typing
@@ -2543,6 +2544,9 @@ def migrate_db():
     # this is after re-enabling logging to allow logging changed user emails
     migrate_add_unique_email(migrator)
     migrate_model_type_names()
+    migrate_tenant_model_model_type_to_int()
+    migrate_tenant_model_id_columns_to_varchar()
+    sync_tenant_model_instances_with_catalogue()
     ensure_model_indexes(migrator)
 
 
@@ -2584,3 +2588,198 @@ def migrate_model_type_names():
                     new_name,
                     ex,
                 )
+
+
+# Eurelis — migration propre au fork, absente de l'upstream RAGFlow.
+def migrate_tenant_model_model_type_to_int():
+    """Convert legacy varchar tenant_model.model_type columns to the int bitmask.
+
+    Databases created before the model-suite refactor have tenant_model.model_type
+    as varchar(32) holding type names ("chat", "embedding", ...), while the current
+    TenantModel model declares an int bit field (1=chat, 2=embedding, 4=asr,
+    8=vision, 16=rerank, 32=tts, 64=ocr). Peewee never alters existing columns, so
+    reads return strings and `model_type & bit` raises TypeError. Idempotent: does
+    nothing once the column is already an integer.
+    """
+    if not DB.table_exists("tenant_model"):
+        return
+    is_mysql = settings.DATABASE_TYPE.upper() == "MYSQL"
+    try:
+        if is_mysql:
+            cursor = DB.execute_sql("SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenant_model' AND COLUMN_NAME = 'model_type'")
+        else:
+            cursor = DB.execute_sql("SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'tenant_model' AND column_name = 'model_type'")
+        row = cursor.fetchone()
+        if not row or ("char" not in row[0].lower() and "text" not in row[0].lower()):
+            return
+
+        name_to_bit = {
+            "chat": 1,
+            "embedding": 2,
+            "asr": 4,
+            "speech2text": 4,
+            "vision": 8,
+            "image2text": 8,
+            "rerank": 16,
+            "tts": 32,
+            "ocr": 64,
+        }
+        for name, bit in name_to_bit.items():
+            DB.execute_sql("UPDATE tenant_model SET model_type = %s WHERE model_type = %s", (str(bit), name))
+        if is_mysql:
+            DB.execute_sql("UPDATE tenant_model SET model_type = '1' WHERE model_type NOT REGEXP '^[0-9]+$'")
+            DB.execute_sql("ALTER TABLE tenant_model MODIFY model_type INT NOT NULL DEFAULT 1")
+        else:
+            DB.execute_sql("UPDATE tenant_model SET model_type = '1' WHERE model_type !~ '^[0-9]+$'")
+            DB.execute_sql("ALTER TABLE tenant_model ALTER COLUMN model_type TYPE INTEGER USING model_type::integer")
+            DB.execute_sql("ALTER TABLE tenant_model ALTER COLUMN model_type SET DEFAULT 1")
+            DB.execute_sql("ALTER TABLE tenant_model ALTER COLUMN model_type SET NOT NULL")
+        logging.info("Migrated tenant_model.model_type column from varchar to int bitmask")
+    except Exception as ex:
+        logging.warning("Failed to migrate tenant_model.model_type to int bitmask: %s", ex)
+
+
+# Eurelis — migration propre au fork, absente de l'upstream RAGFlow.
+_TENANT_MODEL_ID_COLUMN_OWNERS = ("Tenant", "Knowledgebase", "Dialog", "Memory")
+_INT_DATA_TYPES = ("int", "integer", "bigint", "smallint", "mediumint", "tinyint")
+
+
+def _tenant_model_id_columns() -> list[tuple[str, str]]:
+    """(table, column) pairs of every ``tenant_*_id`` CharField pointing at tenant_model.id."""
+    columns = []
+    for model_name in _TENANT_MODEL_ID_COLUMN_OWNERS:
+        model = globals().get(model_name)
+        if model is None:
+            continue
+        for field_name, field in model._meta.fields.items():
+            if re.fullmatch(r"tenant_[a-z0-9]+_id", field_name) and isinstance(field, CharField):
+                columns.append((model._meta.table_name, field.column_name))
+    return columns
+
+
+def _column_data_type(table_name: str, column_name: str) -> str | None:
+    if settings.DATABASE_TYPE.upper() == "MYSQL":
+        cursor = DB.execute_sql(
+            "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            (table_name, column_name),
+        )
+    else:
+        cursor = DB.execute_sql(
+            "SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = %s AND column_name = %s",
+            (table_name, column_name),
+        )
+    row = cursor.fetchone()
+    return row[0].lower() if row and row[0] else None
+
+
+def migrate_tenant_model_id_columns_to_varchar():
+    """Convert legacy int ``tenant_*_id`` columns to varchar(32) so they can hold tenant_model ids.
+
+    Before the v0.27 model-provider refactor, tenant.tenant_llm_id & co. (and their
+    counterparts on knowledgebase, dialog and memory) were integer foreign keys to the
+    old tenant_llm table. They are now declared as CharField(32) referencing
+    tenant_model.id (a UUID), but Peewee never alters existing columns. On such a
+    database every write of a UUID is silently truncated by MySQL to its leading digits
+    ("09f0…" -> 9, "f900…" -> 0), so the stored value never matches a tenant_model row
+    and the default-model selectors display the bare number instead of the model label.
+    The truncated values carry no information: they are reset to NULL, then the column
+    is widened to varchar(32). Runtime code falls back to the composite model name when
+    the id is NULL, and the next save through the UI stores the real UUID. Idempotent:
+    columns already typed as character are skipped.
+    """
+    is_mysql = settings.DATABASE_TYPE.upper() == "MYSQL"
+    for table_name, column_name in _tenant_model_id_columns():
+        try:
+            if not DB.table_exists(table_name):
+                continue
+            data_type = _column_data_type(table_name, column_name)
+            if not data_type or data_type not in _INT_DATA_TYPES:
+                continue
+            DB.execute_sql(f"UPDATE {table_name} SET {column_name} = NULL")
+            if is_mysql:
+                DB.execute_sql(f"ALTER TABLE {table_name} MODIFY {column_name} VARCHAR(32) NULL")
+            else:
+                DB.execute_sql(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} TYPE VARCHAR(32) USING {column_name}::VARCHAR(32)")
+            logging.info("Migrated %s.%s from %s to varchar(32) (tenant_model id)", table_name, column_name, data_type)
+        except Exception as ex:
+            logging.warning("Failed to migrate %s.%s to varchar(32): %s", table_name, column_name, ex)
+
+
+# Eurelis — migration propre au fork, absente de l'upstream RAGFlow.
+def sync_tenant_model_instances_with_catalogue():
+    """Insert catalogue models missing from tenant_model for every active provider instance.
+
+    tenant_model rows are only expanded from the catalogue (FACTORY_LLM_INFOS) when a
+    provider instance is created. Any model added to the catalogue afterwards — in
+    particular through conf/llm_factories.patch.json (Eurelis) — never reaches existing
+    instances, so those models are absent from the selection lists and references such
+    as "model@instance@provider" fail to resolve. This re-synchronisation mirrors the
+    expansion done by create_provider_instance: for each active instance, every
+    catalogue entry of its provider (siliconflow intl region included) that has no
+    tenant_model row yet is inserted with the same extra payload. Idempotent: existing
+    rows, whatever their status or extra, are left untouched.
+    """
+    import json
+
+    from api.utils.model_utils import calculate_model_type, normalize_model_types
+    from common.constants import ModelVerifyStatusEnum
+    from common.misc_utils import get_uuid
+
+    factories = settings.FACTORY_LLM_INFOS or []
+    if not factories or not DB.table_exists("tenant_model"):
+        return
+    catalogue_by_factory = {factory["name"]: factory.get("llm", []) for factory in factories}
+    inserted = 0
+    try:
+        providers = {provider.id: provider for provider in TenantModelProvider.select(TenantModelProvider.id, TenantModelProvider.provider_name, TenantModelProvider.tenant_id)}
+        instances = TenantModelInstance.select(TenantModelInstance.id, TenantModelInstance.provider_id, TenantModelInstance.instance_name, TenantModelInstance.extra).where(
+            TenantModelInstance.status == "active"
+        )
+        for instance in instances:
+            provider = providers.get(instance.provider_id)
+            if not provider:
+                continue
+            try:
+                region = (json.loads(instance.extra) if instance.extra else {}).get("region", "default")
+            except Exception:
+                region = "default"
+            factory_name = "siliconflow_intl" if provider.provider_name.lower() == "siliconflow" and region == "intl" else provider.provider_name
+            catalogue = catalogue_by_factory.get(factory_name) or []
+            if not catalogue:
+                continue
+            existing = {row.model_name for row in TenantModel.select(TenantModel.model_name).where(TenantModel.instance_id == instance.id)}
+            for llm in catalogue:
+                model_name = llm.get("name") or llm.get("llm_name", "")
+                if not model_name or model_name in existing:
+                    continue
+                model_types = normalize_model_types(llm["model_type"]) if llm.get("model_type") else []
+                if not model_types:
+                    continue
+                timestamp = current_timestamp()
+                TenantModel.create(
+                    id=get_uuid(),
+                    model_name=model_name,
+                    provider_id=provider.id,
+                    instance_id=instance.id,
+                    model_type=calculate_model_type(model_types),
+                    status="active",
+                    extra=json.dumps(
+                        {
+                            "max_tokens": llm.get("max_tokens", 8192),
+                            "is_tools": llm.get("is_tools", False),
+                            "thinking": "thinking" in llm.get("features", []),
+                            "verify": ModelVerifyStatusEnum.UNKNOWN.value,
+                        }
+                    ),
+                    create_time=timestamp,
+                    create_date=timestamp_to_date(timestamp),
+                    update_time=timestamp,
+                    update_date=timestamp_to_date(timestamp),
+                )
+                existing.add(model_name)
+                inserted += 1
+                logging.info("Synced missing tenant_model row %s for tenant %s instance %s@%s", model_name, provider.tenant_id, instance.instance_name, provider.provider_name)
+        if inserted:
+            logging.info("Synced %d missing tenant_model rows from the model catalogue", inserted)
+    except Exception as ex:
+        logging.warning("Failed to sync tenant_model instances with the model catalogue: %s", ex)
