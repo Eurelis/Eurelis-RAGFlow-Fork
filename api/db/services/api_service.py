@@ -107,17 +107,19 @@ class API4ConversationService(CommonService):
     @classmethod
     @DB.connection_context()
     def append_message(cls, id, conversation, tokens: int = 0, duration: float = 0.0):
-        with DB.atomic():
-            cls.update_by_id(id, conversation)
-            return (
-                cls.model.update(
-                    round=cls.model.round + 1,
-                    tokens=cls.model.tokens + tokens,
-                    duration=cls.model.duration + duration,
-                )
-                .where(cls.model.id == id)
-                .execute()
+        # Pas de DB.atomic() ici : update_by_id est décoré @DB.connection_context(),
+        # dont la sortie ferme la connexion — interdit tant qu'une transaction est
+        # ouverte (peewee: "Attempting to close database while transaction is open").
+        cls.update_by_id(id, conversation)
+        return (
+            cls.model.update(
+                round=cls.model.round + 1,
+                tokens=cls.model.tokens + tokens,
+                duration=cls.model.duration + duration,
             )
+            .where(cls.model.id == id)
+            .execute()
+        )
 
     @classmethod
     @DB.connection_context()
