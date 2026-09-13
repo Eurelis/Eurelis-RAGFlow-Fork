@@ -12,7 +12,7 @@ import pytest
 
 from api.db.services.eurelis_prompt_template import render_prompt_template
 
-CSS = 'body { font-family: system-ui, Arial; color: #3C3939; } th { background: #E1E1EA; }'
+CSS = "body { font-family: system-ui, Arial; color: #3C3939; } th { background: #E1E1EA; }"
 JS = 'const THEME = { text: "3C3939" }; const rule = (s, y) => s.addShape({ fill: { color: THEME.accent } });'
 TEMPLATE_LITERAL = 'return `<p:cNvPr id="${next++}"`;'
 
