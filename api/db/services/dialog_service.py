@@ -33,6 +33,7 @@ from api.db.db_models import DB, Dialog
 from api.db.services.common_service import CommonService
 from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.knowledgebase_service import KnowledgebaseService
+from api.db.services.eurelis_prompt_template import render_prompt_template
 from api.db.services.langfuse_service import TenantLangfuseService
 from api.db.services.llm_service import LLMBundle
 from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
@@ -833,7 +834,11 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
         kwargs.setdefault("knowledge", "")
     gen_conf = dialog.llm_setting
 
-    system_content = prompt_config["system"].format(**kwargs) + attachments_
+    # Eurelis : substitution ciblée des paramètres déclarés (plus `knowledge`) au lieu de
+    # `str.format(**kwargs)`, qui plantait sur toute accolade littérale du prompt (CSS/JS des
+    # artefacts, JSON…) avec `KeyError`. Le texte hors paramètres est transmis intact au modèle,
+    # comme pour un assistant sans base (`async_chat_solo`).
+    system_content = render_prompt_template(prompt_config["system"], kwargs, param_keys) + attachments_
     # If knowledge was retrieved but the template has no {knowledge}
     # placeholder, auto-append it so the LLM still sees the context.
     if knowledges and "{knowledge}" not in prompt_config.get("system", ""):
