@@ -4,6 +4,19 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.11] - 2026-09-13
+
+Basé sur RAGFlow `v0.26.3`. Correctif du **prompt système contenant des accolades littérales** (AILAB-35) : un assistant rattaché à une base de connaissances répondait `**ERROR**: ' font-family'` à toute question dès que son prompt contenait du CSS, du JavaScript, du JSON ou un `${x}`, alors que le même prompt passait sans base. Reproduit en production Synerga sur « Expert Facturation Electronique » après ajout du prompt Office (artefacts HTML, AILAB-34).
+
+### Fixed
+- **Prompt système avec accolades littérales : `KeyError` et assistant muet dès qu'une base est rattachée** (`api/db/services/dialog_service.py`, `async_chat`) — le prompt était rendu par `str.format(**kwargs)`, qui lit toute accolade comme un champ de template : `body { font-family: Arial; }` levait `KeyError(' font-family')` et chaque réponse devenait `**ERROR**: ' font-family'`. Les assistants sans base (`async_chat_solo`, prompt brut) n'étaient pas touchés, d'où deux variantes de prompt à maintenir (accolades simples / doublées) et un assistant en variante simple qui cassait silencieusement dès qu'on lui rattachait une base. Nouveau module Eurelis `api/db/services/eurelis_prompt_template.py` : `render_prompt_template()` ne substitue que les paramètres **déclarés** dans `prompt_config.parameters` (plus `knowledge`, toujours substitué s'il est présent), par remplacement textuel de `{clé}` ; le reste du texte est transmis intact au modèle. Un seul prompt fonctionne désormais avec et sans base. **Changement de comportement assumé** : `{{` n'est plus un échappement et un `{clé}` non déclaré (ex. `{doc_ids}`) n'est plus substitué — les prompts en « variante accolades doublées » doivent repasser en accolades simples au déploiement.
+
+### Tests
+- **Unitaires — rendu du prompt** (`test/eurelis/unit/test_prompt_template_literal_braces.py`, 9 tests sans stack) : CSS/JS/template literal transmis intacts, preuve que `str.format` lève sur le même prompt, paramètres déclarés substitués dans n'importe quel ordre, `knowledge` substitué même non déclaré, placeholder non déclaré laissé tel quel, valeur absente laissée telle quelle, valeurs non-chaîne stringifiées et `None` ignoré, `{{` non interprété, template vide.
+- **E2E — assistant avec base et prompt à accolades** (`test/eurelis/eurelis_fixes/test_prompt_literal_braces_e2e.py`, `p1`) : crée un chat sur le dataset de référence `eurelis-ref` avec un prompt système `{knowledge}` + CSS + JS + `${…}`, ouvre une session et lance une complétion SSE ; vérifie qu'aucune frame ne porte `**ERROR**`, que le texte généré (agrégation des deltas) est non vide et que la réponse cite des chunks de la base (chemin `async_chat` avec retrieval, pas le chemin solo). Vérifié en rouge sur l'image v0.26.3-eurelis.10 d'origine (`**ERROR**: ' font-family'`) et en vert avec le correctif.
+
+---
+
 ## [v0.26.3-eurelis.10] - 2026-08-14
 
 Basé sur RAGFlow `v0.26.3`. Correctif des **réponses tronquées à ~4 096 tokens de sortie sur Bedrock** (AILAB-22) : suffixe « The answer is truncated by your chosen LLM… » sur les réponses longues, reproduit en production Synerga avec `eu.anthropic.claude-opus-4-8`. Rend au passage le toggle « Max tokens » des composants agent LLM réellement opérant.
