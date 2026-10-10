@@ -203,3 +203,26 @@ def sdk_client(token: str):
     except Exception as e:  # noqa: BLE001
         pytest.skip(f"ragflow_sdk indisponible ({e}). Installer via: uv pip install -e sdk/python")
     return RAGFlow(api_key=token, base_url=HOST_ADDRESS)
+
+
+# --- Agents canvas (feature 031 — contrat Shield) --------------------------------------------
+@pytest.fixture(scope="session")
+def agent_member_token(token: str) -> str:
+    """Clé d'API de B, membre de l'équipe de A (le Shield exécute les agents avec la clé du membre)."""
+    from libs.agents import team_member_token
+    return team_member_token(token)
+
+
+@pytest.fixture(scope="session")
+def contract_agent_id(token: str, agent_member_token: str) -> str:
+    """Agent de contrat sans LLM, créé chez A, publié et partagé `team` (voir libs/agents.py)."""
+    from libs.agents import client, ensure_contract_agent
+    with client(token) as owner:
+        return ensure_contract_agent(owner)
+
+
+@pytest.fixture
+def agent_member(agent_member_token: str):
+    from libs.agents import client
+    with client(agent_member_token) as c:
+        yield c

@@ -1,0 +1,162 @@
+{
+ "components": {
+  "begin": {
+   "obj": {
+    "component_name": "Begin",
+    "params": {
+     "enablePrologue": true,
+     "mode": "conversational",
+     "layout_recognize": "",
+     "prologue": "Bonjour, agent de test 031.",
+     "inputs": {
+      "sujet": {
+       "key": "sujet",
+       "name": "sujet",
+       "optional": false,
+       "options": [],
+       "type": "line",
+       "value": ""
+      },
+      "regime": {
+       "key": "regime",
+       "name": "regime",
+       "optional": false,
+       "options": [
+        "IS",
+        "IR"
+       ],
+       "type": "options",
+       "value": ""
+      },
+      "document": {
+       "key": "document",
+       "name": "document",
+       "optional": true,
+       "options": [],
+       "type": "file",
+       "value": ""
+      }
+     },
+     "outputs": {}
+    }
+   },
+   "downstream": [
+    "Message:Intro"
+   ],
+   "upstream": []
+  },
+  "Message:Intro": {
+   "obj": {
+    "component_name": "Message",
+    "params": {
+     "content": [
+      "Sujet reçu : {begin@sujet} (régime {begin@regime})."
+     ]
+    }
+   },
+   "downstream": [
+    "UserFillUp:Valid"
+   ],
+   "upstream": [
+    "begin"
+   ]
+  },
+  "UserFillUp:Valid": {
+   "obj": {
+    "component_name": "UserFillUp",
+    "params": {
+     "enable_tips": true,
+     "inputs": {
+      "retour": {
+       "name": "retour",
+       "optional": false,
+       "options": [],
+       "type": "paragraph"
+      }
+     },
+     "outputs": {
+      "retour": {
+       "name": "retour",
+       "optional": false,
+       "options": [],
+       "type": "paragraph"
+      }
+     },
+     "tips": "Proposition pour **{begin@sujet}** :\n\n| Poste | N | N-1 |\n|---|---|---|\n| CA | 100 | 90 |\n\nRépondez « OK » pour valider.",
+     "layout_recognize": ""
+    }
+   },
+   "downstream": [
+    "Message:Final"
+   ],
+   "upstream": [
+    "Message:Intro"
+   ]
+  },
+  "Message:Final": {
+   "obj": {
+    "component_name": "Message",
+    "params": {
+     "content": [
+      "Retour pris en compte : {UserFillUp:Valid@retour}\n\n```html\n<!DOCTYPE html><html><body><h1>Livrable test</h1></body></html>\n```"
+     ],
+     "output_format": "markdown"
+    }
+   },
+   "downstream": [],
+   "upstream": [
+    "UserFillUp:Valid"
+   ]
+  }
+ },
+ "globals": {
+  "sys.conversation_turns": 0,
+  "sys.files": [],
+  "sys.query": "",
+  "sys.user_id": "",
+  "sys.date": "",
+  "sys.history": []
+ },
+ "graph": {
+  "nodes": [
+   {
+    "id": "begin",
+    "type": "beginNode",
+    "data": {
+     "label": "Begin",
+     "name": "Begin"
+    }
+   },
+   {
+    "id": "Message:Intro",
+    "type": "messageNode",
+    "data": {
+     "label": "Message",
+     "name": "1 - Accusé de réception"
+    }
+   },
+   {
+    "id": "UserFillUp:Valid",
+    "type": "ragNode",
+    "data": {
+     "label": "UserFillUp",
+     "name": "Validation"
+    }
+   },
+   {
+    "id": "Message:Final",
+    "type": "messageNode",
+    "data": {
+     "label": "Message",
+     "name": "2 - Livrable"
+    }
+   }
+  ],
+  "edges": []
+ },
+ "history": [],
+ "messages": [],
+ "path": [],
+ "retrieval": [],
+ "variables": {}
+}
