@@ -4,6 +4,18 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.12] - 2026-10-11
+
+Basé sur RAGFlow `v0.26.3`. Correctif de la **persistance des sessions d'agent** : depuis l'instrumentation usage-stats (v0.26.1-eurelis.3), aucune session d'agent ni conversation API n'était enregistrée — l'historique restait vide, une pause `UserFillUp` ne pouvait pas être reprise et les compteurs `round`/`tokens`/`duration` n'étaient jamais incrémentés. Bloquant pour les agents canvas consommés par le Shield (AILAB-43).
+
+### Fixed
+- **Sessions d'agent jamais persistées** (`api/db/services/api_service.py`, `API4ConversationService.append_message`) — le `with DB.atomic()` ajouté par Eurelis autour de `update_by_id` (lui-même décoré `@DB.connection_context()`, dont la sortie ferme la connexion) levait systématiquement `peewee.OperationalError: Attempting to close database while transaction is open` : rollback de la mise à jour à chaque message. Touchait tous les appelants — complétions d'agent (`canvas_service`, `restful_apis/agent_api.py`) et conversations API (`conversation_service`). Retour à la structure upstream (pas de transaction englobante) en conservant les incréments Eurelis `tokens`/`duration`.
+
+### Tests
+- **Contrats Shield des agents canvas** (`test/eurelis/shield_contract/test_agents_*.py`, feature 031 du Shield) : liste (catégorie agent, `release_time`, sans `dsl`), détail et versions publiées, sessions (release, filtre `user_id`, suppression), upload et téléchargement d'une pièce générée, flux SSE départ → pause `UserFillUp` → reprise. Agent de contrat **sans LLM** (`test/eurelis/fixtures/agent_contract_canvas.json`) créé chez l'utilisateur de test, publié et partagé `team`, exécuté avec la clé d'un membre de l'équipe (helpers `test/eurelis/libs/agents.py`, schémas `test/eurelis/schemas/agents.py`). `test_pause_is_persisted` et `test_resume_does_not_replay_and_finishes` gardent la régression ci-dessus.
+
+---
+
 ## [v0.26.3-eurelis.11] - 2026-09-13
 
 Basé sur RAGFlow `v0.26.3`. Correctif du **prompt système contenant des accolades littérales** (AILAB-35) : un assistant rattaché à une base de connaissances répondait `**ERROR**: ' font-family'` à toute question dès que son prompt contenait du CSS, du JavaScript, du JSON ou un `${x}`, alors que le même prompt passait sans base. Reproduit en production Synerga sur « Expert Facturation Electronique » après ajout du prompt Office (artefacts HTML, AILAB-34).
