@@ -29,6 +29,7 @@ from api.db.services.memory_service import MemoryService
 from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
 from api.db.joint_services import memory_message_service
 from api.db.joint_services.tenant_model_service import get_tenant_default_model_by_type, get_model_config_from_provider_instance
+from agent.eurelis_model_tenant import models_from_owner_enabled  # Eurelis — AILAB-43
 from common import settings
 from common.connection_utils import timeout
 from rag.app.tag import label_question
@@ -121,7 +122,8 @@ class Retrieval(ToolBase, ABC):
 
         embd_mdl = None
         if embd_nms:
-            tenant_id = self._canvas.get_tenant_id()
+            # Eurelis (AILAB-43) — embedding model of the dataset's tenant, like chat assistants.
+            tenant_id = kbs[0].tenant_id if models_from_owner_enabled() else self._canvas.get_tenant_id()
             embd_model_config = get_model_config_from_provider_instance(tenant_id, LLMType.EMBEDDING, embd_nms[0])
             embd_mdl = LLMBundle(tenant_id, embd_model_config)
 
@@ -179,7 +181,7 @@ class Retrieval(ToolBase, ABC):
 
             chat_mdl = None
             if self._param.meta_data_filter.get("method") in ["auto", "semi_auto"]:
-                tenant_id = self._canvas.get_tenant_id()
+                tenant_id = self._canvas.get_model_tenant_id()
                 chat_model_config = get_tenant_default_model_by_type(tenant_id, LLMType.CHAT)
                 chat_mdl = LLMBundle(tenant_id, chat_model_config)
 
@@ -218,7 +220,7 @@ class Retrieval(ToolBase, ABC):
                 return
 
             if self._param.toc_enhance:
-                tenant_id = self._canvas._tenant_id
+                tenant_id = self._canvas.get_model_tenant_id()
                 chat_model_config = get_tenant_default_model_by_type(tenant_id, LLMType.CHAT)
                 chat_mdl = LLMBundle(tenant_id, chat_model_config)
                 cks = await settings.retriever.retrieval_by_toc(query, kbinfos["chunks"], [kb.tenant_id for kb in kbs],
@@ -230,7 +232,7 @@ class Retrieval(ToolBase, ABC):
             kbinfos["chunks"] = settings.retriever.retrieval_by_children(kbinfos["chunks"],
                                                                          [kb.tenant_id for kb in kbs])
             if self._param.use_kg:
-                tenant_id = self._canvas.get_tenant_id()
+                tenant_id = self._canvas.get_model_tenant_id()
                 chat_model_config = get_tenant_default_model_by_type(tenant_id, LLMType.CHAT)
                 ck = await settings.kg_retriever.retrieval(query,
                                                      [kb.tenant_id for kb in kbs],

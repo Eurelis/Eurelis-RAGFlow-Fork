@@ -30,6 +30,7 @@ from typing import Any, Union, Tuple
 from agent.component import component_class
 from agent.component.base import ComponentBase
 from agent.dsl_migration import normalize_chunker_dsl
+from agent.eurelis_model_tenant import resolve_model_tenant_id  # Eurelis — AILAB-43
 from api.db.services.file_service import FileService
 from api.db.services.llm_service import LLMBundle
 from api.db.services.task_service import has_canceled
@@ -197,6 +198,10 @@ class Graph:
     def get_tenant_id(self):
         return self._tenant_id
 
+    def get_model_tenant_id(self):
+        # Eurelis (AILAB-43) — tenant whose models are used; Canvas overrides it.
+        return self._tenant_id
+
     def get_value_with_variable(self, value: str) -> Any:
         pat = re.compile(r"\{* *\{([a-zA-Z:0-9]+@[A-Za-z0-9_.-]+|sys\.[A-Za-z0-9_.]+|env\.[A-Za-z0-9_.]+)\} *\}*")
         out_parts = []
@@ -330,8 +335,16 @@ class Canvas(Graph):
         # reasoning and the final answer. Populated via the token_usage_sink context
         # variable that each LLMBundle chat call writes to. Reset at run() start.
         self._run_token_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
-        super().__init__(dsl, tenant_id, task_id, custom_header=custom_header)
+        # Eurelis (AILAB-43) — set before load(): components resolve their model in __init__.
         self._id = canvas_id
+        self._model_tenant_id = None
+        super().__init__(dsl, tenant_id, task_id, custom_header=custom_header)
+
+    def get_model_tenant_id(self):
+        # Eurelis (AILAB-43) — models run on the canvas owner's tenant, like chat assistants.
+        if self._model_tenant_id is None:
+            self._model_tenant_id = resolve_model_tenant_id(self._id, self._tenant_id)
+        return self._model_tenant_id
 
     def load(self):
         super().load()
@@ -622,8 +635,8 @@ class Canvas(Graph):
                 cpn_obj = self.get_component_obj(self.path[i])
                 if cpn_obj.component_name.lower() == "message":
                     if cpn_obj.get_param("auto_play"):
-                        tts_model_config = get_tenant_default_model_by_type(self._tenant_id, LLMType.TTS)
-                        tts_mdl = LLMBundle(self._tenant_id, tts_model_config)
+                        tts_model_config = get_tenant_default_model_by_type(self.get_model_tenant_id(), LLMType.TTS)
+                        tts_mdl = LLMBundle(self.get_model_tenant_id(), tts_model_config)
                     if isinstance(cpn_obj.output("content"), partial):
                         _m = ""
                         buff_m = ""

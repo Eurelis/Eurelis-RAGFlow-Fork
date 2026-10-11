@@ -88,10 +88,10 @@ class LLM(ComponentBase):
 
     def __init__(self, canvas, component_id, param: ComponentParamBase):
         super().__init__(canvas, component_id, param)
-        model_types = get_model_type_by_name(self._canvas.get_tenant_id(), self._param.llm_id)
+        model_types = get_model_type_by_name(self._canvas.get_model_tenant_id(), self._param.llm_id)
         model_type = "chat" if "chat" in model_types else model_types[0]
-        chat_model_config = get_model_config_from_provider_instance(self._canvas.get_tenant_id(), model_type, self._param.llm_id)
-        self.chat_mdl = LLMBundle(self._canvas.get_tenant_id(), chat_model_config, max_retries=self._param.max_retries, retry_interval=self._param.delay_after_error)
+        chat_model_config = get_model_config_from_provider_instance(self._canvas.get_model_tenant_id(), model_type, self._param.llm_id)
+        self.chat_mdl = LLMBundle(self._canvas.get_model_tenant_id(), chat_model_config, max_retries=self._param.max_retries, retry_interval=self._param.delay_after_error)
         self.imgs = []
 
     def get_input_form(self) -> dict[str, dict]:
@@ -318,16 +318,16 @@ class LLM(ComponentBase):
             len(sys_file_imgs),
             max(0, prev_img_count + len(sys_file_imgs) - len(self.imgs)),
         )
-        model_types = get_model_type_by_name(self._canvas.get_tenant_id(), self._param.llm_id)
+        model_types = get_model_type_by_name(self._canvas.get_model_tenant_id(), self._param.llm_id)
         if self.imgs and LLMType.IMAGE2TEXT.value in model_types:
             model_type = LLMType.IMAGE2TEXT.value
         elif LLMType.CHAT.value in model_types:
             model_type = LLMType.CHAT.value
         else:
             model_type = model_types[0]
-        model_config = get_model_config_from_provider_instance(self._canvas.get_tenant_id(), model_type, self._param.llm_id)
+        model_config = get_model_config_from_provider_instance(self._canvas.get_model_tenant_id(), model_type, self._param.llm_id)
         if self.imgs:
-            self.chat_mdl = LLMBundle(self._canvas.get_tenant_id(), model_config, max_retries=self._param.max_retries, retry_interval=self._param.delay_after_error)
+            self.chat_mdl = LLMBundle(self._canvas.get_model_tenant_id(), model_config, max_retries=self._param.max_retries, retry_interval=self._param.delay_after_error)
 
         msg, sys_prompt = self._sys_prompt_and_msg(self._canvas.get_history(self._param.message_history_window_size)[:-1], args)
 

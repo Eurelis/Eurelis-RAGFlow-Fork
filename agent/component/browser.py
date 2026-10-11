@@ -403,8 +403,8 @@ class Browser(ComponentBase, ABC):
         from browser_use.llm import ChatBrowserUse, ChatOpenAI
 
         chat_model_config = get_model_config_from_provider_instance(
-            self._canvas.get_tenant_id(),
-            get_model_type_by_name(self._canvas.get_tenant_id(), self._param.llm_id),
+            self._canvas.get_model_tenant_id(),
+            get_model_type_by_name(self._canvas.get_model_tenant_id(), self._param.llm_id),
             self._param.llm_id,
         )
         cfg = self._as_model_config_dict(chat_model_config)

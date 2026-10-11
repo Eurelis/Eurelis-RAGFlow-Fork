@@ -124,8 +124,8 @@ class Categorize(LLM, ABC):
         msg[-1]["content"] = query_value
         self.set_input_value(query_key, msg[-1]["content"])
         self._param.update_prompt()
-        chat_model_config = get_model_config_from_provider_instance(self._canvas.get_tenant_id(), LLMType.CHAT, self._param.llm_id)
-        chat_mdl = LLMBundle(self._canvas.get_tenant_id(), chat_model_config)
+        chat_model_config = get_model_config_from_provider_instance(self._canvas.get_model_tenant_id(), LLMType.CHAT, self._param.llm_id)
+        chat_mdl = LLMBundle(self._canvas.get_model_tenant_id(), chat_model_config)
 
         user_prompt = """
 ---- Real Data ----
