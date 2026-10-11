@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from configs import HOST_ADDRESS, HTTP_TIMEOUT, TEAMMATE_EMAIL, TEAMMATE_NICKNAME, VERSION
+from configs import ADMIN_ADDRESS, HOST_ADDRESS, HTTP_TIMEOUT, TEAMMATE_EMAIL, TEAMMATE_NICKNAME, VERSION
 from libs.ragflow_api import get_api_token, get_own_tenant_id, login, register_user
 
 CONTRACT_AGENT_TITLE = "eurelis-contract-agent"
@@ -43,16 +43,25 @@ def ensure_contract_agent(owner: httpx.Client) -> str:
     return created["data"]["id"]
 
 
-def team_member_token(owner_token: str) -> str:
-    """Inscrit B dans l'équipe de A (invitation + acceptation, idempotent) ; renvoie la clé d'API de B."""
+def team_member_token(owner_token: str, admin_token: str) -> str:
+    """Rend B membre actif (`normal`) de l'équipe de A via l'API admin ; renvoie la clé d'API de B.
+
+    Pas d'invitation côté utilisateur : test_admin_teams laisse B en soft-delete (status invalide,
+    rôle `admin`) dans l'équipe de A, et l'invitation refuse alors B (« is in the team, but the role:
+    admin is invalid ») sans le réactiver. L'ajout admin réactive l'appartenance (cf.
+    test_admin_team_reenrollment_after_removal) et ne demande pas d'acceptation.
+    """
     a_tid = get_own_tenant_id(HOST_ADDRESS, f"Bearer {owner_token}")
     register_user(HOST_ADDRESS, email=TEAMMATE_EMAIL, nickname=TEAMMATE_NICKNAME)
     b_token = get_api_token(HOST_ADDRESS, login(HOST_ADDRESS, email=TEAMMATE_EMAIL))
-    with client(owner_token) as a, client(b_token) as b:
-        inv = a.post(f"/api/{VERSION}/tenants/{a_tid}/users", json={"email": TEAMMATE_EMAIL}).json()
-        assert inv.get("code") == 0 or "already" in (inv.get("message") or "").lower(), inv
-        acc = b.patch(f"/api/{VERSION}/tenants/{a_tid}").json()
-        assert acc.get("code") == 0, acc
+    with httpx.Client(base_url=ADMIN_ADDRESS, headers={"Authorization": admin_token}, timeout=HTTP_TIMEOUT) as admin:
+        r = admin.get(f"/api/{VERSION}/admin/users/{TEAMMATE_EMAIL}")
+        assert r.status_code == 200 and r.json().get("data"), r.text
+        b_id = r.json()["data"][0]["id"]
+        base = f"/api/{VERSION}/admin/tenants/{a_tid}/users"
+        admin.request("DELETE", f"{base}/{b_id}")  # état de départ propre (no-op si B absent)
+        r = admin.post(base, json={"user_id": b_id, "role": "normal"})
+        assert r.status_code == 200 and r.json().get("code") == 0, r.text
     return b_token
 
 

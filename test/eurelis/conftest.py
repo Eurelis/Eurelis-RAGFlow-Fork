@@ -207,10 +207,10 @@ def sdk_client(token: str):
 
 # --- Agents canvas (feature 031 — contrat Shield) --------------------------------------------
 @pytest.fixture(scope="session")
-def agent_member_token(token: str) -> str:
+def agent_member_token(token: str, admin_token: str) -> str:
     """Clé d'API de B, membre de l'équipe de A (le Shield exécute les agents avec la clé du membre)."""
     from libs.agents import team_member_token
-    return team_member_token(token)
+    return team_member_token(token, admin_token)
 
 
 @pytest.fixture(scope="session")
