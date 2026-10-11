@@ -4,6 +4,52 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.13] - 2026-10-11
+
+Basé sur RAGFlow `v0.26.3`. Les **agents canvas utilisent désormais les modèles du propriétaire du canvas**, comme les assistants de chat (AILAB-43). Recette Shield v0.20.1 sur la sandbox ai-lab (image `v0.26.3-eurelis.12`) : un utilisateur provisionné par le Shield, membre de l'équipe du propriétaire mais sans aucun fournisseur de modèles, échouait dès `POST /api/v1/agents/{id}/sessions` avec `LookupError: Provider OpenAI not found for model gpt-4.1@OpenAI.`. Le seul contournement consistait à recopier la clé de la plateforme dans chaque compte.
+
+### Fixed
+- **Agents partagés inexécutables par un membre sans fournisseur de modèles** (`agent/canvas.py`, nouveau module Eurelis `agent/eurelis_model_tenant.py`) : l'upstream résolvait tous les modèles d'un agent sur le tenant de l'**appelant**, alors que les assistants résolvent les leurs sur le tenant du propriétaire (`dialog.tenant_id`). Nouvelle méthode `Canvas.get_model_tenant_id()`, qui vaut le propriétaire du canvas (`user_canvas.user_id`, lu une seule fois par canvas). Elle retombe sur l'appelant sans `canvas_id`, si le canvas est introuvable ou si l'interrupteur est coupé. `Canvas._id` est désormais affecté **avant** le chargement du DSL : `LLM` et `Agent` résolvent leur modèle dans leur constructeur, d'où l'échec dès la création de session. Points basculés sur le propriétaire :
+  - chat et image2text de `LLM`, `Agent`, `Categorize` et `Browser` ;
+  - synthèse vocale du `Message` en lecture automatique ;
+  - chat de l'outil `Retrieval` (filtre de métadonnées auto/semi-auto, `toc_enhance`, `use_kg`).
+
+  L'embedding de `Retrieval` passe sur le tenant de la base (`kbs[0].tenant_id`), comme les assistants et le rerank du même outil.
+  **Changement de comportement** :
+  - les tokens sont consommés sur les clés du propriétaire ;
+  - `TenantLLM.used_tokens` est incrémenté sur l'instance du propriétaire ;
+  - un membre qui a ses propres fournisseurs utilise les modèles du propriétaire lorsqu'il exécute l'agent d'un autre.
+
+  **Ce qui reste chez l'appelant** :
+  - fichiers déposés (`/agents/{id}/upload`, relus via `created_by`) ;
+  - pièces générées (`Message`, `DocsGenerator`, `ExcelProcessor`) et leur téléchargement ;
+  - sessions (`user_id`, `round`/`tokens`/`duration`), `sys.user_id` et attribution `usage_log` Eurelis ;
+  - recherche d'une base par nom dans `Retrieval` ;
+  - contrôle d'accès `UserCanvasService.accessible`.
+
+  **Inchangés** : les pipelines d'ingestion (`Pipeline`, `rag/flow/`) et `PipelineChunker`.
+
+  Interrupteur `EURELIS_AGENT_MODELS_FROM_OWNER` (défaut `true`) : `false` rétablit le comportement upstream sans redéploiement de code. Documenté dans `docs/eurelis/knowledge/agent-models-owner-tenant.md`.
+
+### Tests
+- **Unitaires** (`test/eurelis/unit/test_agent_model_tenant.py`, 16 tests sans stack, registre de composants factice) :
+  - tenant des modèles = propriétaire, `get_tenant_id()` = appelant ;
+  - une seule lecture du propriétaire ;
+  - tenant disponible pendant la construction des composants ;
+  - repli sur l'appelant sans `canvas_id`, si le canvas est introuvable ou si la lecture échoue ;
+  - valeurs de l'interrupteur ;
+  - `Graph` (ingestion) inchangé.
+- **E2E — membre sans fournisseur** (`test/eurelis/eurelis_fixes/test_agent_models_owner_tenant_e2e.py`, `p0`) :
+  - mise en place : le propriétaire publie et partage `team` un agent Begin(question, document:file) → LLM (Ollama) → Message markdown ; le coéquipier se voit retirer tous ses fournisseurs ;
+  - le coéquipier crée une session, dépose un fichier, exécute l'agent et obtient une réponse LLM ;
+  - le contenu du fichier est relu par l'agent ;
+  - le coéquipier télécharge la pièce générée ;
+  - le rattachement de la session est inchangé.
+
+  Vérifié **rouge** sur l'image `v0.26.3-eurelis.12` (`LookupError: Provider Ollama not found for model qwen2.5:0.5b@local@Ollama.` à la création de session) et **vert** avec le correctif. Le coéquipier est enrôlé par une fixture de module, et non par la fixture de session `agent_member_token` : l'instancier depuis `eurelis_fixes` enrôlerait B avant que `test_admin_teams` ne l'en retire, ce qui ferait échouer `test_member_lists_published_team_agent`. Création idempotente d'agent factorisée dans `test/eurelis/libs/agents.py` (`ensure_agent`), contrats Shield inchangés. Suite complète sur conteneur patché : 112 passed, 3 skipped (attendus).
+
+---
+
 ## [v0.26.3-eurelis.12] - 2026-10-11
 
 Basé sur RAGFlow `v0.26.3`. Correctif de la **persistance des sessions d'agent** : depuis l'instrumentation usage-stats (v0.26.1-eurelis.3), aucune session d'agent ni conversation API n'était enregistrée — l'historique restait vide, une pause `UserFillUp` ne pouvait pas être reprise et les compteurs `round`/`tokens`/`duration` n'étaient jamais incrémentés. Bloquant pour les agents canvas consommés par le Shield (AILAB-43).
