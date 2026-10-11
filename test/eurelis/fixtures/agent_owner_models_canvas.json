@@ -1,0 +1,65 @@
+{
+  "components": {
+    "begin": {
+      "obj": {
+        "component_name": "Begin",
+        "params": {
+          "enablePrologue": false,
+          "mode": "conversational",
+          "layout_recognize": "",
+          "prologue": "",
+          "inputs": {
+            "question": {"key": "question", "name": "question", "optional": false, "options": [], "type": "line", "value": ""},
+            "document": {"key": "document", "name": "document", "optional": false, "options": [], "type": "file", "value": ""}
+          },
+          "outputs": {}
+        }
+      },
+      "downstream": ["LLM:Answer"],
+      "upstream": []
+    },
+    "LLM:Answer": {
+      "obj": {
+        "component_name": "LLM",
+        "params": {
+          "llm_id": "__CHAT_MODEL__",
+          "sys_prompt": "Tu réponds en une phrase courte, en français.",
+          "prompts": [{"role": "user", "content": "Document :\n{begin@document}\n\nQuestion : {begin@question}"}],
+          "temperature": 0,
+          "cite": false,
+          "outputs": {"content": {"type": "string", "value": ""}}
+        }
+      },
+      "downstream": ["Message:Final"],
+      "upstream": ["begin"]
+    },
+    "Message:Final": {
+      "obj": {
+        "component_name": "Message",
+        "params": {
+          "content": ["FICHIER : {begin@document}\n\nREPONSE : {LLM:Answer@content}"],
+          "output_format": "markdown"
+        }
+      },
+      "downstream": [],
+      "upstream": ["LLM:Answer"]
+    }
+  },
+  "globals": {"sys.conversation_turns": 0, "sys.files": [], "sys.query": "", "sys.user_id": "", "sys.date": "", "sys.history": []},
+  "graph": {
+    "nodes": [
+      {"id": "begin", "type": "beginNode", "position": {"x": 0, "y": 0}, "data": {"label": "Begin", "name": "Begin"}},
+      {"id": "LLM:Answer", "type": "generateNode", "position": {"x": 300, "y": 0}, "data": {"label": "LLM", "name": "Réponse LLM"}},
+      {"id": "Message:Final", "type": "messageNode", "position": {"x": 600, "y": 0}, "data": {"label": "Message", "name": "Réponse"}}
+    ],
+    "edges": [
+      {"id": "e1", "source": "begin", "target": "LLM:Answer", "sourceHandle": "start", "targetHandle": "end"},
+      {"id": "e2", "source": "LLM:Answer", "target": "Message:Final", "sourceHandle": "start", "targetHandle": "end"}
+    ]
+  },
+  "history": [],
+  "messages": [],
+  "path": [],
+  "retrieval": [],
+  "variables": {}
+}

@@ -29,18 +29,23 @@ def ok(resp: httpx.Response) -> dict:
     return body
 
 
-def ensure_contract_agent(owner: httpx.Client) -> str:
-    """Crée ou remet à jour (idempotent) l'agent de contrat, publié et partagé `team` ; renvoie son id."""
-    dsl = json.loads(CANVAS_FILE.read_text())
-    listed = ok(owner.get(f"/api/{VERSION}/agents", params={"keywords": CONTRACT_AGENT_TITLE, "page_size": 0}))
-    existing = next((a for a in listed["data"]["canvas"] if a["title"] == CONTRACT_AGENT_TITLE), None)
-    body = {"dsl": dsl, "title": CONTRACT_AGENT_TITLE, "permission": "team", "release": True}
+def ensure_agent(owner: httpx.Client, title: str, dsl: dict, description: str) -> str:
+    """Crée ou remet à jour (idempotent) un agent publié et partagé `team` ; renvoie son id."""
+    listed = ok(owner.get(f"/api/{VERSION}/agents", params={"keywords": title, "page_size": 0}))
+    existing = next((a for a in listed["data"]["canvas"] if a["title"] == title), None)
+    body = {"dsl": dsl, "title": title, "permission": "team", "release": True}
     if existing:
         ok(owner.put(f"/api/{VERSION}/agents/{existing['id']}", json=body))
         return existing["id"]
     created = ok(owner.post(f"/api/{VERSION}/agents", json={**body, "canvas_category": "agent_canvas",
-                                                            "description": "Agent de contrat Shield (031)"}))
+                                                            "description": description}))
     return created["data"]["id"]
+
+
+def ensure_contract_agent(owner: httpx.Client) -> str:
+    """Crée ou remet à jour (idempotent) l'agent de contrat, publié et partagé `team` ; renvoie son id."""
+    return ensure_agent(owner, CONTRACT_AGENT_TITLE, json.loads(CANVAS_FILE.read_text()),
+                        "Agent de contrat Shield (031)")
 
 
 def team_member_token(owner_token: str, admin_token: str) -> str:
