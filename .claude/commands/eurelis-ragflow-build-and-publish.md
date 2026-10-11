@@ -1,5 +1,5 @@
 ---
-description: Build et publie l'image Docker Eurelis sur Docker Hub depuis eurelis/main
+description: Build et publie l'image Docker Eurelis sur Docker Hub depuis eurelis/main ou une branche de maintenance eurelis/main-vX.Y.Z
 allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git status:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git push:*), Bash(git commit:*), Bash(git add:*), Bash(git diff:*), Bash(git merge-base:*), Bash(docker buildx:*), Bash(docker login:*), Bash(docker build:*), Bash(docker info:*), Bash(docker manifest:*), Bash(docker image inspect:*), Bash(docker compose:*), Bash(docker logs:*), Bash(make:*), Bash(curl:*), Bash(cat:*), Bash(grep:*), Read, Edit, AskUserQuestion
 ---
 
@@ -8,7 +8,8 @@ allowed-tools: Bash(git log:*), Bash(git tag:*), Bash(git describe:*), Bash(git 
 Tu es chargé de builder et publier l'image Docker du fork Eurelis de RAGFlow selon la stratégie de `docs/eurelis/guidelines/release-management.md`.
 
 **Règles d'or** :
-- On ne build que depuis `eurelis/main`, avec un tag `vX.Y.Z-eurelis.N`. Jamais de build sans tag.
+- On ne build que depuis `eurelis/main` ou une branche de maintenance `eurelis/main-vX.Y.Z` (même `X.Y.Z` que le tag), avec un tag `vX.Y.Z-eurelis.N`. Jamais de build sans tag.
+- `eurelis/ragflow:latest` n'est produit **que** depuis `eurelis/main` — jamais depuis une branche de maintenance (sinon `latest` régresse vers une ancienne base).
 - **On ne publie jamais une image dont les tests de non-régression échouent.** Le flux est
   **build local (`--load`) → `/eurelis-ragflow-non-regression-tests` → push** (jamais de `--push` direct).
 
@@ -22,6 +23,7 @@ Tu es chargé de builder et publier l'image Docker du fork Eurelis de RAGFlow se
 - Paramètre reçu : $ARGUMENTS
 - Dernier tag Eurelis : !`git describe --tags --match="v*-eurelis.*" --abbrev=0 2>/dev/null || echo "AUCUN"`
 - Tag sur HEAD : !`git tag --points-at HEAD --list "v*-eurelis.*" 2>/dev/null || echo "AUCUN"`
+- Branches de release contenant HEAD : !`git branch --contains HEAD --list "eurelis/main" "eurelis/main-v*" 2>/dev/null || echo "AUCUNE"`
 - Builder buildx : !`docker buildx ls 2>/dev/null | grep eurelis-builder || echo "ABSENT"`
 
 ---
@@ -58,8 +60,11 @@ Après avoir résolu le tag, vérifier :
 1. **Image Docker Hub inexistante** : `docker manifest inspect eurelis/ragflow:TAG 2>/dev/null`. Si la commande **réussit** (image déjà publiée), **arrêter** :
    > ERREUR : l'image `eurelis/ragflow:TAG` existe déjà sur Docker Hub. Incrémentez le numéro de version ou utilisez un tag différent.
 
-2. **Branche correcte** : la branche active (ou le commit checké) doit appartenir à `eurelis/main`. Si ce n'est pas le cas, **arrêter** :
-   > ERREUR : vous devez builder depuis `eurelis/main`. Faites `git checkout eurelis/main`.
+2. **Ligne de release** : déterminer d'où l'on builde (`X.Y.Z` = base extraite du tag) :
+   - `git merge-base --is-ancestor HEAD eurelis/main` réussit → **ligne principale** (`eurelis/main`) : images `TAG` + `latest`.
+   - sinon, `git merge-base --is-ancestor HEAD eurelis/main-vX.Y.Z` réussit → **ligne de maintenance** : image `TAG` **seule, sans `latest`**. Noter `BRANCHE = eurelis/main-vX.Y.Z` pour l'étape 0c.
+   - sinon, **arrêter** :
+   > ERREUR : vous devez builder depuis `eurelis/main` ou depuis la branche de maintenance `eurelis/main-vX.Y.Z` de la base du tag. Faites `git checkout eurelis/main` (ou `git checkout eurelis/main-vX.Y.Z`).
 
 3. **Arbre de travail propre** : `git status --porcelain` doit être **vide** — aucun fichier modifié, stagé ou untracked. Le contexte de build Docker embarque le working tree tel quel (`COPY conf conf`, etc.) : tout fichier non commité (config de tests locaux, `conf/llm_factories.patch.json` d'environnement, secrets…) serait silencieusement distribué dans l'image publiée. Si l'arbre n'est pas propre, **arrêter** :
    > ERREUR : l'arbre de travail contient des fichiers non commités ou non stashés — l'image embarquerait un état local non reproductible depuis le tag.
@@ -96,6 +101,8 @@ Si une vérification échoue, **ne pas continuer**.
    - Lister les commits depuis le dernier tag Eurelis :
      ```bash
      git log --oneline HEAD --not $(git merge-base HEAD main)
+     # ligne de maintenance : seulement depuis le dernier tag de la base
+     git log --oneline $(git describe --tags --match="vX.Y.Z-eurelis.*" --abbrev=0 HEAD)..HEAD
      ```
    - Pour chaque commit, identifier la catégorie (`Added`, `Changed`, `Fixed`, `Removed`) selon le préfixe conventionnel (`feat`, `fix`, `docs`, `chore`, etc.).
    - Rédiger l'entrée en français selon le format :
@@ -131,7 +138,7 @@ Si une vérification échoue, **ne pas continuer**.
    ```bash
    git tag TAG HEAD
    git push origin TAG
-   git push origin eurelis/main
+   git push origin eurelis/main   # ligne de maintenance : git push origin eurelis/main-vX.Y.Z
    ```
    Informer l'utilisateur que le tag a été créé sur le commit incluant le changelog.
 
@@ -154,8 +161,9 @@ Afficher clairement ce qui va être buildé :
 ```
 Tag    : vX.Y.Z-eurelis.N
 Commit : <sha>
+Ligne  : eurelis/main | eurelis/main-vX.Y.Z (maintenance)
 Images : eurelis/ragflow:vX.Y.Z-eurelis.N
-         eurelis/ragflow:latest
+         eurelis/ragflow:latest            ← ligne principale uniquement
 Plateforme : linux/amd64
 ```
 
@@ -173,6 +181,12 @@ Afficher la commande sur **une seule ligne** (remplacer `TAG` par le tag réel) 
 
 ```
 docker buildx build --builder eurelis-builder --platform linux/amd64 -t eurelis/ragflow:TAG -t eurelis/ragflow:latest --load .
+```
+
+Ligne de maintenance (`eurelis/main-vX.Y.Z`) — **sans `latest`** :
+
+```
+docker buildx build --builder eurelis-builder --platform linux/amd64 -t eurelis/ragflow:TAG --load .
 ```
 
 Rappeler à l'utilisateur : lancer depuis la **racine du dépôt** ; build de 10 à 30 minutes ; `--load` charge
@@ -216,6 +230,8 @@ Avant toute publication, **valider l'image fraîchement buildée** via la comman
 docker push eurelis/ragflow:TAG && docker push eurelis/ragflow:latest
 ```
 
+Ligne de maintenance : `docker push eurelis/ragflow:TAG` uniquement.
+
 Rappeler que cette étape **publie sur Docker Hub** (irréversible sauf suppression manuelle).
 
 ---
@@ -226,7 +242,7 @@ Une fois les **tests verts** (étape 3) **et** le push effectué (étape 4), les
 
 ```
 docker pull eurelis/ragflow:TAG
-docker pull eurelis/ragflow:latest
+docker pull eurelis/ragflow:latest   # ligne principale uniquement
 ```
 
 Procédure de mise à jour d'une instance existante :
@@ -248,7 +264,8 @@ Procédure de mise à jour d'une instance existante :
 | Tag paramètre absent en git | Mise à jour changelog → commit → création tag + push |
 | Tag paramètre ≠ HEAD, refus de checkout | Arrêt propre |
 | Aucun tag eurelis sur HEAD (sans paramètre) | Arrêt — afficher la commande de tag ou l'usage avec paramètre |
-| Commit non issu de eurelis/main | Arrêt — demander checkout |
+| Commit non issu de eurelis/main ni de eurelis/main-vX.Y.Z (base du tag) | Arrêt — demander checkout |
+| Build depuis une branche de maintenance | Pas de tag `latest` (build et push) |
 | Arbre de travail sale (fichiers modifiés ou untracked) | Arrêt — `git stash push -u` avant build, `git stash pop` après |
 | Docker non démarré | Arrêt — demander démarrage |
 | Builder eurelis-builder absent | Arrêt — afficher la commande de création |

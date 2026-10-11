@@ -14,6 +14,7 @@ status: reference
 |-----------------------|----------------------------------|
 | `main`                | Upstream RAGFlow (lecture seule) |
 | `eurelis/main`        | Branche principale Eurelis       |
+| `eurelis/main-vX.Y.Z` | Maintenance d'une base upstream antérieure (ex. `eurelis/main-v0.26.3`) |
 | `eurelis/feature/xxx` | Développements en cours          |
 
 ### Workflow
@@ -32,6 +33,33 @@ eurelis/feature/xxx
 git checkout eurelis/main
 git merge eurelis/feature/xxx --no-ff
 git push origin eurelis/main
+```
+
+### Branches de maintenance `eurelis/main-vX.Y.Z`
+
+Quand `eurelis/main` passe sur une nouvelle base upstream (sync), les instances encore
+déployées sur l'ancienne base continuent de recevoir des correctifs via une **branche de
+maintenance** `eurelis/main-vX.Y.Z`, où `X.Y.Z` est la base upstream de la ligne.
+
+- **Création** : à partir du dernier tag Eurelis de la base concernée.
+  ```bash
+  git switch -c eurelis/main-v0.26.3 v0.26.3-eurelis.12
+  git push -u origin eurelis/main-v0.26.3
+  ```
+- **Correctifs** : brancher depuis la branche de maintenance, merger en `--no-ff` dedans,
+  puis reporter le correctif sur `eurelis/main` (cherry-pick ou adaptation) s'il s'applique
+  encore à la nouvelle base.
+- **Pas de sync upstream** : la base `X.Y.Z` d'une branche de maintenance ne bouge jamais.
+- **Versioning** : les tags continuent la séquence de la base (`v0.26.3-eurelis.13`, …).
+- **Changelog** : l'entrée de chaque release de maintenance est commitée sur la branche de
+  maintenance (le tag doit pointer sur un commit qui la contient).
+- **Images** : uniquement le tag versionné — **jamais `latest`**, réservé à `eurelis/main`
+  (sinon `latest` régresserait vers l'ancienne base).
+
+```
+eurelis/main ─────(sync v0.27.x)──────────────► tag v0.27.1-eurelis.N  (+ latest)
+      │
+      └─ eurelis/main-v0.26.3 ──── fix ────────► tag v0.26.3-eurelis.N  (sans latest)
 ```
 
 ### Versioning
@@ -110,7 +138,8 @@ Basé sur RAGFlow `vX.Y.Z`.
 
 - Docker Desktop ≥ 24.0.0 avec **16 GB de RAM** alloués minimum
 - Être connecté à Docker Hub : `docker login`
-- Tag git posé sur `eurelis/main` (voir section *Créer une release*)
+- Tag git posé sur `eurelis/main` ou sur une branche de maintenance `eurelis/main-vX.Y.Z`
+  (voir sections *Créer une release* et *Branches de maintenance*)
 
 ### Première fois : créer le builder multi-platform
 
@@ -142,6 +171,8 @@ docker buildx build \
   .
 ```
 
+> Depuis une branche de maintenance `eurelis/main-vX.Y.Z`, retirer `-t eurelis/ragflow:latest`.
+>
 > Le flag `--push` envoie directement sur Docker Hub sans stocker l'image en local.
 > Le flag `--no-cache` peut être ajouté pour forcer un build complet (plus long).
 
