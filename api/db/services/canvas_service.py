@@ -24,6 +24,7 @@ from api.db import CanvasCategory, TenantPermission
 from api.db.db_models import DB, CanvasTemplate, User, UserCanvas, API4Conversation, UserCanvasVersion
 from api.db.services.api_service import API4ConversationService
 from api.db.services.common_service import CommonService
+from api.db.services.eurelis_agent_usage import AgentRunMeter, log_agent_run  # Eurelis — usage des agents (AILAB-43)
 from api.db.services.user_canvas_version import UserCanvasVersionService
 from common.misc_utils import get_uuid, thread_pool_exec
 from api.utils.api_utils import get_data_openai
@@ -343,6 +344,7 @@ async def completion(tenant_id, agent_id, session_id=None, **kwargs):
     if chat_template_kwargs is not None:
         run_kwargs["chat_template_kwargs"] = chat_template_kwargs
 
+    meter = AgentRunMeter(canvas)  # Eurelis — AILAB-43 : durée et tokens de l'exécution
     try:
         async for ans in canvas.run(**run_kwargs):
             ans["session_id"] = session_id
@@ -355,6 +357,7 @@ async def completion(tenant_id, agent_id, session_id=None, **kwargs):
             yield "data:" + json.dumps(ans, ensure_ascii=False) + "\n\n"
     finally:
         canvas.close()
+        log_agent_run(meter, user_id=conv.user_id, agent_id=conv.dialog_id, session_id=session_id)  # Eurelis — AILAB-43 : une ligne par exécution, pauses comprises
 
     conv.message.append({"role": "assistant", "content": txt, "created_at": time.time(), "id": message_id})
     current_reference = canvas.get_reference()
@@ -368,7 +371,8 @@ async def completion(tenant_id, agent_id, session_id=None, **kwargs):
     conv.errors = canvas.error
     conv.dsl = str(canvas)
     conv = conv.to_dict()
-    await thread_pool_exec(API4ConversationService.append_message, conv["id"], conv)
+    await thread_pool_exec(API4ConversationService.append_message, conv["id"], conv,
+                           tokens=meter.tokens, duration=meter.duration_ms)  # Eurelis — AILAB-43
 
 
 async def completion_openai(tenant_id, agent_id, question, session_id=None, stream=True, **kwargs):

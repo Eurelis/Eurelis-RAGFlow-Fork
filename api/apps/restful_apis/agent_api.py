@@ -36,7 +36,7 @@ from api.apps.services.canvas_replica_service import CanvasReplicaService
 from api.db import CanvasCategory
 from api.db.db_models import Task
 from api.db.services.api_service import API4ConversationService
-from api.db.services.usage_log_service import UsageLogService
+from api.db.services.eurelis_agent_usage import AgentRunMeter, log_agent_run  # Eurelis — usage des agents (AILAB-43)
 from api.db.services.canvas_service import (
     CanvasTemplateService,
     UserCanvasService,
@@ -285,6 +285,8 @@ async def _run_workflow_session(
     if chat_template_kwargs is not None:
         run_kwargs["chat_template_kwargs"] = chat_template_kwargs
 
+    meter = AgentRunMeter(canvas)  # Eurelis — AILAB-43 : durée et tokens de l'exécution
+
     async def persist_workflow_session():
         if not final_ans:
             return
@@ -299,18 +301,13 @@ async def _run_workflow_session(
         workflow_conv["reference"].append(_normalize_agent_reference_entry(reference))
         workflow_conv["dsl"] = json.loads(str(canvas))
         workflow_conv["source"] = workflow_conv.get("source") or "workflow"
-        await thread_pool_exec(API4ConversationService.append_message, session_id, workflow_conv)
-        await thread_pool_exec(
-            UsageLogService.log,
-            user_id=workflow_conv.get("user_id", ""),
-            resource_id=agent_id,
-            object_id=session_id,
-            source="agent",
-            token_type="llm",
-            tokens=0,
-            duration=0.0,
-        )
+        meter.stop()  # Eurelis — AILAB-43 : tokens/durée réels ; la ligne usage_log est écrite par log_usage()
+        await thread_pool_exec(API4ConversationService.append_message, session_id, workflow_conv,
+                               tokens=meter.tokens, duration=meter.duration_ms)
         await commit_runtime_replica()
+
+    def log_usage():  # Eurelis — AILAB-43 : une ligne usage_log par exécution, pauses et erreurs comprises
+        log_agent_run(meter, user_id=workflow_conv.get("user_id", ""), agent_id=agent_id, session_id=session_id)
 
     if stream:
 
@@ -318,6 +315,7 @@ async def _run_workflow_session(
             nonlocal full_content, reference, final_ans, trace_items, structured_output
             done_sent = False
             try:
+                meter.restart()  # Eurelis — AILAB-43 : le flux SSE démarre à la consommation, pas à la construction
                 async for ans in canvas.run(**run_kwargs):
                     ans["session_id"] = session_id
                     if ans.get("event") == "message":
@@ -367,6 +365,7 @@ async def _run_workflow_session(
                 canvas.cancel_task()
                 yield ("data:" + json.dumps({"code": 500, "message": str(exc), "data": False}, ensure_ascii=False) + "\n\n")
             finally:
+                log_usage()  # Eurelis — AILAB-43
                 if not done_sent:
                     done_sent = True
                     yield "data:[DONE]\n\n"
@@ -398,6 +397,9 @@ async def _run_workflow_session(
         logging.exception(exc)
         canvas.cancel_task()
         return get_result(data=f"**ERROR**: {str(exc)}")
+    finally:
+        meter.stop()  # Eurelis — AILAB-43
+        await thread_pool_exec(log_usage)  # Eurelis — AILAB-43
 
     if not final_ans:
         # Canvas produced no events (e.g. caller sent an empty query). The
