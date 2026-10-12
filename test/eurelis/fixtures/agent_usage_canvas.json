@@ -1,0 +1,79 @@
+{
+  "components": {
+    "begin": {
+      "obj": {"component_name": "Begin", "params": {"enablePrologue": false, "mode": "conversational", "prologue": "", "inputs": {}, "outputs": {}}},
+      "downstream": ["LLM:Draft"],
+      "upstream": []
+    },
+    "LLM:Draft": {
+      "obj": {
+        "component_name": "LLM",
+        "params": {
+          "llm_id": "__CHAT_MODEL__",
+          "sys_prompt": "Tu réponds en une phrase courte, en français.",
+          "prompts": [{"role": "user", "content": "Propose un titre pour une note sur la facturation électronique."}],
+          "temperature": 0,
+          "cite": false,
+          "outputs": {"content": {"type": "string", "value": ""}}
+        }
+      },
+      "downstream": ["UserFillUp:Valid"],
+      "upstream": ["begin"]
+    },
+    "UserFillUp:Valid": {
+      "obj": {
+        "component_name": "UserFillUp",
+        "params": {
+          "enable_tips": true,
+          "tips": "Proposition : {LLM:Draft@content}",
+          "inputs": {"retour": {"name": "retour", "optional": false, "options": [], "type": "paragraph"}},
+          "outputs": {"retour": {"name": "retour", "optional": false, "options": [], "type": "paragraph"}},
+          "layout_recognize": ""
+        }
+      },
+      "downstream": ["LLM:Final"],
+      "upstream": ["LLM:Draft"]
+    },
+    "LLM:Final": {
+      "obj": {
+        "component_name": "LLM",
+        "params": {
+          "llm_id": "__CHAT_MODEL__",
+          "sys_prompt": "Tu réponds en une phrase courte, en français.",
+          "prompts": [{"role": "user", "content": "Titre : {LLM:Draft@content}\nDemande : {UserFillUp:Valid@retour}\nDonne le titre final."}],
+          "temperature": 0,
+          "cite": false,
+          "outputs": {"content": {"type": "string", "value": ""}}
+        }
+      },
+      "downstream": ["Message:Fin"],
+      "upstream": ["UserFillUp:Valid"]
+    },
+    "Message:Fin": {
+      "obj": {"component_name": "Message", "params": {"content": ["{LLM:Final@content}"]}},
+      "downstream": [],
+      "upstream": ["LLM:Final"]
+    }
+  },
+  "globals": {"sys.conversation_turns": 0, "sys.files": [], "sys.query": "", "sys.user_id": "", "sys.date": "", "sys.history": []},
+  "graph": {
+    "nodes": [
+      {"id": "begin", "type": "beginNode", "position": {"x": 0, "y": 0}, "data": {"label": "Begin", "name": "Begin"}},
+      {"id": "LLM:Draft", "type": "generateNode", "position": {"x": 250, "y": 0}, "data": {"label": "LLM", "name": "Proposition"}},
+      {"id": "UserFillUp:Valid", "type": "ragNode", "position": {"x": 500, "y": 0}, "data": {"label": "UserFillUp", "name": "Validation"}},
+      {"id": "LLM:Final", "type": "generateNode", "position": {"x": 750, "y": 0}, "data": {"label": "LLM", "name": "Version finale"}},
+      {"id": "Message:Fin", "type": "messageNode", "position": {"x": 1000, "y": 0}, "data": {"label": "Message", "name": "Réponse"}}
+    ],
+    "edges": [
+      {"id": "e1", "source": "begin", "target": "LLM:Draft", "sourceHandle": "start", "targetHandle": "end"},
+      {"id": "e2", "source": "LLM:Draft", "target": "UserFillUp:Valid", "sourceHandle": "start", "targetHandle": "end"},
+      {"id": "e3", "source": "UserFillUp:Valid", "target": "LLM:Final", "sourceHandle": "start", "targetHandle": "end"},
+      {"id": "e4", "source": "LLM:Final", "target": "Message:Fin", "sourceHandle": "start", "targetHandle": "end"}
+    ]
+  },
+  "history": [],
+  "messages": [],
+  "path": [],
+  "retrieval": [],
+  "variables": {}
+}
