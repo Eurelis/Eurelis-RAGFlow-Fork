@@ -1,0 +1,98 @@
+{
+ "components": {
+  "begin": {
+   "obj": {
+    "component_name": "Begin",
+    "params": {
+     "enablePrologue": true,
+     "mode": "conversational",
+     "prologue": "Bonjour, agent de test AILAB-43 (boucle de validation).",
+     "inputs": {},
+     "outputs": {}
+    }
+   },
+   "downstream": ["Message:Version"],
+   "upstream": []
+  },
+  "Message:Version": {
+   "obj": {
+    "component_name": "Message",
+    "params": {
+     "content": ["Proposition (tour {sys.conversation_turns})."]
+    }
+   },
+   "downstream": ["UserFillUp:Valid"],
+   "upstream": ["begin", "Switch:Decision"]
+  },
+  "UserFillUp:Valid": {
+   "obj": {
+    "component_name": "UserFillUp",
+    "params": {
+     "enable_tips": true,
+     "inputs": {
+      "decision": {"name": "decision", "optional": false, "options": ["Valider", "Modifier"], "type": "options"},
+      "retour": {"name": "retour", "optional": true, "options": [], "type": "paragraph"}
+     },
+     "outputs": {
+      "decision": {"name": "decision", "optional": false, "options": ["Valider", "Modifier"], "type": "options"},
+      "retour": {"name": "retour", "optional": true, "options": [], "type": "paragraph"}
+     },
+     "tips": "Validez la proposition ou demandez une modification.",
+     "layout_recognize": ""
+    }
+   },
+   "downstream": ["Switch:Decision"],
+   "upstream": ["Message:Version"]
+  },
+  "Switch:Decision": {
+   "obj": {
+    "component_name": "Switch",
+    "params": {
+     "conditions": [
+      {
+       "items": [{"cpn_id": "UserFillUp:Valid@decision", "operator": "=", "value": "Valider"}],
+       "logical_operator": "and",
+       "to": ["Message:Fin"]
+      }
+     ],
+     "end_cpn_ids": ["Message:Version"]
+    }
+   },
+   "downstream": ["Message:Fin", "Message:Version"],
+   "upstream": ["UserFillUp:Valid"]
+  },
+  "Message:Fin": {
+   "obj": {
+    "component_name": "Message",
+    "params": {
+     "content": ["Proposition validée."]
+    }
+   },
+   "downstream": [],
+   "upstream": ["Switch:Decision"]
+  }
+ },
+ "globals": {
+  "sys.conversation_turns": 0,
+  "sys.files": [],
+  "sys.query": "",
+  "sys.user_id": "",
+  "sys.date": "",
+  "sys.history": []
+ },
+ "graph": {
+  "nodes": [
+   {"id": "begin", "type": "beginNode", "data": {"label": "Begin", "name": "Begin"}},
+   {"id": "Message:Version", "type": "messageNode", "data": {"label": "Message", "name": "Proposition"}},
+   {"id": "UserFillUp:Valid", "type": "ragNode", "data": {"label": "UserFillUp", "name": "Validation"}},
+   {"id": "Switch:Decision", "type": "switchNode", "data": {"label": "Switch", "name": "Décision"}},
+   {"id": "Message:Fin", "type": "messageNode", "data": {"label": "Message", "name": "Fin"}}
+  ],
+  "edges": []
+ },
+ "history": [],
+ "messages": [],
+ "path": [],
+ "retrieval": [],
+ "variables": {}
+}
