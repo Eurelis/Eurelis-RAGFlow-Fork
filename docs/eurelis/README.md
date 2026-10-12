@@ -123,6 +123,7 @@ Documentation technique de référence.
 |---|---|
 | [Initialisation de l'utilisateur admin par défaut](./knowledge/admin-user-init.md) | `reference` |
 | [Agents canvas : modèles du propriétaire, fichiers et sessions de l'appelant](./knowledge/agent-models-owner-tenant.md) | `reference` |
+| [Agents canvas : pause UserFillUp à chaque passage (boucles de validation)](./knowledge/agent-userfillup-repeat-pause.md) | `reference` |
 | [Configuration des variables d'une Chat App](./knowledge/chat-app-variable-configuration.md) | `reference` |
 | [Endpoints API Chat et pièces jointes](./knowledge/chat-endpoints-and-attachments.md) | `reference` |
 | [Exécution de code Python dans les agents (sandbox CodeExec)](./knowledge/code-exec-sandbox.md) | `reference` |

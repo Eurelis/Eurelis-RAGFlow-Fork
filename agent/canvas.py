@@ -754,6 +754,7 @@ class Canvas(Graph):
                 for c in path:
                     o = self.get_component_obj(c)
                     if o.component_name.lower() == "userfillup":
+                        o.reset()  # Eurelis — AILAB-43 : formulaire vidé, sinon les valeurs du tour précédent font sauter la pause au 2e passage
                         o.invoke()
                         another_inputs.update({k: v for k, v in o.get_input_elements().items() if not self._is_input_field_satisfied(v)})
                         if o.get_param("enable_tips"):
