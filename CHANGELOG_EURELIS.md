@@ -4,6 +4,36 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.14] - 2026-10-12
+
+Basé sur RAGFlow `v0.26.3`. Les **boucles de validation des agents canvas** font de nouveau une pause à chaque passage (AILAB-43, agent CRM v1.2). L'agent CRM propose plusieurs tours de modification par étape : `Agent:X` → `UserFillUp:ValidX` {decision Valider|Modifier, retour} → `Switch` (« Modifier » renvoie sur `Agent:X`). Au 2e passage sur le même `UserFillUp`, le moteur ne faisait plus de pause. Le `Switch` relisait le `Modifier` du tour précédent et le flux bouclait sans fin, en consommant des tokens LLM à chaque tour.
+
+### Fixed
+- **Pause `UserFillUp` sautée au 2e passage, boucle infinie** (`agent/canvas.py`, `Canvas._run_impl`, bloc de détection de pause) : la pause n'a lieu que si un champ du formulaire n'est pas satisfait. Or les `inputs` du `UserFillUp` gardaient les valeurs du tour précédent, persistées dans le DSL de la session. Au début d'un tour, seules les sorties des composants du `path` sont remises à zéro. Correctif d'une ligne : `o.reset()` avant `o.invoke()`, qui vide les entrées et les sorties du formulaire avant de l'évaluer. Le bug ne se déclenchait que si tous les champs avaient reçu une valeur : un champ facultatif laissé à `None` forçait la pause.
+
+  **Portée vérifiée** :
+  - le `UserFillUp` auquel l'utilisateur vient de répondre n'est pas concerné : il tourne dans le premier lot de la reprise, avant le bloc de pause ;
+  - un flux linéaire, où chaque `UserFillUp` n'est atteint qu'une fois, garde le même comportement ;
+  - aucune valeur d'entrée par défaut légitime n'est perdue : le front n'écrit pas de `value` dans les entrées d'un `UserFillUp`, et `fillup.py` n'en lit aucune.
+
+  Documenté dans `docs/eurelis/knowledge/agent-userfillup-repeat-pause.md`.
+
+### Tests
+- **Unitaires** (`test/eurelis/unit/test_userfillup_repeat_pause.py`, 3 tests sans stack, moteur `Canvas.run` réel avec un registre limité à Begin/UserFillUp/Message/Switch) :
+  - cycle départ → Modifier → Modifier → Valider : une pause à chaque passage, avec les champs `decision` et `retour` ;
+  - formulaire pré-rempli atteint par le bloc de pause : la pause est émise ;
+  - flux linéaire inchangé.
+
+  Les deux premiers sont rouges sans la ligne `o.reset()`.
+- **E2E — boucle de validation** (`test/eurelis/eurelis_fixes/test_userfillup_repeat_pause_e2e.py`, `p0`, canvas sans LLM `test/eurelis/fixtures/agent_userfillup_loop_canvas.json`) :
+  - parcours via les sessions d'agent et `/agents/chat/completions` en SSE : départ → pause, Modifier → pause, Modifier → pause, Valider → `workflow_finished` ;
+  - à chaque pause : `path[0]` persisté = `UserFillUp:Valid`, `Message:Version` exécuté une seule fois de plus ;
+  - flux SSE borné (12 `node_finished`, timeout de lecture 30 s) : la version boguée échoue proprement au lieu de bloquer la suite.
+
+  Vérifié **rouge** sur l'image `v0.26.3-eurelis.13` (« flux non borné, pause sautée » dès la 1re reprise « Modifier », en 11 s) et **vert** avec le correctif. Suite complète sur conteneur patché : 116 passed, 3 skipped (attendus), contrats Shield `test_agents_*` verts.
+
+---
+
 ## [v0.26.3-eurelis.13] - 2026-10-11
 
 Basé sur RAGFlow `v0.26.3`. Les **agents canvas utilisent désormais les modèles du propriétaire du canvas**, comme les assistants de chat (AILAB-43). Recette Shield v0.20.1 sur la sandbox ai-lab (image `v0.26.3-eurelis.12`) : un utilisateur provisionné par le Shield, membre de l'équipe du propriétaire mais sans aucun fournisseur de modèles, échouait dès `POST /api/v1/agents/{id}/sessions` avec `LookupError: Provider OpenAI not found for model gpt-4.1@OpenAI.`. Le seul contournement consistait à recopier la clé de la plateforme dans chaque compte.
