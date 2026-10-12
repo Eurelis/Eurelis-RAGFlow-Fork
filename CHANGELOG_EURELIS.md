@@ -6,7 +6,9 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ## [v0.26.3-eurelis.14] - 2026-10-12
 
-Basé sur RAGFlow `v0.26.3`. Les **boucles de validation des agents canvas** font de nouveau une pause à chaque passage (AILAB-43, agent CRM v1.2). L'agent CRM propose plusieurs tours de modification par étape : `Agent:X` → `UserFillUp:ValidX` {decision Valider|Modifier, retour} → `Switch` (« Modifier » renvoie sur `Agent:X`). Au 2e passage sur le même `UserFillUp`, le moteur ne faisait plus de pause. Le `Switch` relisait le `Modifier` du tour précédent et le flux bouclait sans fin, en consommant des tokens LLM à chaque tour.
+Basé sur RAGFlow `v0.26.3`. Deux correctifs des agents canvas consommés par le Shield (AILAB-43) : les **boucles de validation** font de nouveau une pause à chaque passage, et la **consommation des agents** (tokens, durée) est enfin comptabilisée.
+
+Boucles de validation (agent CRM v1.2) : L'agent CRM propose plusieurs tours de modification par étape : `Agent:X` → `UserFillUp:ValidX` {decision Valider|Modifier, retour} → `Switch` (« Modifier » renvoie sur `Agent:X`). Au 2e passage sur le même `UserFillUp`, le moteur ne faisait plus de pause. Le `Switch` relisait le `Modifier` du tour précédent et le flux bouclait sans fin, en consommant des tokens LLM à chaque tour.
 
 ### Fixed
 - **Pause `UserFillUp` sautée au 2e passage, boucle infinie** (`agent/canvas.py`, `Canvas._run_impl`, bloc de détection de pause) : la pause n'a lieu que si un champ du formulaire n'est pas satisfait. Or les `inputs` du `UserFillUp` gardaient les valeurs du tour précédent, persistées dans le DSL de la session. Au début d'un tour, seules les sorties des composants du `path` sont remises à zéro. Correctif d'une ligne : `o.reset()` avant `o.invoke()`, qui vide les entrées et les sorties du formulaire avant de l'évaluer. Le bug ne se déclenchait que si tous les champs avaient reçu une valeur : un champ facultatif laissé à `None` forçait la pause.
@@ -17,6 +19,18 @@ Basé sur RAGFlow `v0.26.3`. Les **boucles de validation des agents canvas** fon
   - aucune valeur d'entrée par défaut légitime n'est perdue : le front n'écrit pas de `value` dans les entrées d'un `UserFillUp`, et `fillup.py` n'en lit aucune.
 
   Documenté dans `docs/eurelis/knowledge/agent-userfillup-repeat-pause.md`.
+- **Tokens et durée des agents canvas jamais comptabilisés** (`api/db/services/canvas_service.py`, `api/apps/restful_apis/agent_api.py`, nouveau module Eurelis `api/db/services/eurelis_agent_usage.py`). Constat en préprod Synerga (`eurelis.13`) sur un parcours complet de l'agent CRM via l'API : `api_4_conversation.tokens = 0`, `duration = 0.0` et aucune ligne `usage_log`, alors que `workflow_finished.usage` annonçait 26 822 tokens. Causes :
+  - aucun appelant du chemin agent ne passait `tokens` / `duration` à `append_message` ;
+  - le chemin session (celui du Shield) n'écrivait jamais dans `usage_log` ;
+  - le chemin workflow écrivait `tokens=0, duration=0.0` en dur.
+
+  Correctif : `AgentRunMeter` mesure chaque exécution (départ ou reprise après pause). Il lit la durée réelle et le total du collecteur de `Canvas.run` (`_run_usage_payload()`) après le flux, sans dépendre de `workflow_finished`. Ces valeurs sont passées à `append_message`, et `log_agent_run` écrit **une ligne `usage_log` par exécution** dans le `finally`, pauses, erreurs et déconnexions comprises : `source="agent"`, `token_type="llm"`, `resource_id` = agent, `object_id` = session, `user_id` = celui de la session (attribution chez l'appelant, modèles chez le propriétaire). Durée en millisecondes, comme les lignes `chat`. `model` / `provider` restent vides : le collecteur n'agrège qu'un total.
+
+  **Pas de double comptage** : seuls les appels de chat de `LLMBundle` alimentent le collecteur, et l'embedding de `Retrieval` reste journalisé à part (`token_type="embedding"`). `workflow_finished.usage` est inchangé.
+
+  **Contexte asynchrone vérifié** : `_run_batch`, `thread_pool_exec` et `asyncio.run` propagent le collecteur, aucun appel LLM du chemin agent n'y échappe. Le `calls: 1` de l'étape Retouche (105 s) correspond à un seul appel générant 11 574 tokens.
+
+  **Limites** : rerank, image2text et synthèse vocale ne sont pas comptés ; l'historique antérieur reste à 0. Documenté dans `docs/eurelis/knowledge/agent-usage-accounting.md`.
 
 ### Tests
 - **Unitaires** (`test/eurelis/unit/test_userfillup_repeat_pause.py`, 3 tests sans stack, moteur `Canvas.run` réel avec un registre limité à Begin/UserFillUp/Message/Switch) :
@@ -30,7 +44,24 @@ Basé sur RAGFlow `v0.26.3`. Les **boucles de validation des agents canvas** fon
   - à chaque pause : `path[0]` persisté = `UserFillUp:Valid`, `Message:Version` exécuté une seule fois de plus ;
   - flux SSE borné (12 `node_finished`, timeout de lecture 30 s) : la version boguée échoue proprement au lieu de bloquer la suite.
 
-  Vérifié **rouge** sur l'image `v0.26.3-eurelis.13` (« flux non borné, pause sautée » dès la 1re reprise « Modifier », en 11 s) et **vert** avec le correctif. Suite complète sur conteneur patché : 116 passed, 3 skipped (attendus), contrats Shield `test_agents_*` verts.
+  Vérifié **rouge** sur l'image `v0.26.3-eurelis.13` (« flux non borné, pause sautée » dès la 1re reprise « Modifier », en 11 s) et **vert** avec le correctif.
+- **Unitaires — usage des agents** (`test/eurelis/unit/test_agent_usage_accounting.py`, 5 tests sans stack, `Canvas.run` réel avec composants « LLM » factices et services DB mockés) :
+  - `append_message` reçoit des tokens et une durée non nuls, y compris quand l'exécution s'arrête sur une pause ;
+  - une ligne `usage_log` `agent` par exécution (utilisateur de la session, agent, session) ;
+  - ligne écrite aussi quand un composant échoue ;
+  - usage déclaré depuis un `thread_pool_exec` imbriqué dans le pool du canvas ;
+  - `workflow_finished.usage` inchangé ;
+  - embedding absent du collecteur.
+
+  Les 3 tests de complétion sont rouges sans le correctif de `canvas_service.py`.
+- **E2E — usage des agents** (`test/eurelis/eurelis_fixes/test_agent_usage_accounting_e2e.py`, `p0`, canvas `test/eurelis/fixtures/agent_usage_canvas.json` avec Begin → LLM → UserFillUp → LLM → Message sur Ollama) :
+  - départ → pause → reprise → fin ;
+  - session : `round` +2, tokens égaux à la somme des deux exécutions (pause comprise), durée > 0 ;
+  - `/usage-stats/me/session/<id>` : 2 lignes `agent`, dont la 2e égale `workflow_finished.usage.total_tokens`.
+
+  Vérifié **rouge** sur l'image `v0.26.3-eurelis.13` (tokens de session 0, « Session not found » côté `usage_log`) et **vert** avec le correctif.
+
+Suite complète sur conteneur patché (les deux correctifs) : 124 passed, 3 skipped (attendus), contrats Shield `test_agents_*` verts.
 
 ---
 
@@ -85,7 +116,7 @@ Basé sur RAGFlow `v0.26.3`. Les **agents canvas utilisent désormais les modèl
 Basé sur RAGFlow `v0.26.3`. Correctif de la **persistance des sessions d'agent** : depuis l'instrumentation usage-stats (v0.26.1-eurelis.3), aucune session d'agent ni conversation API n'était enregistrée — l'historique restait vide, une pause `UserFillUp` ne pouvait pas être reprise et les compteurs `round`/`tokens`/`duration` n'étaient jamais incrémentés. Bloquant pour les agents canvas consommés par le Shield (AILAB-43).
 
 ### Fixed
-- **Sessions d'agent jamais persistées** (`api/db/services/api_service.py`, `API4ConversationService.append_message`) — le `with DB.atomic()` ajouté par Eurelis autour de `update_by_id` (lui-même décoré `@DB.connection_context()`, dont la sortie ferme la connexion) levait systématiquement `peewee.OperationalError: Attempting to close database while transaction is open` : rollback de la mise à jour à chaque message. Touchait tous les appelants — complétions d'agent (`canvas_service`, `restful_apis/agent_api.py`) et conversations API (`conversation_service`). Retour à la structure upstream (pas de transaction englobante) en conservant les incréments Eurelis `tokens`/`duration`.
+- **Sessions d'agent jamais persistées** (`api/db/services/api_service.py`, `API4ConversationService.append_message`) — le `with DB.atomic()` ajouté par Eurelis autour de `update_by_id` (lui-même décoré `@DB.connection_context()`, dont la sortie ferme la connexion) levait systématiquement `peewee.OperationalError: Attempting to close database while transaction is open` : rollback de la mise à jour à chaque message. Touchait tous les appelants — complétions d'agent (`canvas_service`, `restful_apis/agent_api.py`) et conversations API (`conversation_service`). Retour à la structure upstream (pas de transaction englobante) en conservant les incréments Eurelis `tokens`/`duration` de `append_message`. *Correction (eurelis.14) : ces incréments ne servaient qu'aux conversations API ; aucun appelant du chemin agent ne leur passait de valeur, et les sessions d'agent restaient à 0 tokens et 0 durée jusqu'à `v0.26.3-eurelis.14`.*
 
 ### Tests
 - **Contrats Shield des agents canvas** (`test/eurelis/shield_contract/test_agents_*.py`, feature 031 du Shield) : liste (catégorie agent, `release_time`, sans `dsl`), détail et versions publiées, sessions (release, filtre `user_id`, suppression), upload et téléchargement d'une pièce générée, flux SSE départ → pause `UserFillUp` → reprise. Agent de contrat **sans LLM** (`test/eurelis/fixtures/agent_contract_canvas.json`) créé chez l'utilisateur de test, publié et partagé `team`, exécuté avec la clé d'un membre de l'équipe (helpers `test/eurelis/libs/agents.py`, schémas `test/eurelis/schemas/agents.py`). `test_pause_is_persisted` et `test_resume_does_not_replay_and_finishes` gardent la régression ci-dessus.
