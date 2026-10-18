@@ -27,6 +27,9 @@ from core.logger import logger
 _CONTAINER_QUEUES: dict[SupportLanguage, Queue] = {}
 _CONTAINER_LOCK: asyncio.Lock = asyncio.Lock()
 _CONTAINER_EXECUTION_SEMAPHORES: dict[SupportLanguage, asyncio.Semaphore] = {}
+# Eurelis: background recycling tasks, referenced so they are not garbage-collected mid-run
+_RECYCLE_TASKS: set[asyncio.Task] = set()
+_RECYCLE_MAX_DELAY = 30
 
 
 async def init_containers(size: int) -> tuple[int, int]:
@@ -153,16 +156,28 @@ async def recreate_container(name: str, language: SupportLanguage) -> bool:
 
 
 async def release_container(name: str, language: SupportLanguage):
-    """Asynchronously release a container"""
-    async with _CONTAINER_LOCK:
-        if await container_is_running(name):
-            _CONTAINER_QUEUES[language].put(name)
-            logger.info(f"🟢 Released container: {name} (remaining available: {_CONTAINER_QUEUES[language].qsize()})")
-        else:
-            logger.warning(f"⚠️ Container {name} has crashed, attempting to recreate...")
-            if await recreate_container(name, language):
-                _CONTAINER_QUEUES[language].put(name)
-                logger.info(f"✅ Container {name} successfully recreated and returned to queue")
+    """Asynchronously release a container.
+
+    Eurelis: the container is destroyed and recreated instead of being put back
+    as is. Removing /workspace/<task_id> is not enough: /tmp and any background
+    process started by the code would survive into the next execution, which may
+    come from another tenant (one manager is shared by several RAGFlow instances).
+    The recreation runs in the background so the caller is not delayed.
+    """
+    task = asyncio.create_task(_recycle_container(name, language))
+    _RECYCLE_TASKS.add(task)
+    task.add_done_callback(_RECYCLE_TASKS.discard)
+
+
+async def _recycle_container(name: str, language: SupportLanguage):
+    """Recreate a used container and return it to the pool, retrying until Docker accepts it."""
+    delay = 1
+    while not await recreate_container(name, language):
+        logger.warning(f"⚠️ Container {name} recycling failed, retrying in {delay}s")
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, _RECYCLE_MAX_DELAY)
+    _CONTAINER_QUEUES[language].put(name)
+    logger.info(f"🟢 Recycled container: {name} (remaining available: {_CONTAINER_QUEUES[language].qsize()})")
 
 
 async def allocate_container_blocking(language: SupportLanguage, timeout=10) -> str:
