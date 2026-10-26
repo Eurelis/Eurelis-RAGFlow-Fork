@@ -128,7 +128,8 @@ test/eurelis/
   détail `/searches/{id}` (flags `kb_ids`/`summary`/`related_search`), retrieval `/datasets/search`
   (chunks aux **noms internes**), résumé SSE `/searches/{id}/completions` (référence **enrichie**),
   related `/chat/recommendation`.
-- **Correctifs (p1)** : visibilité des chats partagés en équipe, chemin de retrieval.
+- **Correctifs (p1)** : visibilité des chats partagés en équipe, chemin de retrieval, **colonnes des PDF
+  joints au chat** (AILAB-45 — `FileService.parse` exécuté dans le conteneur sur des PDF synthétiques).
 - **Évolutions (p1)** : stats de conso user + admin (schéma, cohérence des agrégats, **delta llm/embedding**),
   supervision des modèles (lecture, **mutations copy/defaults/delete**, **masquage des clés API**),
   **masquage PII** (opt-in `::pii`, via journal d'audit), **merge `llm_factories.patch.json`** (patch synthétique

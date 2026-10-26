@@ -12,52 +12,20 @@
 # ou suite exécutée contre un hôte distant sans accès au démon Docker local).
 
 import json
-import os
-import shutil
-import subprocess
 
 import pytest
+
+from libs.container import docker_py as _docker_py
+from libs.container import skip_reason
 
 pytestmark = [pytest.mark.p1]
 
 
-def _resolve_container() -> str | None:
-    """Nom du conteneur ragflow sous test : override explicite, sinon découverte par labels compose."""
-    override = os.getenv("RAGFLOW_TEST_CONTAINER")
-    if override:
-        return override
-    if shutil.which("docker") is None:
-        return None
-    proc = subprocess.run(
-        [
-            "docker", "ps",
-            "--filter", "label=com.docker.compose.project=ragflow-test",
-            "--filter", "label=com.docker.compose.service=ragflow-cpu",
-            "--format", "{{.Names}}",
-        ],
-        capture_output=True, text=True,
-    )
-    names = [n for n in proc.stdout.split() if n]
-    return names[0] if names else None
-
-
-def _docker_py(code: str) -> str:
-    """Exécute un snippet Python dans le conteneur RAGFlow sous test et renvoie stdout (strip)."""
-    container = _resolve_container()
-    proc = subprocess.run(
-        ["docker", "exec", container, "python", "-c", code],
-        capture_output=True, text=True, timeout=120,
-    )
-    assert proc.returncode == 0, f"docker exec a échoué (rc={proc.returncode}) : {proc.stderr.strip()}"
-    return proc.stdout.strip()
-
-
 @pytest.fixture(autouse=True)
 def _require_container():
-    if shutil.which("docker") is None:
-        pytest.skip("docker CLI indisponible sur l'hôte de test")
-    if _resolve_container() is None:
-        pytest.skip("conteneur ragflow sous test introuvable (stack de test non lancée ?)")
+    reason = skip_reason()
+    if reason:
+        pytest.skip(reason)
 
 
 def test_spacy_models_installed():
