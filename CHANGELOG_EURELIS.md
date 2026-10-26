@@ -36,6 +36,9 @@ Basé sur RAGFlow `v0.26.3`. Trois correctifs pour la prod Synerga / Diligentia 
   **Surcoût** : ×3,3 en caractères mais **+10 % en tokens** sur la balance de 11 pages, +5 % sur les PDF Diligentia. Caractères U+E0xx et chiffres identiques (cf. AILAB-26).
 - **Sandbox de code : état partagé entre exécutions** (`agent/sandbox/executor_manager/core/container.py`). Le conteneur revenait dans le pool après la seule suppression de `/workspace/<task_id>`. `/tmp` et les processus d'arrière-plan survivaient donc jusqu'à l'exécution suivante, qui peut venir d'un autre cabinet (VM sandbox commune aux instances Synerga). `release_container` détruit et recrée désormais le conteneur, en tâche de fond (AILAB-21).
 
+### Build
+- **Image `ragflow_deps` épinglée** (`Dockerfile`) : upstream a republié `infiniflow/ragflow_deps:latest` le 26/10 avec une nouvelle structure (`/opt/chrome` ; plus de `chrome-linux64-121-0-6167-85`, `chromedriver`, tika, uv, libssl ni `nltk_data`), ce qui cassait le build (`"/chrome-linux64-121-0-6167-85": not found`). Les 7 montages référencent désormais `infiniflow/ragflow_deps:latest-python@sha256:e69762c2…`, dont le contenu (17/09) correspond à la structure attendue par la v0.26.3.
+
 ### Tests
 - **Unitaires — dernier tour d'outils** (`test/eurelis/unit/test_tool_loop_max_rounds.py`, 5 tests sans réseau). LiteLLM et client OpenAI sont mockés : le faux fournisseur refuse, comme Bedrock, un historique d'outils sans `tools=`.
   - Chemin non-streaming avec `max_rounds=1` et un outil appelé à chaque tour, pour `LiteLLMBase` et `Base` : chaque appel déclare `tools`, aucun outil n'est exécuté au dernier tour, la réponse explicite est renvoyée sans `**ERROR**`, et les tokens sont agrégés sur les 3 appels.
