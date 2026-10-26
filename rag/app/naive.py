@@ -358,7 +358,7 @@ def by_somark(
 def by_plaintext(filename, binary=None, from_page=0, to_page=MAXIMUM_PAGE_NUMBER, callback=None, **kwargs):
     layout_recognizer = (kwargs.get("layout_recognizer") or "").strip()
     if (not layout_recognizer) or (layout_recognizer == "Plain Text"):
-        pdf_parser = PlainParser()
+        pdf_parser = PlainParser(layout=kwargs.get("pdf_text_layout", False))
     else:
         tenant_id = kwargs.get("tenant_id")
         if not tenant_id:

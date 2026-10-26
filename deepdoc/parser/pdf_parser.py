@@ -43,6 +43,7 @@ from deepdoc.vision import OCR, AscendLayoutRecognizer, LayoutRecognizer, Recogn
 from rag.nlp import rag_tokenizer
 from rag.prompts.generator import vision_llm_describe_prompt
 from deepdoc.parser.utils import extract_pdf_outlines
+from deepdoc.parser.eurelis_pdf_layout_text import extract_page_text
 from common import settings
 
 
@@ -2003,12 +2004,16 @@ class RAGFlowPdfParser:
 
 
 class PlainParser:
+    def __init__(self, layout=False):
+        # Eurelis (AILAB-45) : layout=True garde les colonnes (pièces jointes de chat uniquement).
+        self.layout = layout
+
     def __call__(self, filename, from_page=0, to_page=MAXIMUM_PAGE_NUMBER, **kwargs):
         lines = []
         try:
             self.pdf = pdf2_read(filename if isinstance(filename, str) else BytesIO(filename))
             for page in self.pdf.pages[from_page:to_page]:
-                lines.extend([t for t in page.extract_text().split("\n")])
+                lines.extend([t for t in extract_page_text(page, self.layout).split("\n")])
         except Exception:
             logging.exception("Outlines exception")
         self.outlines = extract_pdf_outlines(filename)
