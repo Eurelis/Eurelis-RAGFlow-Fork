@@ -4,6 +4,51 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.15] - 2026-10-26
+
+Basé sur RAGFlow `v0.26.3`. Trois correctifs pour la prod Synerga / Diligentia :
+- les agents qui dépassent leur nombre maximal de tours d'outils ne finissent plus en `**ERROR**` sur Bedrock (AILAB-46) ;
+- les PDF joints au chat gardent leur disposition en colonnes (AILAB-45) ;
+- les conteneurs de la sandbox de code sont recréés après chaque exécution (AILAB-21).
+
+### Fixed
+- **Agent en échec après `max_rounds` tours d'outils sur Bedrock** (`rag/llm/chat_model.py`, `LiteLLMBase.async_chat_with_tools` et `Base.async_chat_with_tools`, nouveau module Eurelis `rag/llm/eurelis_tool_rounds.py`). Constaté en prod Diligentia les 19 et 22/10 : l'étape `Agent:PartieChiffree` de l'agent CRM (outil CodeExec, `max_rounds` 6, aval VariableAssigner, donc chemin non-streaming) échouait au bout de 7 à 10 min et d'environ 1 M de tokens avec `litellm.UnsupportedParamsError: Bedrock doesn't support tool calling without `tools=` param specified.`
+
+  **Cause** : dans le chemin non-streaming, si le modèle appelait encore un outil au dernier tour, le repli « Exceed max rounds » appelait `async_chat` / `_async_chat`, qui n'envoient pas `tools`. Or l'historique contient des blocs tool_use/tool_result, et Bedrock Converse refuse une telle requête.
+
+  **Correctif** : le dernier appel déclare les outils (`tools`, `tool_choice="auto"`), comme le chemin streaming qui n'avait pas le bug.
+  - Les `tool_calls` de ce dernier appel ne sont jamais exécutés.
+  - S'il ne produit aucun texte, l'agent répond « L'agent a dépassé N tours d'outils sans produire de réponse. », sans lever d'exception.
+  - La consigne de fin est explicite : « Exceed max rounds: N. Do not call any tool anymore: answer now with the information already gathered. ». Elle est aussi utilisée dans les deux chemins streaming.
+  - L'usage du dernier appel est agrégé comme celui des autres tours (comptage d'`eurelis.14` inchangé), et le démasquage PII est conservé.
+  - Ni `litellm.modify_params` (global), ni `tool_choice="none"` (non pris en charge par Converse, retiré sans bruit par `drop_params`).
+
+  Seules ces deux méthodes avaient le défaut : les quatre occurrences de « Exceed max rounds » sont dans `Base` et `LiteLLMBase`, et aucune autre classe ne surcharge la boucle d'outils.
+
+  **Changement de comportement** : si le dernier appel lève une exception, elle passe par la politique de retry de la boucle, comme dans le chemin streaming. Avant, `async_chat` l'avalait et la renvoyait directement en `**ERROR**`.
+- **PDF joints au chat lus sans leurs colonnes** (`deepdoc/parser/pdf_parser.py`, `rag/app/naive.py`, `api/db/services/file_service.py`, nouveau module Eurelis `deepdoc/parser/eurelis_pdf_layout_text.py`). Signalé sur Synerbot (SM-259) : une balance comptable PDF convertie en Excel avait ses 100 soldes créditeurs saisis en positif. Le mode par défaut de `page.extract_text()` détachait chaque montant de son en-tête Débiteur, Créditeur ou N-1.
+
+  **Correctif** :
+  - `FileService.parse` (pièces jointes de chat et d'agent) lit les PDF en mode `layout` de pypdf, avec repli sur le mode par défaut si erreur ou texte vide.
+  - Seuls les espaces de fin de ligne et les lignes vides en série sont retirés : l'alignement reste intact.
+  - L'ingestion des bases de connaissances est inchangée (`PlainParser()` reste en mode par défaut).
+
+  **Surcoût** : ×3,3 en caractères mais **+10 % en tokens** sur la balance de 11 pages, +5 % sur les PDF Diligentia. Caractères U+E0xx et chiffres identiques (cf. AILAB-26).
+- **Sandbox de code : état partagé entre exécutions** (`agent/sandbox/executor_manager/core/container.py`). Le conteneur revenait dans le pool après la seule suppression de `/workspace/<task_id>`. `/tmp` et les processus d'arrière-plan survivaient donc jusqu'à l'exécution suivante, qui peut venir d'un autre cabinet (VM sandbox commune aux instances Synerga). `release_container` détruit et recrée désormais le conteneur, en tâche de fond (AILAB-21).
+
+### Tests
+- **Unitaires — dernier tour d'outils** (`test/eurelis/unit/test_tool_loop_max_rounds.py`, 5 tests sans réseau). LiteLLM et client OpenAI sont mockés : le faux fournisseur refuse, comme Bedrock, un historique d'outils sans `tools=`.
+  - Chemin non-streaming avec `max_rounds=1` et un outil appelé à chaque tour, pour `LiteLLMBase` et `Base` : chaque appel déclare `tools`, aucun outil n'est exécuté au dernier tour, la réponse explicite est renvoyée sans `**ERROR**`, et les tokens sont agrégés sur les 3 appels.
+  - Même scénario quand le dernier appel renvoie du texte : ce texte est rendu, et `last_usage` couvre tous les tours.
+  - Chemin streaming : repli inchangé (appel avec `tools`, texte relayé, usage agrégé).
+
+  Les 4 tests non-streaming sont rouges sans le correctif.
+- **E2E — colonnes des PDF joints** (`test/eurelis/eurelis_fixes/test_chat_pdf_layout_columns_e2e.py`, `p1`). `FileService.parse` est exécuté dans le conteneur sous test, sur des PDF synthétiques sans donnée client. Les montants restent sous leur en-tête ; les PDF de texte simple et scannés, ainsi que l'ingestion KB, sont inchangés. Rouge sur `eurelis.14`, vert avec le correctif. Complété par des tests unitaires (`test/eurelis/unit/test_pdf_layout_text.py`).
+
+Suite complète sur conteneur patché (AILAB-45 et AILAB-46) : 159 passed, 3 skipped (attendus), contrats Shield `test_agents_*` et comptage des agents verts.
+
+---
+
 ## [v0.26.3-eurelis.14] - 2026-10-12
 
 Basé sur RAGFlow `v0.26.3`. Deux correctifs des agents canvas consommés par le Shield (AILAB-43) : les **boucles de validation** font de nouveau une pause à chaque passage, et la **consommation des agents** (tokens, durée) est enfin comptabilisée.
