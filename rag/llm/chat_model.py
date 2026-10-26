@@ -34,6 +34,7 @@ from enum import StrEnum
 from common.misc_utils import thread_pool_exec
 from common.token_utils import num_tokens_from_string, total_token_count_from_response, usage_from_response
 from rag.llm import FACTORY_DEFAULT_BASE_URL, LITELLM_PROVIDER_PREFIX, SupportedLiteLLMProvider
+from rag.llm.eurelis_tool_rounds import final_round_answer, max_rounds_prompt
 from rag.llm.key_utils import _normalize_replicate_key
 from rag.llm.tool_decorator import FunctionToolSession, is_tool
 from rag.nlp import is_chinese, is_english
@@ -559,16 +560,15 @@ class Base(ABC):
                         ans += self._verbose_tool_use(name, args, err if err else result)
 
                 logging.warning(f"Exceed max rounds: {self.max_rounds}")
-                history.append({"role": "user", "content": f"Exceed max rounds: {self.max_rounds}"})
-                response, token_count = await self._async_chat(history, gen_conf)
-                ans += response
-                # _async_chat set self.last_usage to its own call; fold it into the aggregate.
-                _fb = getattr(self, "last_usage", None) or {}
-                agg_usage["prompt_tokens"] += int(_fb.get("prompt_tokens", 0) or 0)
-                agg_usage["completion_tokens"] += int(_fb.get("completion_tokens", 0) or 0)
-                agg_usage["total_tokens"] += int(_fb.get("total_tokens", 0) or token_count)
-                tk_count = agg_usage["total_tokens"]
-                self.last_usage = dict(agg_usage)
+                # Eurelis (AILAB-46) : dernier appel AVEC les outils déclarés (historique tool_use/tool_result),
+                # tool_calls éventuels ignorés, usage agrégé comme les autres tours.
+                history.append({"role": "user", "content": max_rounds_prompt(self.max_rounds)})
+                response = await self.async_client.chat.completions.create(model=self.model_name, messages=history, tools=self.tools, tool_choice="auto", **gen_conf, **extra_request_kwargs)
+                _add_round_usage(response)
+                message = response.choices[0].message if response.choices else None
+                ans += final_round_answer(message, self.max_rounds)
+                if message and message.content and response.choices[0].finish_reason == "length":
+                    ans = self._length_stop(ans)
                 return ans, tk_count
             except Exception as e:
                 e = await self._exceptions_async(e, attempt)
@@ -706,7 +706,7 @@ class Base(ABC):
                         yield self._verbose_tool_use(name, args, err if err else result)
 
                 logging.warning(f"Exceed max rounds: {self.max_rounds}")
-                history.append({"role": "user", "content": f"Exceed max rounds: {self.max_rounds}"})
+                history.append({"role": "user", "content": max_rounds_prompt(self.max_rounds)})
 
                 response = await self.async_client.chat.completions.create(
                     model=self.model_name,
@@ -2027,17 +2027,25 @@ class LiteLLMBase(ABC):
                         ans += self._verbose_tool_use(name, args, err if err else result)
 
                 logging.warning(f"Exceed max rounds: {self.max_rounds}")
-                history.append({"role": "user", "content": f"Exceed max rounds: {self.max_rounds}"})
-
-                response, token_count = await self.async_chat("", history, gen_conf)
-                ans += response
-                # self.async_chat set self.last_usage to its own call; fold it into the aggregate.
-                _fb = getattr(self, "last_usage", None) or {}
-                agg_usage["prompt_tokens"] += int(_fb.get("prompt_tokens", 0) or 0)
-                agg_usage["completion_tokens"] += int(_fb.get("completion_tokens", 0) or 0)
-                agg_usage["total_tokens"] += int(_fb.get("total_tokens", 0) or token_count)
-                tk_count = agg_usage["total_tokens"]
-                self.last_usage = dict(agg_usage)
+                # Eurelis (AILAB-46) : dernier appel AVEC les outils déclarés — sans `tools=`, Bedrock Converse
+                # refuse un historique tool_use/tool_result. tool_calls éventuels ignorés, usage agrégé.
+                history.append({"role": "user", "content": max_rounds_prompt(self.max_rounds)})
+                completion_args, pii_mapping = self._construct_completion_args(history=history, stream=False, tools=True, **gen_conf)
+                response = await litellm.acompletion(
+                    **completion_args,
+                    drop_params=True,
+                    timeout=self.timeout,
+                )
+                _add_usage(response)
+                message = response.choices[0].message if getattr(response, "choices", None) else None
+                ans += final_round_answer(message, self.max_rounds)
+                if message and message.content and response.choices[0].finish_reason == "length":
+                    ans = self._length_stop(ans)
+                # --- PII UNMASKING (Eurelis) ---
+                if pii_mapping:
+                    from rag.llm.pii_masking import unmask_text
+                    ans = unmask_text(ans, pii_mapping)
+                # --- END PII UNMASKING ---
                 return ans, tk_count
 
             except Exception as e:
@@ -2200,7 +2208,7 @@ class LiteLLMBase(ABC):
                         yield self._verbose_tool_use(name, args, err if err else result)
 
                 logging.warning(f"Exceed max rounds: {self.max_rounds}")
-                history.append({"role": "user", "content": f"Exceed max rounds: {self.max_rounds}"})
+                history.append({"role": "user", "content": max_rounds_prompt(self.max_rounds)})
 
                 completion_args, round_pii_mapping = self._construct_completion_args(history=history, stream=True, tools=True, **gen_conf)
                 completion_args.setdefault("stream_options", {})["include_usage"] = True
