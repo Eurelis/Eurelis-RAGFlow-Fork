@@ -4,6 +4,38 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.16] - non publiée
+
+Basé sur RAGFlow `v0.26.3`. Un correctif pour la prod Synerga / Diligentia : les montants des PDF comptables à polices Type 3 « privées » sont de nouveau lus (AILAB-26).
+
+### Fixed
+- **Montants illisibles dans certains PDF comptables** (`deepdoc/parser/pdf_parser.py`, `PlainParser.__call__`, module Eurelis `deepdoc/parser/eurelis_pdf_layout_text.py`). Signalé sur Synerbot (SM-33) avec les comptes annuels Diligentia : le modèle recevait les libellés corrects mais des cellules vides, et répondait que les valeurs n'étaient pas lisibles.
+
+  **Cause** : le fichier est produit par « 3-Heights PDF Optimization API ». Ses polices sont converties en Type 3 et leur table ToUnicode envoie chiffres, virgule, signe moins et parenthèses vers la zone privée Unicode (PUA, U+E000 à U+F8FF). Le vrai texte n'est porté que par des balises `/Span <</ActualText …>> BDC`, que pypdf ignore. Sur les 10 pages du ticket, 9 729 caractères PUA remplaçaient les montants. Seuls les 191 chiffres de pagination, en Helvetica, passaient. La réimpression en PDF (PDFium) reproduit le même encodage.
+
+  **Correctif** : sur une page dont plus de 5 % des caractères non blancs sont PUA, le texte aligné de pypdf (AILAB-45) est conservé et seuls les caractères PUA sont remplacés.
+  - La table de correspondance est déduite du document : texte pypdf en mode par défaut et texte pypdfium2 (qui honore ActualText), alignés blancs retirés. Aucune valeur codée en dur : un autre producteur (Ruby CombinePDF) appliquant le même encodage est aussi réparé.
+  - Si l'alignement échoue (longueurs différentes, glyphe lu de deux façons, plus de 5 % d'écarts hors PUA), repli sur le texte brut de pypdfium2 : chiffres justes, colonnes perdues.
+  - Toute exception laisse le texte pypdf. Les pages saines sont strictement inchangées et pypdfium2 n'y est pas ouvert.
+  - Appels pdfium sous le verrou partagé de deepdoc (pdfium n'est pas thread-safe). Log INFO `pdf_pua_repaired pages_translated=N pages_raw=M` par document réparé.
+  - Portée : pièces jointes de chat et d'agent (`FileService.parse`), ingestion KB avec l'analyseur « Naïf » et présentations, qui passent toutes par `PlainParser`. L'analyseur DeepDOC basculait déjà en OCR sur ces pages (`_is_garbled_text`, amont #13366 / #13404).
+  - pypdfium2 5.3.0 est déjà dans l'image (dépendance de pdfplumber) : aucun paquet ni Dockerfile modifié.
+
+  **Mesures** (pypdf 6.13.1, pypdfium2 5.3.0, tokens cl100k, mode layout des pièces jointes) :
+
+  | Fichier | Chiffres | Caractères PUA | Tokens | Temps |
+  | --- | --- | --- | --- | --- |
+  | PDF du ticket (10 p.) | 191 → 8 543 | 9 729 → 0 | 37 312 → 12 723 | +0,6 s |
+  | Réimpression (24 p.) | 458 → 15 161 | 17 320 → 5 | 67 879 → 24 426 | +1,2 s |
+
+  Pas de surcoût en tokens : ils baissent d'environ 66 %, chaque caractère PUA coûtant plusieurs tokens. Les 5 PUA restants sont des tirets de titre, sur des pages sous le seuil. Sur 45 PDF sains, le texte extrait est identique à l'octet près.
+
+### Tests
+- **Unitaires — réparation PUA** (`test/eurelis/unit/test_pdf_pua_repair.py`, 27 tests sans réseau). Construction de la table, refus si non alignable, neutralité sous le seuil sans ouvrir pypdfium2, alignement du mode layout préservé, repli brut, robustesse aux exceptions, indice de page absolu, fermeture du document, verrou partagé avec deepdoc.
+- **E2E — chiffres des PDF à glyphes PUA** (`test/eurelis/eurelis_fixes/test_chat_pdf_pua_digits_e2e.py`, `p1`). `FileService.parse` et `PlainParser()` exécutés dans le conteneur sous test, sur une balance synthétique écrite à la main (police Type 3, ToUnicode vers la PUA, vrai texte en ActualText ; fixture `pua_balance_pdf`, sans donnée client). Aucun caractère PUA transmis, tous les montants lisibles, le capital reste sous « Créditeur » (non-régression AILAB-45), ingestion KB des PDF sains inchangée. Rouge sur `eurelis.15` (12 échecs), vert avec le correctif (25/25 avec l'e2e d'AILAB-45), vérifié dans un conteneur `eurelis.15` patché sans stack complète. Suite complète `make -C test/eurelis e2e` à passer avant publication.
+
+---
+
 ## [v0.26.3-eurelis.15] - 2026-10-26
 
 Basé sur RAGFlow `v0.26.3`. Trois correctifs pour la prod Synerga / Diligentia :
