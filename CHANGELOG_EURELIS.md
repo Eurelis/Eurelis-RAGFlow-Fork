@@ -6,9 +6,21 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ## [v0.26.3-eurelis.16] - non publiée
 
-Basé sur RAGFlow `v0.26.3`. Un correctif pour la prod Synerga / Diligentia : les montants des PDF comptables à polices Type 3 « privées » sont de nouveau lus (AILAB-26).
+Basé sur RAGFlow `v0.26.3`. Deux correctifs des pièces jointes pour la prod Synerga / Diligentia :
+- les montants des PDF comptables à polices Type 3 « privées » sont de nouveau lus (AILAB-26) ;
+- les CSV exportés d'Excel FR (Windows-1252, point-virgule) sont lus (AILAB-50).
 
 ### Fixed
+- **CSV joints en échec ou lus en une seule colonne** (`deepdoc/parser/excel_parser.py`, `RAGFlowExcelParser._load_excel_to_workbook` et `markdown`, nouveau module Eurelis `deepdoc/parser/eurelis_csv_text.py`). Signalé sur Synerbot (SM-204) : deux balances âgées jointes en CSV pour une comparaison faisaient échouer la conversation avec `ERROR: Failed to parse CSV and convert to Excel Workbook: 'utf-8' codec can't decode byte 0xe9 in position 25`. Les mêmes fichiers en XLSX passaient.
+
+  **Cause** : les CSV étaient lus par `pd.read_csv(flux)`, donc en UTF-8 strict avec la virgule. Un export Excel FR « CSV (séparateur : point-virgule) » ou d'un logiciel comptable est en Windows-1252 (`0xe9` = « é » dans « Libellé ») et séparé par `;`. Décodé sans détecter le séparateur, il serait sorti en une seule colonne.
+
+  **Correctif** : `read_csv_dataframe` remplace les deux `pd.read_csv` ; le chemin XLSX/XLS ne change pas.
+  - Encodage : BOM (UTF-32, UTF-8, UTF-16), puis UTF-8 strict, puis cp1252 strict, puis latin-1 (ne lève jamais). Pas de chardet (`rag.nlp.decode_text`, amont #19253) : sur ces CSV presque tout ASCII, il répond ISO-8859-1 à 0,73 de confiance, sous son seuil de 0,8, et lèverait à son tour.
+  - Séparateur : `detect_csv_delimiter` repris à l'identique de l'amont #19740 (`,` `;` tabulation `|`, même nombre de colonnes sur 20 lignes), sans ses modifications de `rag/app/table.py` ni du parseur Go.
+  - Cellules lues comme du texte (`dtype=str`, `keep_default_na=False`) : codes comptes à zéro de tête (`0411`), montants à virgule décimale (`12,50`), cellule vide = chaîne vide. **Changement de comportement**, y compris pour les CSV UTF-8 déjà lisibles : une cellule vide ne sort plus en `Note：nan`, `0411` ne devient plus `411`, ni `3` → `3.0`.
+  - Log INFO `csv_read encoding=… delimiter=…` à chaque lecture.
+  - Portée : pièces jointes de chat et d'agent (`FileService.parse`) et ingestion KB des `.csv` par le chunker « naive » et le composant Parser du pipeline (`RAGFlowExcelParser`). `rag/app/table.py` et `rag/app/qa.py` ont leur propre lecture CSV, déjà tolérante : inchangés.
 - **Montants illisibles dans certains PDF comptables** (`deepdoc/parser/pdf_parser.py`, `PlainParser.__call__`, module Eurelis `deepdoc/parser/eurelis_pdf_layout_text.py`). Signalé sur Synerbot (SM-33) avec les comptes annuels Diligentia : le modèle recevait les libellés corrects mais des cellules vides, et répondait que les valeurs n'étaient pas lisibles.
 
   **Cause** : le fichier est produit par « 3-Heights PDF Optimization API ». Ses polices sont converties en Type 3 et leur table ToUnicode envoie chiffres, virgule, signe moins et parenthèses vers la zone privée Unicode (PUA, U+E000 à U+F8FF). Le vrai texte n'est porté que par des balises `/Span <</ActualText …>> BDC`, que pypdf ignore. Sur les 10 pages du ticket, 9 729 caractères PUA remplaçaient les montants. Seuls les 191 chiffres de pagination, en Helvetica, passaient. La réimpression en PDF (PDFium) reproduit le même encodage.
@@ -32,7 +44,11 @@ Basé sur RAGFlow `v0.26.3`. Un correctif pour la prod Synerga / Diligentia : le
 
 ### Tests
 - **Unitaires — réparation PUA** (`test/eurelis/unit/test_pdf_pua_repair.py`, 27 tests sans réseau). Construction de la table, refus si non alignable, neutralité sous le seuil sans ouvrir pypdfium2, alignement du mode layout préservé, repli brut, robustesse aux exceptions, indice de page absolu, fermeture du document, verrou partagé avec deepdoc.
-- **E2E — chiffres des PDF à glyphes PUA** (`test/eurelis/eurelis_fixes/test_chat_pdf_pua_digits_e2e.py`, `p1`). `FileService.parse` et `PlainParser()` exécutés dans le conteneur sous test, sur une balance synthétique écrite à la main (police Type 3, ToUnicode vers la PUA, vrai texte en ActualText ; fixture `pua_balance_pdf`, sans donnée client). Aucun caractère PUA transmis, tous les montants lisibles, le capital reste sous « Créditeur » (non-régression AILAB-45), ingestion KB des PDF sains inchangée. Rouge sur `eurelis.15` (12 échecs), vert avec le correctif (25/25 avec l'e2e d'AILAB-45), vérifié dans un conteneur `eurelis.15` patché sans stack complète. Suite complète `make -C test/eurelis e2e` à passer avant publication.
+- **E2E — chiffres des PDF à glyphes PUA** (`test/eurelis/eurelis_fixes/test_chat_pdf_pua_digits_e2e.py`, `p1`). `FileService.parse` et `PlainParser()` exécutés dans le conteneur sous test, sur une balance synthétique écrite à la main (police Type 3, ToUnicode vers la PUA, vrai texte en ActualText ; fixture `pua_balance_pdf`, sans donnée client). Aucun caractère PUA transmis, tous les montants lisibles, le capital reste sous « Créditeur » (non-régression AILAB-45), ingestion KB des PDF sains inchangée. Rouge sur `eurelis.15` (12 échecs), vert avec le correctif (25/25 avec l'e2e d'AILAB-45), vérifié dans un conteneur `eurelis.15` patché sans stack complète.
+- **Unitaires — encodage et séparateur des CSV** (`test/eurelis/unit/test_csv_encoding_delimiter.py`, 22 tests). Décodage (UTF-8, BOM UTF-8/16/32, cp1252 avec `€` et `œ`, octet 0x81 → latin-1), séparateurs `,` `;` tabulation `|`, champ entre guillemets contenant `;` et `,`, valeurs conservées telles qu'écrites, `RAGFlowExcelParser` (`__call__`, `html`, `markdown`) sur un export Excel FR, cellules vides sans `nan`, XLSX inchangé. Les 3 tests du parseur sont rouges sans le correctif.
+- **E2E — CSV joints** (`test/eurelis/eurelis_fixes/test_chat_csv_encoding_e2e.py`, `p1`). `FileService.parse` exécuté dans le conteneur sous test sur des balances âgées synthétiques (fixture `libs/csv_fixtures.py`) : cp1252 `;`, UTF-8 `,`, UTF-8 BOM `;`. Aucune `ERROR`, toutes les colonnes reconnues. Rouge sur `eurelis.15` (3 échecs : cp1252 en erreur, UTF-8 `;` en une colonne), vert avec le correctif (6/6), même harnais que ci-dessus.
+
+Suite complète `make -C test/eurelis e2e` à passer avant publication.
 
 ---
 
