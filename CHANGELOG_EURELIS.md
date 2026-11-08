@@ -4,7 +4,7 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
-## [v0.26.3-eurelis.16] - non publiée
+## [v0.26.3-eurelis.16] - 2026-11-08
 
 Basé sur RAGFlow `v0.26.3`. Deux correctifs des pièces jointes pour la prod Synerga / Diligentia :
 - les montants des PDF comptables à polices Type 3 « privées » sont de nouveau lus (AILAB-26) ;
@@ -48,7 +48,7 @@ Basé sur RAGFlow `v0.26.3`. Deux correctifs des pièces jointes pour la prod Sy
 - **Unitaires — encodage et séparateur des CSV** (`test/eurelis/unit/test_csv_encoding_delimiter.py`, 22 tests). Décodage (UTF-8, BOM UTF-8/16/32, cp1252 avec `€` et `œ`, octet 0x81 → latin-1), séparateurs `,` `;` tabulation `|`, champ entre guillemets contenant `;` et `,`, valeurs conservées telles qu'écrites, `RAGFlowExcelParser` (`__call__`, `html`, `markdown`) sur un export Excel FR, cellules vides sans `nan`, XLSX inchangé. Les 3 tests du parseur sont rouges sans le correctif.
 - **E2E — CSV joints** (`test/eurelis/eurelis_fixes/test_chat_csv_encoding_e2e.py`, `p1`). `FileService.parse` exécuté dans le conteneur sous test sur des balances âgées synthétiques (fixture `libs/csv_fixtures.py`) : cp1252 `;`, UTF-8 `,`, UTF-8 BOM `;`. Aucune `ERROR`, toutes les colonnes reconnues. Rouge sur `eurelis.15` (3 échecs : cp1252 en erreur, UTF-8 `;` en une colonne), vert avec le correctif (6/6), même harnais que ci-dessus.
 
-Suite complète `make -C test/eurelis e2e` à passer avant publication.
+Suite complète sur conteneur patché (image `eurelis.15` + les 4 fichiers runtime d'AILAB-26 et AILAB-50) : **228 passed, 3 skipped** (attendus : vision, Bedrock réel, image de chunk). Les e2e PDF PUA (14), CSV (6) et colonnes AILAB-45 (11) sont verts, ainsi que les contrats Shield.
 
 ---
 
