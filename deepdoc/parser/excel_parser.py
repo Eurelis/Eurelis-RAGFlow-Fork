@@ -19,6 +19,7 @@ from io import BytesIO
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 
+from deepdoc.parser.eurelis_csv_text import read_csv_dataframe
 from rag.nlp import find_codec
 from rag.utils.lazy_image import LazyImage
 
@@ -42,7 +43,7 @@ class RAGFlowExcelParser:
 
             try:
                 file_like_object.seek(0)
-                df = pd.read_csv(file_like_object, on_bad_lines='skip')
+                df = read_csv_dataframe(file_like_object)  # Eurelis (AILAB-50) : encodage et séparateur détectés
                 return RAGFlowExcelParser._dataframe_to_workbook(df)
 
             except Exception as e_csv:
@@ -260,8 +261,7 @@ class RAGFlowExcelParser:
             df = pd.read_excel(file_like_object)
         except Exception as e:
             logging.warning(f"Parse spreadsheet error: {e}, trying to interpret as CSV file")
-            file_like_object.seek(0)
-            df = pd.read_csv(file_like_object, on_bad_lines='skip')
+            df = read_csv_dataframe(file_like_object)  # Eurelis (AILAB-50) : encodage et séparateur détectés
         df = df.replace(r"^\s*$", "", regex=True)
         return df.to_markdown(index=False)
 
