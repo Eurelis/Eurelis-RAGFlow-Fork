@@ -4,6 +4,47 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.17] - 2026-11-16
+
+Basé sur RAGFlow `v0.26.3`. Un correctif des pièces jointes pour la prod Synerga : les PDF scannés joints au chat ou à un agent ne parviennent plus vides au modèle, leurs pages lui sont transmises en images (AILAB-52).
+
+### Fixed
+- **PDF scannés joints : le modèle ne recevait rien** (`api/db/services/file_service.py`, `FileService.get_files` et `parse`, `agent/canvas.py`, `Canvas.get_files_async`, `api/db/services/dialog_service.py`, nouveau module Eurelis `api/db/services/eurelis_scanned_pdf.py`). Signalé sur Synerbot (SM-298) avec deux lettres URSSAF scannées : le modèle ne recevait que « File: x.pdf Content as following: » et répondait ne rien pouvoir lire.
+
+  **Cause** : les PDF joints sont lus en « Plain Text » (`PlainParser`, pypdf). Un scan n'a pas de couche texte : 0 caractère. Le correctif AILAB-26 n'y peut rien, il n'y a pas de texte à réparer. Les images jointes, elles, partaient déjà au modèle dans les deux chemins.
+
+  **Correctif** : les pages sans texte sont rendues en JPEG et jointes comme des images.
+  - Une seule fonction, `FileService.read_attachments`, pour les assistants (`get_files`, y compris le mode raw des modèles `image2text`) et les agents (`Canvas.get_files_async` → `sys.files`). Les pages arrivent là où arrivent déjà les images jointes : `convert_last_user_msg_to_multimodal` pour les assistants, `_collect_sys_files` du composant LLM pour les agents.
+  - Détection page par page (pypdfium2) : moins de 50 caractères **visibles** → page scannée. Ne comptent pas : le texte en mode de rendu invisible (couche OCR de copieur) et le texte peint sous une image qui le recouvre. La surface d'image est une union sur la page : une lettre livrée en 101 bandes de 2480 × 35 px par page est bien détectée. Une image de fond sous du vrai texte (papier à en-tête) reste une page texte.
+  - Rendu JPEG qualité 85, 150 dpi, grand côté ramené à 1568 px (A4 → 1109 × 1568).
+  - Texte d'accompagnement : `x.pdf : document scanné, N pages transmises en images (une image par page, dans l'ordre : pages 1 à N).` La couche OCR d'un scan n'est jamais transmise.
+  - PDF sans page scannée : lecture actuelle strictement inchangée, un seul appel à `FileService.parse` (AILAB-26, AILAB-45). PDF mixte : les pages texte gardent la lecture actuelle (`parse` reçoit désormais `from_page` / `to_page`), balisées `[x.pdf, pages 1 et 2]`, et chaque page scannée est signalée à sa place.
+  - Plafond `EURELIS_ATTACHMENT_SCAN_MAX_PAGES` (20 par défaut) compté sur toute la requête, le Shield renvoyant toutes les PJ de la session à chaque tour. Au-delà, les premières pages passent et le prompt nomme les pages non lues et demande de prévenir l'utilisateur. `0` désactive la fonction.
+  - Repli : si le modèle ne lit pas les images (ni type `image2text`, ni famille multimodale reconnue à son nom : `claude-`, `gpt-4o`, `gpt-4.1`, `gpt-5`, `gemini`, `pixtral`, `…-vl`…), lecture texte actuelle et une phrase qui signale les pages non lues. Les modèles Bedrock ajoutés à la main (type `chat` seul) sont reconnus à leur nom. Pour un agent, il suffit qu'un composant LLM ou Agent utilise un modèle multimodal.
+  - Toute erreur d'analyse ou de rendu retombe sur la lecture texte. Appels pdfium sous le verrou partagé de deepdoc. Log INFO `scanned_pdf name=… pages=… scanned=… images=… image_bytes=… mixed=…`.
+  - Coût de l'analyse sur un PDF texte : 0,5 s pour 200 pages denses (arrêt dès 50 caractères visibles par page).
+  - Hors périmètre : ingestion des bases (DeepDOC, VisionParser), inchangée.
+- **Journaux de 2 à 3 Mo par requête** (`rag/llm/chat_model.py`, `Base` et `LiteLLMBase`, nouveau module Eurelis `rag/llm/eurelis_history_log.py`). `[HISTORY]` et `[HISTORY STREAMLY]` journalisaient tout l'historique, base64 des images compris. Chaque image (data URI, ou base64 nu des blocs Anthropic et Gemini) y est remplacée par `data:image/jpeg;base64,/9j/…[base64 tronqué, N caractères]`. L'historique envoyé au modèle n'est pas modifié.
+
+  **Mesures** sur les deux lettres du ticket (rendu local, pypdfium2 5.3.0) :
+
+  | Fichier | Pages | Images | JPEG par page | Base64 total | Analyse + rendu |
+  | --- | --- | --- | --- | --- | --- |
+  | Lettre 1 (CCITT 200 dpi) | 4 | 4 | 70 à 388 Ko | 1,45 Mo | 0,13 s |
+  | Lettre 2 (JPEG 300 dpi, 101 bandes/page) | 6 | 6 | 186 à 366 Ko | 2,43 Mo | 0,36 s |
+
+  Preuve de principe du 16/11 en préprod (`bedrock/eu.anthropic.claude-opus-4-8`, pages à 150 dpi) : les deux lettres lues mot à mot, accents compris, passages douteux signalés ; 2,3 à 2,9 k tokens en entrée par page.
+
+  Documentation : `docs/eurelis/knowledge/scanned-pdf-attachments.md`.
+
+### Tests
+- **Unitaires — PDF scannés** (`test/eurelis/unit/test_scanned_pdf_attachments.py`, 46 tests sans stack). Fixtures synthétiques (`libs/pdf_fixtures.py` : PDF texte rendu en image, sans donnée client) : scan pleine page, en 101 bandes, couche OCR invisible, texte sous l'image, PDF mixte, papier à en-tête. Détection, rendu, non-régression des fixtures AILAB-26 et AILAB-45 (aucune page scannée, lecture identique), plafond sur plusieurs PJ et message, plafond à 0, repli sans vision, repli sur erreur de rendu, ordre des PJ, mode raw, chemins assistant et agent, reconnaissance des modèles multimodaux, logs tronqués (`LiteLLMBase.async_chat`). 15 rouges sans le correctif.
+- **E2E — PDF scannés** (`test/eurelis/eurelis_fixes/test_chat_pdf_scanned_pages_e2e.py`, `p1`, 13 tests). Exécutés dans le conteneur avec le vrai `FileService.parse` : texte des PDF sains identique au caractère près, variantes de scan, PDF mixte, plafond, chemins assistant et agent, logs. Verts sur un conteneur `eurelis.16` patché, ainsi que les e2e AILAB-26, AILAB-45 et AILAB-50 (31/31).
+
+Suite complète sur stack de test neuve (image `eurelis.16` + les 6 fichiers runtime d'AILAB-52) : **275 passed, 3 skipped** (attendus : vision, Bedrock réel, image de chunk). Les non-régressions des `.15` (AILAB-45, AILAB-46), `.16` (AILAB-26, AILAB-50) et `.17` sont vertes, ainsi que les contrats Shield. Note d'environnement : Ollama limité à 4 threads (`PARAMETER num_thread 4`) ; avec un thread par vCPU sur un hôte chargé, chaque appel prenait 3 à 10 min et la suite n'avançait plus.
+
+---
+
 ## [v0.26.3-eurelis.16] - 2026-11-08
 
 Basé sur RAGFlow `v0.26.3`. Deux correctifs des pièces jointes pour la prod Synerga / Diligentia :
