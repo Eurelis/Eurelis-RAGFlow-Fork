@@ -1,4 +1,4 @@
-# Eurelis — helper : PDF synthétiques (balance en colonnes, texte simple, scan sans couche texte).
+# Eurelis — helper : PDF synthétiques (balance en colonnes, texte simple, scans, PDF mixte).
 # Fichier propre au fork Eurelis, absent de l'upstream RAGFlow.
 #
 # Générés à la volée (reportlab) : aucune donnée client n'est committée (AILAB-45).
@@ -175,3 +175,110 @@ def _assemble_pdf(objects: list[bytes]) -> bytes:
         out.write(b"%010d 00000 n \n" % offset)
     out.write(b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref))
     return out.getvalue()
+
+
+# --- AILAB-52 : scans synthétiques (PDF texte rendu en image) ---------------------------------------
+
+SCAN_TEXT_LINES = [
+    "Lettre d'observations synthetique, aucune donnee reelle.",
+    "Montant du redressement : 12 345,67 euros au titre de l'annee.",
+    "Reference du dossier : ABC-2026-0042, page {page}.",
+]
+
+
+def _text_page_png(page: int = 1, dpi: int = 150) -> bytes:
+    """Page A4 de texte rendue en PNG : l'équivalent d'une page passée au scanner."""
+    import pypdfium2
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica", 12)
+    y = 780
+    for line in SCAN_TEXT_LINES:
+        c.drawString(60, y, line.format(page=page))
+        y -= 20
+    c.showPage()
+    c.save()
+    pdf = pypdfium2.PdfDocument(buf.getvalue())
+    image = pdf[0].render(scale=dpi / 72).to_pil().convert("L")
+    pdf.close()
+    out = BytesIO()
+    image.save(out, format="PNG")
+    return out.getvalue()
+
+
+def _scan_page(c, page: int, bands: int = 1, invisible_text: bool = False, text_under_image: bool = False) -> None:
+    from PIL import Image
+
+    width, height = A4
+    if text_under_image:  # texte OCR peint AVANT l'image qui le recouvre
+        _ocr_text(c, page, render_mode=0)
+    png = Image.open(BytesIO(_text_page_png(page)))
+    band_h = png.height / bands
+    for k in range(bands):  # bandes pleine largeur, de haut en bas (cas de la lettre « observations »)
+        top, bottom = round(k * band_h), round((k + 1) * band_h)
+        band = BytesIO()
+        png.crop((0, top, png.width, bottom)).save(band, format="PNG")
+        band.seek(0)
+        y = height - bottom * height / png.height
+        c.drawImage(ImageReader(band), 0, y, width=width, height=(bottom - top) * height / png.height)
+    if invisible_text:  # couche OCR de copieur : texte en mode de rendu 3, par-dessus l'image
+        _ocr_text(c, page, render_mode=3)
+
+
+def _ocr_text(c, page: int, render_mode: int) -> None:
+    text = c.beginText(60, 780)
+    text.setFont("Helvetica", 12)
+    text.setTextRenderMode(render_mode)
+    for line in SCAN_TEXT_LINES:
+        text.textLine(line.format(page=page))
+    c.drawText(text)
+
+
+def scan_pdf(pages: int = 1, bands: int = 1, invisible_text: bool = False, text_under_image: bool = False) -> bytes:
+    """Scan synthétique : chaque page est une image (ou `bands` bandes) d'une page de texte."""
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    for page in range(1, pages + 1):
+        _scan_page(c, page, bands=bands, invisible_text=invisible_text, text_under_image=text_under_image)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def mixed_pdf() -> bytes:
+    """Page 1 texte, page 2 scannée, page 3 texte."""
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    for page in (1, 2, 3):
+        if page == 2:
+            _scan_page(c, page)
+        else:
+            c.setFont("Helvetica", 11)
+            y = 780
+            for line in SIMPLE_TEXT_LINES:
+                c.drawString(60, y, f"{line} (page {page})")
+                y -= 18
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def text_over_background_pdf() -> bytes:
+    """Texte réel peint PAR-DESSUS une image de fond pleine page (papier à en-tête) : pas un scan."""
+    from PIL import Image
+
+    img = BytesIO()
+    Image.new("RGB", (620, 877), (235, 240, 250)).save(img, format="PNG")
+    img.seek(0)
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.drawImage(ImageReader(img), 0, 0, width=A4[0], height=A4[1])
+    c.setFont("Helvetica", 11)
+    y = 780
+    for line in SIMPLE_TEXT_LINES:
+        c.drawString(60, y, line)
+        y -= 18
+    c.showPage()
+    c.save()
+    return buf.getvalue()
