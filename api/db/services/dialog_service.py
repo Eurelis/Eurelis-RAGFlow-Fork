@@ -34,6 +34,7 @@ from api.db.services.common_service import CommonService
 from api.db.services.doc_metadata_service import DocMetadataService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.eurelis_prompt_template import render_prompt_template
+from api.db.services.eurelis_scanned_pdf import model_reads_images  # Eurelis (AILAB-52)
 from api.db.services.langfuse_service import TenantLangfuseService
 from api.db.services.llm_service import LLMBundle
 from api.db.services import eurelis_usage_log  # Eurelis — usage_log helpers (query embedding + search)
@@ -312,7 +313,9 @@ async def async_chat_solo(dialog, messages, stream=True, session_id=None):
     factory = model_config.get("llm_factory", "") if model_config else ""
     if "files" in messages[-1]:
         if model_config["model_type"] == "chat":
-            text_attachments, image_attachments = split_file_attachments(messages[-1]["files"])
+            # Eurelis (AILAB-52) : pages des PDF scannés en images seulement si le modèle les lit.
+            vision = model_reads_images(dialog.tenant_id, dialog.llm_id or model_config.get("llm_name"))
+            text_attachments, image_attachments = split_file_attachments(messages[-1]["files"], vision=vision)
         else:
             text_attachments, image_files = split_file_attachments(messages[-1]["files"], raw=True)
         attachments = "\n\n".join(text_attachments)
@@ -417,7 +420,7 @@ def get_models(dialog, trace_context=None, langfuse_session_id=None):
     return kbs, embd_mdl, rerank_mdl, chat_mdl, tts_mdl
 
 
-def split_file_attachments(files: list[dict] | None, raw: bool = False) -> tuple[list[str], list[str] | list[dict]]:
+def split_file_attachments(files: list[dict] | None, raw: bool = False, vision: bool = True) -> tuple[list[str], list[str] | list[dict]]:
     if not files:
         return [], []
 
@@ -431,7 +434,7 @@ def split_file_attachments(files: list[dict] | None, raw: bool = False) -> tuple
         return text_attachments, image_files
 
     image_attachments = []
-    for content in FileService.get_files(files, raw=False):
+    for content in FileService.get_files(files, raw=False, vision=vision):
         if not isinstance(content, str):
             content = str(content)
         if content.strip().startswith("data:"):
@@ -647,7 +650,9 @@ async def async_chat(dialog, messages, stream=True, **kwargs):
         attachments = [doc_id for doc_id in messages[-1]["doc_ids"] if doc_id]
     if "files" in messages[-1]:
         if llm_model_config["model_type"] == "chat":
-            text_attachments, image_attachments = split_file_attachments(messages[-1]["files"])
+            # Eurelis (AILAB-52) : pages des PDF scannés en images seulement si le modèle les lit.
+            vision = model_reads_images(dialog.tenant_id, dialog.llm_id or llm_model_config.get("llm_name"))
+            text_attachments, image_attachments = split_file_attachments(messages[-1]["files"], vision=vision)
         else:
             text_attachments, image_files = split_file_attachments(messages[-1]["files"], raw=True)
         attachments_ = "\n\n".join(text_attachments)

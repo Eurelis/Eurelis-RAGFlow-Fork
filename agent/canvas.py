@@ -14,7 +14,6 @@
 #  limitations under the License.
 #
 import asyncio
-import base64
 import contextvars
 import datetime
 import inspect
@@ -887,21 +886,14 @@ class Canvas(Graph):
         if not files:
             return []
 
-        def image_to_base64(file):
-            return "data:{};base64,{}".format(file["mime_type"], base64.b64encode(FileService.get_blob(file["created_by"], file["id"])).decode("utf-8"))
+        # Eurelis (AILAB-52) : même lecture que les assistants (FileService.read_attachments) ; les pages
+        # des PDF scannés arrivent en data URI, que le composant LLM sépare comme les images jointes.
+        def read():
+            from api.db.services.eurelis_scanned_pdf import canvas_reads_images
 
-        def parse_file(file):
-            blob = FileService.get_blob(file["created_by"], file["id"])
-            return FileService.parse(file["name"], blob, True, file["created_by"], layout_recognize)
+            return FileService.read_attachments(files, layout_recognize=layout_recognize, vision=canvas_reads_images(self))
 
-        loop = asyncio.get_running_loop()
-        tasks = []
-        for file in files:
-            if file["mime_type"].find("image") >= 0:
-                tasks.append(loop.run_in_executor(self._thread_pool, image_to_base64, file))
-                continue
-            tasks.append(loop.run_in_executor(self._thread_pool, parse_file, file))
-        return await asyncio.gather(*tasks)
+        return await asyncio.get_running_loop().run_in_executor(self._thread_pool, read)
 
     def get_files(self, files: Union[None, list[dict]], layout_recognize: str = None) -> list[str]:
         """

@@ -35,6 +35,7 @@ from common.misc_utils import thread_pool_exec
 from common.token_utils import num_tokens_from_string, total_token_count_from_response, usage_from_response
 from rag.llm import FACTORY_DEFAULT_BASE_URL, LITELLM_PROVIDER_PREFIX, SupportedLiteLLMProvider
 from rag.llm.eurelis_tool_rounds import final_round_answer, max_rounds_prompt
+from rag.llm.eurelis_history_log import history_for_log  # Eurelis (AILAB-52)
 from rag.llm.key_utils import _normalize_replicate_key
 from rag.llm.tool_decorator import FunctionToolSession, is_tool
 from rag.nlp import is_chinese, is_english
@@ -287,7 +288,7 @@ class Base(ABC):
         return gen_conf
 
     async def _async_chat_streamly(self, history, gen_conf, **kwargs):
-        logging.info("[HISTORY STREAMLY]" + json.dumps(history, ensure_ascii=False, indent=4))
+        logging.info("[HISTORY STREAMLY]" + history_for_log(history, indent=4))
         reasoning_start = False
 
         gen_conf, extra_request_kwargs = _apply_model_family_policies(
@@ -748,7 +749,7 @@ class Base(ABC):
         assert False, "Shouldn't be here."
 
     async def _async_chat(self, history, gen_conf, **kwargs):
-        logging.info("[HISTORY]" + json.dumps(history, ensure_ascii=False, indent=2))
+        logging.info("[HISTORY]" + history_for_log(history, indent=2))
         if self.model_name.lower().find("qwq") >= 0:
             logging.info(f"[INFO] {self.model_name} detected as reasoning model, using async_chat_streamly")
 
@@ -1688,7 +1689,7 @@ class LiteLLMBase(ABC):
             if not hist or hist[0].get("role") != "system":
                 hist.insert(0, {"role": "system", "content": system})
 
-        logging.info("[HISTORY]" + json.dumps(hist, ensure_ascii=False, indent=2))
+        logging.info("[HISTORY]" + history_for_log(hist, indent=2))
         gen_conf = self._clean_conf(gen_conf)
         _, kwargs = _apply_model_family_policies(
             self.model_name,
@@ -1731,7 +1732,7 @@ class LiteLLMBase(ABC):
     async def async_chat_streamly(self, system, history, gen_conf, **kwargs):
         if system and history and history[0].get("role") != "system":
             history.insert(0, {"role": "system", "content": system})
-        logging.info("[HISTORY STREAMLY]" + json.dumps(history, ensure_ascii=False, indent=4))
+        logging.info("[HISTORY STREAMLY]" + history_for_log(history, indent=4))
         gen_conf = self._clean_conf(gen_conf)
         reasoning_start = False
         total_tokens = 0

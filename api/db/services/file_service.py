@@ -14,7 +14,6 @@
 #  limitations under the License.
 #
 import asyncio
-import base64
 import logging
 import re
 import sys
@@ -580,7 +579,7 @@ class FileService(CommonService):
         return "\n\n".join(res)
 
     @staticmethod
-    def parse(filename, blob, img_base64=True, tenant_id=None, layout_recognize=None):
+    def parse(filename, blob, img_base64=True, tenant_id=None, layout_recognize=None, from_page=0, to_page=MAXIMUM_PAGE_NUMBER):
         from rag.app import audio, email, naive, picture, presentation
         from api.apps import current_user
 
@@ -589,7 +588,7 @@ class FileService(CommonService):
 
         FACTORY = {ParserType.PRESENTATION.value: presentation, ParserType.PICTURE.value: picture, ParserType.AUDIO.value: audio, ParserType.EMAIL.value: email}
         parser_config = {"chunk_token_num": 16096, "delimiter": "\n!?;。；！？", "layout_recognize": layout_recognize or "Plain Text"}
-        kwargs = {"lang": "English", "callback": dummy, "parser_config": parser_config, "from_page": 0, "to_page": MAXIMUM_PAGE_NUMBER, "tenant_id": current_user.id if current_user else tenant_id}
+        kwargs = {"lang": "English", "callback": dummy, "parser_config": parser_config, "from_page": from_page, "to_page": to_page, "tenant_id": current_user.id if current_user else tenant_id}
         # Eurelis (AILAB-45) : PDF joints lus en mode layout (colonnes conservées) ; ingestion KB inchangée.
         kwargs["pdf_text_layout"] = True
         file_type = filename_type(filename)
@@ -796,25 +795,18 @@ class FileService(CommonService):
         return structured(file.filename, filename_type(file.filename), file.read(), file.content_type)
 
     @staticmethod
-    def get_files(files: Union[None, list[dict]], raw: bool = False, layout_recognize: str = None) -> Union[list[str], tuple[list[str], list[dict]]]:
+    def get_files(files: Union[None, list[dict]], raw: bool = False, layout_recognize: str = None, vision: bool = True) -> Union[list[str], tuple[list[str], list[dict]]]:
         if not files:
             return  []
-        def image_to_base64(file):
-            return "data:{};base64,{}".format(file["mime_type"],
-                                        base64.b64encode(FileService.get_blob(file["created_by"], file["id"])).decode("utf-8"))
-        with ThreadPoolExecutor(max_workers=5) as exe:
-            threads = []
-            imgs = []
-            for file in files:
-                if file["mime_type"].find("image") >=0:
-                    if raw:
-                        imgs.append(FileService.get_blob(file["created_by"], file["id"]))
-                    else:
-                        threads.append(exe.submit(image_to_base64, file))
-                    continue
-                threads.append(exe.submit(FileService.parse, file["name"], FileService.get_blob(file["created_by"], file["id"]), True, file["created_by"], layout_recognize))
+        # Eurelis (AILAB-52) : lecture commune aux assistants et aux agents ; pages des PDF scannés en images.
+        entries = FileService.read_attachments(files, layout_recognize=layout_recognize, raw=raw, vision=vision)
+        if raw:
+            return [e for e in entries if isinstance(e, str)], [e for e in entries if not isinstance(e, str)]
+        return entries
 
-            if raw:
-                return [th.result() for th in threads], imgs
-            else:
-                return [th.result() for th in threads]
+    @staticmethod
+    def read_attachments(files: Union[None, list[dict]], layout_recognize: str = None, raw: bool = False, vision: bool = True) -> list:
+        """Eurelis (AILAB-52) : textes, images jointes et pages scannées en images, dans l'ordre des fichiers."""
+        from api.db.services.eurelis_scanned_pdf import read_attachments
+
+        return read_attachments(files, layout_recognize=layout_recognize, raw=raw, vision=vision)
