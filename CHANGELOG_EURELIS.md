@@ -4,6 +4,20 @@ Historique des modifications spécifiques au fork Eurelis de [RAGFlow](https://g
 
 ---
 
+## [v0.26.3-eurelis.18] - non publiée
+
+Basé sur RAGFlow `v0.26.3`. En préparation.
+
+### Tests
+- **Unitaires — recyclage des conteneurs de la sandbox** (`test/eurelis/unit/test_sandbox_container_recycling.py`, 3 tests sans Docker). Non-régression d'AILAB-21 (`eurelis.15`), seul correctif des `.15` à `.17` qui n'avait pas de test. Le module `core.container` de l'executor manager est chargé depuis `agent/sandbox/executor_manager` ; Docker est remplacé par un faux qui enregistre les commandes.
+  - Le conteneur rendu, même en état de marche, est supprimé (`docker rm -f`) puis recréé sous le même nom avant de revenir au pool.
+  - Il n'est jamais disponible avant la fin de la recréation, et `release_container` rend la main sans l'attendre.
+  - Un refus de Docker est réessayé (délais 1, 2 puis 4 s) ; le conteneur ne revient qu'une fois au pool.
+
+  Les 3 tests sont rouges sans le correctif. Ils vérifient le code du gestionnaire, pas l'isolation réelle sous gVisor : l'executor manager tourne hors de l'image `eurelis/ragflow`, le gate e2e ne l'exerce pas.
+
+---
+
 ## [v0.26.3-eurelis.17] - 2026-11-16
 
 Basé sur RAGFlow `v0.26.3`. Un correctif des pièces jointes pour la prod Synerga : les PDF scannés joints au chat ou à un agent ne parviennent plus vides au modèle, leurs pages lui sont transmises en images (AILAB-52).
